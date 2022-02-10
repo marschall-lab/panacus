@@ -5,33 +5,33 @@ use std::io::prelude::*;
 use std::str::{self, FromStr};
 
 /* crate use */
-use clap::Clap;
+use clap::Parser;
 use handlegraph::handle::Handle;
 use quick_csv::Csv;
 use rand::{seq::SliceRandom, thread_rng};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-#[derive(clap::Clap, Debug)]
+#[derive(clap::Parser, Debug)]
 #[clap(
     version = "0.1",
     author = "Daniel Doerr <daniel.doerr@hhu.de>",
-    about = "Print out sequence underlying the walk"
+    about = "Calculate rarefaction statistics from pangenome graph"
 )]
 pub struct Command {
-    #[clap(index = 1, about = "graph in GFA1 format", required = true)]
+    #[clap(index = 1, help = "graph in GFA1 format", required = true)]
     pub graph: String,
 
     #[clap(
         index = 2,
         required = true,
-        about = "File of samples; their order determines the cumulative count"
+        help = "file of samples; their order determines the cumulative count"
     )]
     pub samples: String,
 
     #[clap(
         short = 't',
         long = "type",
-        about = "type: node or edge count",
+        help = "type: node or edge count",
         default_value = "nodes",
         possible_values = &["nodes", "edges"],
     )]
@@ -39,16 +39,16 @@ pub struct Command {
 
     #[clap(
         short = 'r',
-        long = "randomized_repeats",
-        about = "If larger 0, the haplotypes are not added in given order, but by a random permutation. The process is repeated a given number of times",
+        long = "permuted_repeats",
+        help = "if larger 0, the haplotypes are not added in given order, but by a random permutation; the process is repeated a given number of times",
         default_value = "0"
     )]
-    pub randomize: usize,
+    pub permute: usize,
 
     #[clap(
         short = 'f',
         long = "fix_first",
-        about = "Only relevant if randomized_repeats > 0. Fixes the first haplotype to be the first haplotype in all permutations"
+        help = "only relevant if permuted_repeats > 0; fixes the first haplotype to be the first haplotype in all permutations"
     )]
     pub fix_first: bool,
 }
@@ -223,17 +223,26 @@ fn cumulative_count_nodes(
     let mut res: Vec<(String, String, usize, usize, usize)> = Vec::new();
     let mut visited: FxHashMap<u64, FxHashSet<usize>> = FxHashMap::default();
 
-    let mut new = 0;
-    let mut major = 0;
-    let mut shared = 0;
-    for (i, sample_id) in samples.iter().enumerate() {
+    let mut new: usize = 0;
+    for sample_id in samples.iter() {
+        log::info!("cmulative node count of sample {}", sample_id);
         match paths.get(&sample_id.to_lowercase()) {
-            None => log::info!("sample {} not found in GFA!", sample_id),
+            None => {
+                log::info!("sample {} not found in GFA!", sample_id);
+            }
             Some(l) => {
                 let mut cur_hap = None;
                 for (hap_id, seq) in l.iter() {
                     if cur_hap != Some(hap_id) {
                         if cur_hap != None {
+                            let major = visited
+                                .values()
+                                .map(|x| if x.len() >= (res.len() + 1) / 2 { 1 } else { 0 })
+                                .sum();
+                            let shared = visited
+                                .values()
+                                .map(|x| if x.len() == (res.len() + 1) { 1 } else { 0 })
+                                .sum();
                             res.push((
                                 sample_id.clone(),
                                 cur_hap.unwrap().clone(),
@@ -241,38 +250,30 @@ fn cumulative_count_nodes(
                                 major,
                                 shared,
                             ));
-                            major = 0;
-                            shared = 0;
                         }
                         cur_hap = Some(hap_id);
                     }
                     for v in seq.iter() {
                         let vid = v.unpack_number();
-                        visited
-                            .entry(vid)
-                            .and_modify(|x| {
-                                x.insert(i);
-                                if x.len() >= (i + 1) / 2 {
-                                    major += 1;
-                                }
-                                if x.len() == i {
-                                    shared += 1;
-                                }
-                            })
-                            .or_insert({
-                                new += 1;
-                                if i == 0 {
-                                    major += 1;
-                                    shared += 1;
-                                } else if i == 1 {
-                                    major += 1
-                                }
-                                let mut res = FxHashSet::default();
-                                res.insert(i);
-                                res
-                            });
+                        if visited.contains_key(&vid) {
+                            let x = visited.get_mut(&vid).unwrap();
+                            x.insert(res.len());
+                        } else {
+                            new += 1;
+                            let mut x = FxHashSet::default();
+                            x.insert(res.len());
+                            visited.insert(vid, x);
+                        }
                     }
                 }
+                let major = visited
+                    .values()
+                    .map(|x| if x.len() >= (res.len() + 1) / 2 { 1 } else { 0 })
+                    .sum();
+                let shared = visited
+                    .values()
+                    .map(|x| if x.len() == (res.len() + 1) { 1 } else { 0 })
+                    .sum();
                 res.push((
                     sample_id.clone(),
                     cur_hap.unwrap().clone(),
@@ -295,16 +296,25 @@ fn cumulative_count_edges(
     let mut visited: FxHashMap<(Handle, Handle), FxHashSet<usize>> = FxHashMap::default();
 
     let mut new = 0;
-    let mut major = 0;
-    let mut shared = 0;
     for sample_id in samples.iter() {
+        log::info!("cmulative node count of sample {}", sample_id);
         match paths.get(&sample_id.to_lowercase()) {
-            None => log::info!("sample {} not found in GFA!", sample_id),
+            None => {
+                log::info!("sample {} not found in GFA!", sample_id);
+            }
             Some(l) => {
                 let mut cur_hap = None;
                 for (hap_id, seq) in l.iter() {
                     if cur_hap != Some(hap_id) {
                         if cur_hap != None {
+                            let major = visited
+                                .values()
+                                .map(|x| if x.len() >= (res.len() + 1) / 2 { 1 } else { 0 })
+                                .sum();
+                            let shared = visited
+                                .values()
+                                .map(|x| if x.len() == (res.len() + 1) { 1 } else { 0 })
+                                .sum();
                             res.push((
                                 sample_id.clone(),
                                 cur_hap.unwrap().clone(),
@@ -312,15 +322,13 @@ fn cumulative_count_edges(
                                 major,
                                 shared,
                             ));
-                            major = 0;
-                            shared = 0;
                         }
                         cur_hap = Some(hap_id);
                     }
-                    for i in 0..seq.len() - 1 {
-                        let v = seq[i];
-                        let u = seq[i + 1];
-                        let e = if (seq[i].is_reverse() && seq[i + 1].is_reverse())
+                    for j in 0..seq.len() - 1 {
+                        let v = seq[j];
+                        let u = seq[j + 1];
+                        let e = if (seq[j].is_reverse() && seq[j + 1].is_reverse())
                             || (v.is_reverse() != u.is_reverse()
                                 && v.unpack_number() > u.unpack_number())
                         {
@@ -329,31 +337,25 @@ fn cumulative_count_edges(
                             (v, u)
                         };
 
-                        visited
-                            .entry(e)
-                            .and_modify(|x| {
-                                x.insert(i);
-                                if x.len() >= (i + 1) / 2 {
-                                    major += 1;
-                                }
-                                if x.len() == i {
-                                    shared += 1;
-                                }
-                            })
-                            .or_insert({
-                                new += 1;
-                                if i == 0 {
-                                    major += 1;
-                                    shared += 1;
-                                } else if i == 1 {
-                                    major += 1
-                                }
-                                let mut res = FxHashSet::default();
-                                res.insert(i);
-                                res
-                            });
+                        if visited.contains_key(&e) {
+                            let x = visited.get_mut(&e).unwrap();
+                            x.insert(res.len());
+                        } else {
+                            new += 1;
+                            let mut x = FxHashSet::default();
+                            x.insert(res.len());
+                            visited.insert(e, x);
+                        }
                     }
                 }
+                let major = visited
+                    .values()
+                    .map(|x| if x.len() >= (res.len() + 1) / 2 { 1 } else { 0 })
+                    .sum();
+                let shared = visited
+                    .values()
+                    .map(|x| if x.len() == (res.len() + 1) { 1 } else { 0 })
+                    .sum();
                 res.push((
                     sample_id.clone(),
                     cur_hap.unwrap().clone(),
@@ -378,7 +380,14 @@ fn main() -> Result<(), io::Error> {
     let params = Command::parse();
 
     let data = io::BufReader::new(fs::File::open(&params.graph)?);
+    log::info!("loading graph from {}", params.graph);
+
     let mut paths = parse_gfa(data);
+    log::info!(
+        "identified a total of {} paths in {} samples",
+        paths.values().map(|x| x.len()).sum::<usize>(),
+        paths.len()
+    );
 
     // sort paths by haplotype ID
     for (_, seqs) in paths.iter_mut() {
@@ -386,30 +395,50 @@ fn main() -> Result<(), io::Error> {
     }
 
     let data = io::BufReader::new(fs::File::open(&params.samples)?);
+    log::info!("loading samples from {}", params.samples);
     let mut samples = read_samples(data);
 
-    if params.randomize > 0 {
+    if params.permute > 0 {
         writeln!(
             out,
             "iteration\t{}\t{}\t{}",
-            vec!["cumulative_count"; params.randomize].join("\t"),
-            vec!["major"; params.randomize].join("\t"),
-            vec!["shared"; params.randomize].join("\t"),
+            vec!["cumulative_count"; params.permute].join("\t"),
+            vec!["major"; params.permute].join("\t"),
+            vec!["shared"; params.permute].join("\t"),
+        )?;
+        writeln!(
+            out,
+            "\t{}\t{}\t{}",
+            (0..params.permute).map(|x| x.to_string()).collect::<Vec<String>>().join("\t"),
+            (0..params.permute).map(|x| x.to_string()).collect::<Vec<String>>().join("\t"),
+            (0..params.permute).map(|x| x.to_string()).collect::<Vec<String>>().join("\t"),
         )?;
 
         let mut count: Vec<Vec<(String, String, usize, usize, usize)>> = Vec::new();
 
         let mut rng = thread_rng();
-        if params.fix_first {
-            samples[1..].shuffle(&mut rng);
-        } else {
-            samples.shuffle(&mut rng);
+
+        for l in 0..params.permute {
+            if params.fix_first {
+                if l == 0 {
+                    log::info!(
+                        "do cumulative count on {} permutations with sample ({}) being fixed at 1st position", 
+                        params.permute, samples[0]);
+                }
+                samples[1..].shuffle(&mut rng);
+            } else {
+                if l == 0 {
+                    log::info!("do cumulative count on {} permutations", params.permute);
+                }
+                samples.shuffle(&mut rng);
+            }
+            log::info!("iteration {}", l + 1);
+            count.push(match &params.count_type[..] {
+                "nodes" => cumulative_count_nodes(&samples, &paths),
+                "edges" => cumulative_count_edges(&samples, &paths),
+                _ => panic!("Unknown count type {}", params.count_type),
+            });
         }
-        count.push(match &params.count_type[..] {
-            "nodes" => cumulative_count_nodes(&samples, &paths),
-            "edges" => cumulative_count_edges(&samples, &paths),
-            _ => panic!("Unknown count type {}", params.count_type),
-        });
 
         for i in 0..count[0].len() {
             let mut sample_id = format!("{}", i);
@@ -422,22 +451,23 @@ fn main() -> Result<(), io::Error> {
                 sample_id,
                 count
                     .iter()
-                    .map(|x| format!("{}", x[i].2))
+                    .map(move |x| format!("{}", x[i].2))
                     .collect::<Vec<String>>()
                     .join("\t"),
                 count
                     .iter()
-                    .map(|x| format!("{}", x[i].3))
+                    .map(move |x| format!("{}", x[i].3))
                     .collect::<Vec<String>>()
                     .join("\t"),
                 count
                     .iter()
-                    .map(|x| format!("{}", x[i].4))
+                    .map(move |x| format!("{}", x[i].4))
                     .collect::<Vec<String>>()
                     .join("\t")
             )?;
         }
     } else {
+        log::info!("do cumulative count of samples in the order given by the input file");
         writeln!(out, "sample\thaplotype\tcumulative_count\tmajor\tshared")?;
         let count = match &params.count_type[..] {
             "nodes" => cumulative_count_nodes(&samples, &paths),
