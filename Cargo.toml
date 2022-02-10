@@ -1,0 +1,20 @@
+[package]
+name = "pangenome-rarefaction"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap        = {version = "3.0.14", features = [ "derive" ] }
+gfa         = "0.10.0"
+handlegraph = "0.7.0-alpha.9"
+quick-csv  = "0.1"
+rand        = "0.8.4"
+rustc-hash = "1"
+
+# Logging and error management
+anyhow     = "1"
+env_logger = "0.7"
+log        = "0.4"
+thiserror  = "1"
