@@ -9,6 +9,7 @@ edition = "2018"
 clap        = {version = "3.0.14", features = [ "derive" ] }
 gfa         = "0.10.0"
 handlegraph = "0.7.0-alpha.9"
+itertools   = "0.10.3"
 quick-csv  = "0.1"
 rand        = "0.8.4"
 rustc-hash = "1"
