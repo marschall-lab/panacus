@@ -52,10 +52,18 @@ pub struct Command {
         help = "only relevant if permuted_repeats > 0; fixes the first haplotype to be the first haplotype in all permutations"
     )]
     pub fix_first: bool,
+
+    #[clap(
+        short = 'm',
+        long = "merge_chromosomes",
+        help = "merge haplotype paths within samples whose names start with \'chr\'"
+    )]
+    pub merge_chr: bool,
 }
 
 fn parse_gfa<R: io::Read>(
     mut data: io::BufReader<R>,
+    merge_chr: bool,
 ) -> FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>> {
     let mut res: FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>> = FxHashMap::default();
     let reader = Csv::from_reader(&mut data)
@@ -69,7 +77,10 @@ fn parse_gfa<R: io::Read>(
         let fst_col = row_it.next().unwrap();
         if &[b'W'] == fst_col {
             let sample_id = str::from_utf8(row_it.next().unwrap()).unwrap();
-            let hap_id = str::from_utf8(row_it.next().unwrap()).unwrap();
+            let mut hap_id = str::from_utf8(row_it.next().unwrap()).unwrap();
+            if merge_chr && hap_id.to_lowercase().starts_with("chr") {
+                hap_id = "chormosomes";
+            }
             let seq_id = str::from_utf8(row_it.next().unwrap()).unwrap();
             let seq_start = str::from_utf8(row_it.next().unwrap()).unwrap();
             let seq_end = str::from_utf8(row_it.next().unwrap()).unwrap();
@@ -92,8 +103,12 @@ fn parse_gfa<R: io::Read>(
             let segments = path_name.split("#").collect::<Vec<&str>>();
             let sample_id =
                 segments[0].to_string().split(".").collect::<Vec<&str>>()[0].to_string();
-            let hap_id = if segments.len() > 1 {
-                segments[1].to_string()
+            let hap_id: String = if segments.len() > 1 {
+                if segments[2].to_lowercase().starts_with("chr") {
+                    "chromosomes".to_string()
+                } else {
+                    segments[1].to_string()
+                }
             } else {
                 "".to_string()
             };
@@ -446,7 +461,7 @@ fn main() -> Result<(), io::Error> {
     let data = io::BufReader::new(fs::File::open(&params.graph)?);
     log::info!("loading graph from {}", params.graph);
 
-    let paths = parse_gfa(data);
+    let paths = parse_gfa(data, params.merge_chr);
     log::info!(
         "identified a total of {} paths in {} samples",
         paths.values().map(|x| x.len()).sum::<usize>(),
