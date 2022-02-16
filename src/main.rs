@@ -79,7 +79,7 @@ fn parse_gfa<R: io::Read>(
             let sample_id = str::from_utf8(row_it.next().unwrap()).unwrap();
             let mut hap_id = str::from_utf8(row_it.next().unwrap()).unwrap();
             if merge_chr && hap_id.to_lowercase().starts_with("chr") {
-                hap_id = "chormosomes";
+                hap_id = "chromosomes";
             }
             let seq_id = str::from_utf8(row_it.next().unwrap()).unwrap();
             let seq_start = str::from_utf8(row_it.next().unwrap()).unwrap();
@@ -104,7 +104,7 @@ fn parse_gfa<R: io::Read>(
             let sample_id =
                 segments[0].to_string().split(".").collect::<Vec<&str>>()[0].to_string();
             let hap_id: String = if segments.len() > 1 {
-                if segments[1].to_lowercase().starts_with("chr") {
+                if merge_chr && segments[1].to_lowercase().starts_with("chr") {
                     "chromosomes".to_string()
                 } else {
                     segments[1].to_string()
