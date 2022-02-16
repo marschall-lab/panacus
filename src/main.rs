@@ -104,7 +104,7 @@ fn parse_gfa<R: io::Read>(
             let sample_id =
                 segments[0].to_string().split(".").collect::<Vec<&str>>()[0].to_string();
             let hap_id: String = if segments.len() > 1 {
-                if segments[2].to_lowercase().starts_with("chr") {
+                if segments[1].to_lowercase().starts_with("chr") {
                     "chromosomes".to_string()
                 } else {
                     segments[1].to_string()
