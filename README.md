@@ -1,5 +1,9 @@
 # Generate Rarefaction Statistics from Pangenome Graphs
 
+![Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa](docs/nodes_ordered.png?raw=true "Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa")
+
+
+![Cumulative, major, and shared number of edges in hprc-v1.0-pggb.gfa](docs/edges_ordered.png?raw=true "Cumulative, major, and shared number of edges in hprc-v1.0-pggb.gfa")
 ## Build
 
 `cargo build --release`
