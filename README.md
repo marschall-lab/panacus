@@ -19,7 +19,8 @@ ARGS:
 
 OPTIONS:
     -f, --fix_first                     only relevant if permuted_repeats > 0; fixes the first
-                                        haplotype to be the first haplotype in all permutations
+                                        sample (and its haplotypes) to be the first in all
+                                        permutations
     -h, --help                          Print help information
     -r, --permuted_repeats <PERMUTE>    if larger 0, the haplotypes are not added in given order,
                                         but by a random permutation; the process is repeated a given
