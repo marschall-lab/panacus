@@ -49,7 +49,7 @@ pub struct Command {
     #[clap(
         short = 'f',
         long = "fix_first",
-        help = "only relevant if permuted_repeats > 0; fixes the first haplotype to be the first haplotype in all permutations"
+        help = "only relevant if permuted_repeats > 0; fixes the first sample (and its haplotypes) to be the first in all permutations"
     )]
     pub fix_first: bool,
 }
