@@ -248,7 +248,7 @@ fn cumulative_count_edges_one_haplotype(
             let e = if (u.is_reverse() && v.is_reverse())
                 || (u.is_reverse() != v.is_reverse() && u.unpack_number() > v.unpack_number())
             {
-                (v.forward(), u.forward())
+                (v.flip(), u.flip())
             } else {
                 (*u, *v)
             };
