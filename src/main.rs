@@ -6,6 +6,7 @@ use std::str::{self, FromStr};
 
 /* crate use */
 use clap::Parser;
+use gfa::{gfa::GFA, parser::GFAParser};
 use handlegraph::handle::Handle;
 use itertools::Itertools;
 use quick_csv::Csv;
@@ -34,7 +35,7 @@ pub struct Command {
         long = "type",
         help = "type: node or edge count",
         default_value = "nodes",
-        possible_values = &["nodes", "edges"],
+        possible_values = &["nodes", "edges", "bp"],
     )]
     pub count_type: String,
 
@@ -220,6 +221,18 @@ fn parse_walk(walk_data: Vec<u8>) -> Result<Vec<Handle>, String> {
     Ok(walk)
 }
 
+fn parse_length(gfa_file: &str) -> FxHashMap<Handle, usize> {
+    let mut res: FxHashMap<Handle, usize> = FxHashMap::default();
+
+    let parser = GFAParser::new();
+    let gfa: GFA<usize, ()> = parser.parse_file(gfa_file).unwrap();
+    for s in gfa.segments.iter() {
+        res.insert(Handle::pack(s.name, false), s.sequence.len());
+    }
+
+    res
+}
+
 fn read_samples<R: io::Read>(mut data: io::BufReader<R>) -> Vec<String> {
     let mut res = Vec::new();
 
@@ -321,6 +334,52 @@ fn cumulative_count_nodes_one_haplotype(
     (new, major, shared)
 }
 
+fn cumulative_count_bp_one_haplotype(
+    haplotype: &Vec<Vec<Handle>>,
+    haplotype_id: usize,
+    lengths: &FxHashMap<Handle, usize>,
+    visited: &mut FxHashMap<u64, FxHashSet<usize>>,
+) -> (usize, usize, usize) {
+    let mut new = 0;
+
+    for seq in haplotype.iter() {
+        for v in seq.iter() {
+            let vid = v.unpack_number();
+            if visited.contains_key(&vid) {
+                visited.get_mut(&vid).unwrap().insert(haplotype_id);
+            } else {
+                new += lengths.get(&v.forward()).unwrap();
+                let mut x = FxHashSet::default();
+                x.insert(haplotype_id);
+                visited.insert(vid, x);
+            }
+        }
+    }
+
+    let major = visited
+        .iter()
+        .map(|(id, x)| {
+            if x.len() >= (haplotype_id + 1) / 2 {
+                *lengths.get(&Handle::pack(*id, false)).unwrap()
+            } else {
+                0
+            }
+        })
+        .sum();
+    let shared = visited
+        .iter()
+        .map(|(id, x)| {
+            if x.len() == (haplotype_id + 1) {
+                *lengths.get(&Handle::pack(*id, false)).unwrap()
+            } else {
+                0
+            }
+        })
+        .sum();
+
+    (new, major, shared)
+}
+
 fn cumulative_count_edges(
     samples: &Vec<(String, Option<String>)>,
     paths: &FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>>,
@@ -403,7 +462,7 @@ fn cumulative_count_nodes(
                     None => {
                         for (hap_id, hap_seqs) in l.iter().sorted() {
                             log::info!(
-                                "cmulative edge count of haplotype {}:{}",
+                                "cmulative node count of haplotype {}:{}",
                                 sample_id,
                                 hap_id
                             );
@@ -427,13 +486,80 @@ fn cumulative_count_nodes(
                             }
                             Some(hap_seqs) => {
                                 log::info!(
-                                    "cmulative edge count of haplotype {}:{}",
+                                    "cmulative node count of haplotype {}:{}",
                                     sample_id,
                                     hap_id
                                 );
                                 let c = cumulative_count_nodes_one_haplotype(
                                     &hap_seqs,
                                     res.len(),
+                                    &mut visited,
+                                );
+                                new += c.0;
+                                res.push((sample_id.clone(), hap_id.clone(), new, c.1, c.2));
+                            }
+                        };
+                    }
+                };
+            }
+        };
+    }
+
+    res
+}
+
+fn cumulative_count_bp(
+    samples: &Vec<(String, Option<String>)>,
+    paths: &FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>>,
+    lengths: &FxHashMap<Handle, usize>,
+) -> Vec<(String, String, usize, usize, usize)> {
+    let mut res: Vec<(String, String, usize, usize, usize)> = Vec::new();
+    let mut visited: FxHashMap<u64, FxHashSet<usize>> = FxHashMap::default();
+
+    let mut new = 0;
+    for (sample_id, hap_id_op) in samples.iter() {
+        match paths.get(&sample_id.to_lowercase()) {
+            None => {
+                log::info!("sample {} not found in GFA!", sample_id);
+            }
+            Some(l) => {
+                match hap_id_op {
+                    None => {
+                        for (hap_id, hap_seqs) in l.iter().sorted() {
+                            log::info!(
+                                "cmulative bp count of haplotype {}:{}",
+                                sample_id,
+                                hap_id
+                            );
+                            let c = cumulative_count_bp_one_haplotype(
+                                &hap_seqs,
+                                res.len(),
+                                lengths,
+                                &mut visited,
+                            );
+                            new += c.0;
+                            res.push((sample_id.clone(), hap_id.clone(), new, c.1, c.2));
+                        }
+                    }
+                    Some(hap_id) => {
+                        match l.get(hap_id) {
+                            None => {
+                                log::info!(
+                                    "haplotype {} not found in sample {}!",
+                                    hap_id,
+                                    sample_id
+                                );
+                            }
+                            Some(hap_seqs) => {
+                                log::info!(
+                                    "cmulative bp count of haplotype {}:{}",
+                                    sample_id,
+                                    hap_id
+                                );
+                                let c = cumulative_count_bp_one_haplotype(
+                                    &hap_seqs,
+                                    res.len(),
+                                    lengths,
                                     &mut visited,
                                 );
                                 new += c.0;
@@ -531,6 +657,7 @@ fn main() -> Result<(), io::Error> {
             count.push(match &params.count_type[..] {
                 "nodes" => cumulative_count_nodes(&sam_haps, &paths),
                 "edges" => cumulative_count_edges(&sam_haps, &paths),
+                "bp" => cumulative_count_bp(&sam_haps, &paths, &parse_length(&params.graph)),
                 _ => panic!("Unknown count type {}", params.count_type),
             });
         }
@@ -571,6 +698,11 @@ fn main() -> Result<(), io::Error> {
             "edges" => {
                 cumulative_count_edges(&samples.iter().map(|x| (x.clone(), None)).collect(), &paths)
             }
+            "bp" => cumulative_count_bp(
+                &samples.iter().map(|x| (x.clone(), None)).collect(),
+                &paths,
+                &parse_length(&params.graph),
+            ),
             _ => panic!("Unknown count type {}", params.count_type),
         };
 
