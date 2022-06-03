@@ -62,7 +62,7 @@ pub struct Command {
     pub merge_chr: bool,
 
     #[clap(
-        short = 'c',
+        short = 'd',
         long = "minimum_depth",
         help = "minimum depth of a node to be considered in cumulative count",
         default_value = "1"
