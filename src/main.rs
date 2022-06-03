@@ -60,6 +60,14 @@ pub struct Command {
         help = "merge haplotype paths within samples whose names start with \'chr\'"
     )]
     pub merge_chr: bool,
+
+    #[clap(
+        short = 'c',
+        long = "minimum_depth",
+        help = "minimum depth of a node to be considered in cumulative count",
+        default_value = "1"
+    )]
+    pub min_depth: usize,
 }
 
 fn parse_gfa<R: io::Read>(
@@ -252,27 +260,25 @@ fn read_samples<R: io::Read>(mut data: io::BufReader<R>) -> Vec<String> {
 fn cumulative_count_edges_one_haplotype(
     haplotype: &Vec<Vec<Handle>>,
     haplotype_id: usize,
+    depth: &FxHashMap<(Handle, Handle), usize>,
+    min_depth: usize,
     visited: &mut FxHashMap<(Handle, Handle), FxHashSet<usize>>,
 ) -> (usize, usize, usize) {
     let mut new = 0;
 
     for seq in haplotype.iter() {
         for (u, v) in seq.iter().tuple_windows() {
-            let e = if (u.is_reverse() && v.is_reverse())
-                || (u.is_reverse() != v.is_reverse() && u.unpack_number() > v.unpack_number())
-            {
-                (v.flip(), u.flip())
-            } else {
-                (*u, *v)
-            };
+            let e = normalize_edge(u, v);
+            if depth.get(&e).or(Some(&min_depth)).unwrap() >= &min_depth {
 
-            if visited.contains_key(&e) {
-                visited.get_mut(&e).unwrap().insert(haplotype_id);
-            } else {
-                new += 1;
-                let mut x = FxHashSet::default();
-                x.insert(haplotype_id);
-                visited.insert(e, x);
+                if visited.contains_key(&e) {
+                    visited.get_mut(&e).unwrap().insert(haplotype_id);
+                } else {
+                    new += 1;
+                    let mut x = FxHashSet::default();
+                    x.insert(haplotype_id);
+                    visited.insert(e, x);
+                }
             }
         }
     }
@@ -295,23 +301,50 @@ fn cumulative_count_edges_one_haplotype(
     (new, major, shared)
 }
 
+fn normalize_edge(u: &Handle, v: &Handle) -> (Handle, Handle) {
+    if (u.is_reverse() && v.is_reverse())
+        || (u.is_reverse() != v.is_reverse() && u.unpack_number() > v.unpack_number())
+    {
+        (v.flip(), u.flip())
+    } else {
+        (*u, *v)
+    }
+}
+
+
+fn calculate_depth_nodes(cov_count: &mut FxHashMap<Handle, usize>, haplotype: &Vec<Vec<Handle>>) {
+    for s in haplotype {
+        s.into_iter().for_each(|v| *cov_count.entry(v.forward()).or_insert(0) += 1);
+    }
+}
+
+fn calculate_depth_edges(cov_count: &mut FxHashMap<(Handle, Handle), usize>, haplotype: &Vec<Vec<Handle>>) {
+    for s in haplotype {
+        s.into_iter().tuple_windows().for_each(|(u, v)| *cov_count.entry(normalize_edge(u, v)).or_insert(0) += 1);
+    }
+}
+
 fn cumulative_count_nodes_one_haplotype(
     haplotype: &Vec<Vec<Handle>>,
     haplotype_id: usize,
+    depth: &FxHashMap<Handle, usize>,
+    min_depth: usize, 
     visited: &mut FxHashMap<u64, FxHashSet<usize>>,
 ) -> (usize, usize, usize) {
     let mut new = 0;
 
     for seq in haplotype.iter() {
         for v in seq.iter() {
-            let vid = v.unpack_number();
-            if visited.contains_key(&vid) {
-                visited.get_mut(&vid).unwrap().insert(haplotype_id);
-            } else {
-                new += 1;
-                let mut x = FxHashSet::default();
-                x.insert(haplotype_id);
-                visited.insert(vid, x);
+            if depth.get(&v.forward()).or(Some(&min_depth)).unwrap() >= &min_depth {
+                let vid = v.unpack_number();
+                if visited.contains_key(&vid) {
+                    visited.get_mut(&vid).unwrap().insert(haplotype_id);
+                } else {
+                    new += 1;
+                    let mut x = FxHashSet::default();
+                    x.insert(haplotype_id);
+                    visited.insert(vid, x);
+                }
             }
         }
     }
@@ -338,20 +371,24 @@ fn cumulative_count_bp_one_haplotype(
     haplotype: &Vec<Vec<Handle>>,
     haplotype_id: usize,
     lengths: &FxHashMap<Handle, usize>,
+    depth: &FxHashMap<Handle, usize>,
+    min_depth: usize, 
     visited: &mut FxHashMap<u64, FxHashSet<usize>>,
 ) -> (usize, usize, usize) {
     let mut new = 0;
 
     for seq in haplotype.iter() {
         for v in seq.iter() {
-            let vid = v.unpack_number();
-            if visited.contains_key(&vid) {
-                visited.get_mut(&vid).unwrap().insert(haplotype_id);
-            } else {
-                new += lengths.get(&v.forward()).unwrap();
-                let mut x = FxHashSet::default();
-                x.insert(haplotype_id);
-                visited.insert(vid, x);
+            if depth.get(&v.forward()).or(Some(&min_depth)).unwrap() >= &min_depth {
+                let vid = v.unpack_number();
+                if visited.contains_key(&vid) {
+                    visited.get_mut(&vid).unwrap().insert(haplotype_id);
+                } else {
+                    new += lengths.get(&v.forward()).unwrap();
+                    let mut x = FxHashSet::default();
+                    x.insert(haplotype_id);
+                    visited.insert(vid, x);
+                }
             }
         }
     }
@@ -383,9 +420,16 @@ fn cumulative_count_bp_one_haplotype(
 fn cumulative_count_edges(
     samples: &Vec<(String, Option<String>)>,
     paths: &FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>>,
+    min_depth: usize
 ) -> Vec<(String, String, usize, usize, usize)> {
     let mut res: Vec<(String, String, usize, usize, usize)> = Vec::new();
     let mut visited: FxHashMap<(Handle, Handle), FxHashSet<usize>> = FxHashMap::default();
+
+    let mut cov : FxHashMap<(Handle, Handle), usize> = FxHashMap::default();
+
+    if min_depth > 1 {
+        paths.values().for_each(|p| p.values().for_each(|pp| calculate_depth_edges(&mut cov, pp)));
+    }
 
     let mut new = 0;
     for (sample_id, hap_id_op) in samples.iter() {
@@ -405,6 +449,8 @@ fn cumulative_count_edges(
                             let c = cumulative_count_edges_one_haplotype(
                                 &hap_seqs,
                                 res.len(),
+                                &cov,
+                                min_depth,
                                 &mut visited,
                             );
                             new += c.0;
@@ -429,6 +475,8 @@ fn cumulative_count_edges(
                                 let c = cumulative_count_edges_one_haplotype(
                                     &hap_seqs,
                                     res.len(),
+                                &cov,
+                                min_depth,
                                     &mut visited,
                                 );
                                 new += c.0;
@@ -447,9 +495,16 @@ fn cumulative_count_edges(
 fn cumulative_count_nodes(
     samples: &Vec<(String, Option<String>)>,
     paths: &FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>>,
+    min_depth: usize,
 ) -> Vec<(String, String, usize, usize, usize)> {
     let mut res: Vec<(String, String, usize, usize, usize)> = Vec::new();
     let mut visited: FxHashMap<u64, FxHashSet<usize>> = FxHashMap::default();
+
+    let mut cov : FxHashMap<Handle, usize> = FxHashMap::default();
+    if min_depth > 1 {
+        paths.values().for_each(|p| p.values().for_each(|pp| calculate_depth_nodes(&mut cov, pp)));
+    }
+
 
     let mut new = 0;
     for (sample_id, hap_id_op) in samples.iter() {
@@ -469,6 +524,8 @@ fn cumulative_count_nodes(
                             let c = cumulative_count_nodes_one_haplotype(
                                 &hap_seqs,
                                 res.len(),
+                                &cov,
+                                min_depth,
                                 &mut visited,
                             );
                             new += c.0;
@@ -493,6 +550,8 @@ fn cumulative_count_nodes(
                                 let c = cumulative_count_nodes_one_haplotype(
                                     &hap_seqs,
                                     res.len(),
+                                    &cov,
+                                    min_depth,
                                     &mut visited,
                                 );
                                 new += c.0;
@@ -512,9 +571,15 @@ fn cumulative_count_bp(
     samples: &Vec<(String, Option<String>)>,
     paths: &FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>>,
     lengths: &FxHashMap<Handle, usize>,
+    min_depth: usize,
 ) -> Vec<(String, String, usize, usize, usize)> {
     let mut res: Vec<(String, String, usize, usize, usize)> = Vec::new();
     let mut visited: FxHashMap<u64, FxHashSet<usize>> = FxHashMap::default();
+
+    let mut cov : FxHashMap<Handle, usize> = FxHashMap::default();
+    if min_depth > 1 {
+        paths.values().for_each(|p| p.values().for_each(|pp| calculate_depth_nodes(&mut cov, pp)));
+    }
 
     let mut new = 0;
     for (sample_id, hap_id_op) in samples.iter() {
@@ -535,6 +600,8 @@ fn cumulative_count_bp(
                                 &hap_seqs,
                                 res.len(),
                                 lengths,
+                                &cov,
+                                min_depth,
                                 &mut visited,
                             );
                             new += c.0;
@@ -560,6 +627,8 @@ fn cumulative_count_bp(
                                     &hap_seqs,
                                     res.len(),
                                     lengths,
+                                    &cov,
+                                    min_depth,
                                     &mut visited,
                                 );
                                 new += c.0;
@@ -632,7 +701,7 @@ fn main() -> Result<(), io::Error> {
             if params.fix_first {
                 if l == 0 {
                     log::info!(
-                        "do cumulative count on {} permutations with sample ({}) being fixed at 1st position", 
+                        "produce counts on {} permutations with sample ({}) being fixed at 1st position", 
                         params.permute, samples[0]);
                     sam_haps.push((samples[0].clone(), None));
                 }
@@ -644,7 +713,7 @@ fn main() -> Result<(), io::Error> {
                 sam_haps[1..].shuffle(&mut rng);
             } else {
                 if l == 0 {
-                    log::info!("do cumulative count on {} permutations", params.permute);
+                    log::info!("produce counts on {} permutations", params.permute);
                 }
                 for (sample_id, haps) in paths.iter() {
                     for hap_id in haps.keys() {
@@ -655,9 +724,9 @@ fn main() -> Result<(), io::Error> {
             }
             log::info!("iteration {}", l + 1);
             count.push(match &params.count_type[..] {
-                "nodes" => cumulative_count_nodes(&sam_haps, &paths),
-                "edges" => cumulative_count_edges(&sam_haps, &paths),
-                "bp" => cumulative_count_bp(&sam_haps, &paths, &parse_length(&params.graph)),
+                "nodes" => cumulative_count_nodes(&sam_haps, &paths, params.min_depth),
+                "edges" => cumulative_count_edges(&sam_haps, &paths, params.min_depth),
+                "bp" => cumulative_count_bp(&sam_haps, &paths, &parse_length(&params.graph), params.min_depth),
                 _ => panic!("Unknown count type {}", params.count_type),
             });
         }
@@ -689,19 +758,20 @@ fn main() -> Result<(), io::Error> {
             )?;
         }
     } else {
-        log::info!("do cumulative count of samples in the order given by the input file");
-        writeln!(out, "sample\thaplotype\tcumulative_count\tmajor\tshared")?;
+        log::info!("produce counts of samples in the order given by the input file");
+        writeln!(out, "sample\thaplotype\tcumulative\tconsensus\tcommon")?;
         let count = match &params.count_type[..] {
             "nodes" => {
-                cumulative_count_nodes(&samples.iter().map(|x| (x.clone(), None)).collect(), &paths)
+                cumulative_count_nodes(&samples.iter().map(|x| (x.clone(), None)).collect(), &paths, params.min_depth)
             }
             "edges" => {
-                cumulative_count_edges(&samples.iter().map(|x| (x.clone(), None)).collect(), &paths)
+                cumulative_count_edges(&samples.iter().map(|x| (x.clone(), None)).collect(), &paths, params.min_depth)
             }
             "bp" => cumulative_count_bp(
                 &samples.iter().map(|x| (x.clone(), None)).collect(),
                 &paths,
                 &parse_length(&params.graph),
+                params.min_depth,
             ),
             _ => panic!("Unknown count type {}", params.count_type),
         };
