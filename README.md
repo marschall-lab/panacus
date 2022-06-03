@@ -23,7 +23,7 @@ ARGS:
     <SAMPLES>    file of samples; their order determines the cumulative count
 
 OPTIONS:
-    -c, --minimum_depth <MIN_DEPTH>     minimum depth of a node to be considered in cumulative count
+    -d, --minimum_depth <MIN_DEPTH>     minimum depth of a node to be considered in cumulative count
                                         [default: 1]
     -f, --fix_first                     only relevant if permuted_repeats > 0; fixes the first
                                         sample (and its haplotypes) to be the first in all
