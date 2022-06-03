@@ -1,4 +1,4 @@
-# Generate Rarefaction Statistics from Pangenome Graphs
+# Generate Growth Plots from Pangenome Graphs
 
 ![Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa](docs/nodes_ordered.png?raw=true "Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa")
 
