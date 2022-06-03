@@ -470,7 +470,7 @@ fn main() -> Result<(), io::Error> {
 
     let data = io::BufReader::new(fs::File::open(&params.samples)?);
     log::info!("loading samples from {}", params.samples);
-    let mut samples = read_samples(data);
+    let samples = read_samples(data);
 
     if params.permute > 0 {
         writeln!(
@@ -525,7 +525,7 @@ fn main() -> Result<(), io::Error> {
                         sam_haps.push((sample_id.clone(), Some(hap_id.clone())));
                     }
                 }
-                samples.shuffle(&mut rng);
+                sam_haps.shuffle(&mut rng);
             }
             log::info!("iteration {}", l + 1);
             count.push(match &params.count_type[..] {
