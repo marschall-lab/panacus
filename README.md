@@ -1,4 +1,4 @@
-# Generate Growth Plots from Pangenome Graphs
+# Generate Growth Plots for Pangenome Graphs
 
 ![Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa](docs/nodes_ordered.png?raw=true "Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa")
 
