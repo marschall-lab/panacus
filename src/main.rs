@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 #[clap(
     version = "0.1",
     author = "Daniel Doerr <daniel.doerr@hhu.de>",
-    about = "Calculate rarefaction statistics from pangenome graph"
+    about = "Calculate growth statistics for pangenome graphs"
 )]
 pub struct Command {
     #[clap(index = 1, help = "graph in GFA1 format", required = true)]
