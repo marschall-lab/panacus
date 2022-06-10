@@ -411,10 +411,12 @@ fn cumulative_count_bp_one_haplotype(
     lengths: &FxHashMap<Handle, usize>,
     exclude_nodes: &FxHashSet<Handle>,
     visited: &mut FxHashMap<Handle, FxHashSet<usize>>,
+    common_nodes : &FxHashSet<Handle>,
     common_threshold: f64,
     core_threshold: f64,
 ) -> (usize, usize, usize) {
     let mut new = 0;
+    let mut major = 0;
 
     for seq in haplotype.iter() {
         for v in seq.iter() {
@@ -422,26 +424,33 @@ fn cumulative_count_bp_one_haplotype(
             if !exclude_nodes.contains(&vv) {
                 if visited.contains_key(&vv) {
                     visited.get_mut(&vv).unwrap().insert(haplotype_id);
+                    if common_nodes.contains(&vv) {
+                        major += 1
+                    }
                 } else {
                     new += lengths.get(&vv).unwrap();
                     let mut x = FxHashSet::default();
                     x.insert(haplotype_id);
+                    if common_nodes.contains(&vv) {
+                        major += 1
+                    }
                     visited.insert(vv, x);
                 }
             }
         }
     }
 
-    let major = visited
-        .iter()
-        .map(|(v, x)| {
-            if x.len() as f64 >= ((haplotype_id + 1) as f64) * common_threshold {
-                *lengths.get(&v).unwrap()
-            } else {
-                0
-            }
-        })
-        .sum();
+//    let major = visited
+//        .iter()
+//        .map(|(v, x)| {
+//            if x.len() as f64 >= ((haplotype_id + 1) as f64) * common_threshold {
+//                *lengths.get(&v).unwrap()
+//            } else {
+//                0
+//            }
+//        })
+//        .sum();
+
     let shared = visited
         .iter()
         .map(|(v, x)| {
@@ -616,6 +625,7 @@ fn cumulative_count_bp(
     paths: &FxHashMap<String, FxHashMap<String, Vec<Vec<Handle>>>>,
     lengths: &FxHashMap<Handle, usize>,
     exclude_nodes: &FxHashSet<Handle>,
+    common_nodes: &FxHashSet<Handle>,
     t_common: f64,
     t_core: f64,
 ) -> Vec<(String, String, usize, usize, usize)> {
@@ -639,6 +649,7 @@ fn cumulative_count_bp(
                                 lengths,
                                 exclude_nodes,
                                 &mut visited,
+                                common_nodes,
                                 t_common,
                                 t_core,
                             );
@@ -667,6 +678,7 @@ fn cumulative_count_bp(
                                     lengths,
                                     exclude_nodes,
                                     &mut visited,
+                                    common_nodes,
                                     t_common,
                                     t_core,
                                 );
@@ -728,6 +740,8 @@ fn main() -> Result<(), io::Error> {
         }
         log::info!("excluded {} nodes in total", exclude_nodes.len());
     }
+
+    let mut common_nodes: FxHashSet<Handle> = FxHashSet::default();
     if params.min_depth > 1 {
         // XXX should this also be applied in case of counting edges?
         let mut cov: FxHashMap<Handle, usize> = FxHashMap::default();
@@ -740,6 +754,9 @@ fn main() -> Result<(), io::Error> {
         for (v, c) in cov.iter() {
             if c < &params.min_depth {
                 exclude_nodes.insert(v.forward());
+            }
+            if *c as f64 >= &params.common * (samples.len() as f64) {
+                common_nodes.insert(v.forward());
             }
         }
     }
@@ -808,6 +825,7 @@ fn main() -> Result<(), io::Error> {
                     &paths,
                     &parse_length(&params.graph),
                     &exclude_nodes,
+                    &common_nodes,
                     params.common,
                     params.core,
                 ),
@@ -860,6 +878,7 @@ fn main() -> Result<(), io::Error> {
                 &paths,
                 &parse_length(&params.graph),
                 &exclude_nodes,
+                &common_nodes,
                 params.common,
                 params.core,
             ),
