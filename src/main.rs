@@ -87,7 +87,7 @@ pub struct Command {
     pub common: f64,
 
     #[clap(
-        short = 'r',
+        short = 'o',
         long = "core_threshold",
         help = "threshold for core nodes",
         default_value = "1"
