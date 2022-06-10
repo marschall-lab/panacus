@@ -755,7 +755,7 @@ fn main() -> Result<(), io::Error> {
             if c < &params.min_depth {
                 exclude_nodes.insert(v.forward());
             }
-            if *c as f64 >= &params.common * (samples.len() as f64) {
+            if *c as f64 >= &params.common * 2.0 * (samples.len() as f64) {
                 common_nodes.insert(v.forward());
             }
         }
