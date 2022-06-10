@@ -12,6 +12,7 @@ handlegraph = "0.7.0-alpha.9"
 itertools   = "0.10.3"
 quick-csv  = "0.1"
 rand        = "0.8.4"
+regex = "1"
 rustc-hash = "1"
 
 # Logging and error management
