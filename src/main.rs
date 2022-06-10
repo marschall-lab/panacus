@@ -713,8 +713,10 @@ fn main() -> Result<(), io::Error> {
             "Supplied string \"{}\" is not a valid regular expression",
             params.exclude_paths
         )));
+        log::info!("Finding exclusion paths based on regular expression \"{}\"", params.exclude_paths);
         for (pname, paths) in paths.iter() {
             if exclude_path_re.as_ref().unwrap().is_match(pname) {
+                log::info!("+ excluding nodes from \"{}\"", pname);
                 paths.values().for_each(|path| {
                     path.iter().for_each(|vs| {
                         vs.iter().for_each(|v| {
@@ -724,6 +726,7 @@ fn main() -> Result<(), io::Error> {
                 });
             }
         }
+        log::info!("excluded {} nodes in total", exclude_nodes.len());
     }
     if params.min_depth > 1 {
         // XXX should this also be applied in case of counting edges?
