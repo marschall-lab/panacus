@@ -435,7 +435,7 @@ fn cumulative_count_bp_one_haplotype(
     let major = visited
         .iter()
         .map(|(v, x)| {
-            if (x.len() as f64) * common_threshold >= (haplotype_id + 1) as f64 {
+            if x.len() as f64 >= ((haplotype_id + 1) as f64) * common_threshold {
                 *lengths.get(&v).unwrap()
             } else {
                 0
@@ -445,7 +445,7 @@ fn cumulative_count_bp_one_haplotype(
     let shared = visited
         .iter()
         .map(|(v, x)| {
-            if (x.len() as f64) * core_threshold >= (haplotype_id + 1) as f64 {
+            if x.len() as f64 >= ((haplotype_id + 1) as f64) * core_threshold {
                 *lengths.get(&v).unwrap()
             } else {
                 0
