@@ -412,11 +412,13 @@ fn cumulative_count_bp_one_haplotype(
     exclude_nodes: &FxHashSet<Handle>,
     visited: &mut FxHashMap<Handle, FxHashSet<usize>>,
     common_nodes : &FxHashSet<Handle>,
+    core_nodes : &FxHashSet<Handle>,
     common_threshold: f64,
     core_threshold: f64,
 ) -> (usize, usize, usize) {
     let mut new = 0;
     let mut major = 0;
+    let mut shared = 0;
 
     for seq in haplotype.iter() {
         for v in seq.iter() {
@@ -424,15 +426,15 @@ fn cumulative_count_bp_one_haplotype(
             if !exclude_nodes.contains(&vv) {
                 if visited.contains_key(&vv) {
                     visited.get_mut(&vv).unwrap().insert(haplotype_id);
-                    if common_nodes.contains(&vv) {
-                        major += 1
-                    }
                 } else {
                     new += lengths.get(&vv).unwrap();
                     let mut x = FxHashSet::default();
                     x.insert(haplotype_id);
                     if common_nodes.contains(&vv) {
-                        major += 1
+                        major += lengths.get(&vv).unwrap();
+                    }
+                    if core_nodes.contains(&vv) {
+                        shared += lengths.get(&vv).unwrap();
                     }
                     visited.insert(vv, x);
                 }
@@ -450,17 +452,17 @@ fn cumulative_count_bp_one_haplotype(
 //            }
 //        })
 //        .sum();
-
-    let shared = visited
-        .iter()
-        .map(|(v, x)| {
-            if x.len() as f64 >= ((haplotype_id + 1) as f64) * core_threshold {
-                *lengths.get(&v).unwrap()
-            } else {
-                0
-            }
-        })
-        .sum();
+//
+//    let shared = visited
+//        .iter()
+//        .map(|(v, x)| {
+//            if x.len() as f64 >= ((haplotype_id + 1) as f64) * core_threshold {
+//                *lengths.get(&v).unwrap()
+//            } else {
+//                0
+//            }
+//        })
+//        .sum();
 
     (new, major, shared)
 }
@@ -626,6 +628,7 @@ fn cumulative_count_bp(
     lengths: &FxHashMap<Handle, usize>,
     exclude_nodes: &FxHashSet<Handle>,
     common_nodes: &FxHashSet<Handle>,
+    core_nodes: &FxHashSet<Handle>,
     t_common: f64,
     t_core: f64,
 ) -> Vec<(String, String, usize, usize, usize)> {
@@ -633,6 +636,8 @@ fn cumulative_count_bp(
     let mut visited: FxHashMap<Handle, FxHashSet<usize>> = FxHashMap::default();
 
     let mut new = 0;
+    let mut common = 0;
+    let mut core = 0;
     for (sample_id, hap_id_op) in samples.iter() {
         match paths.get(&sample_id.to_lowercase()) {
             None => {
@@ -650,11 +655,14 @@ fn cumulative_count_bp(
                                 exclude_nodes,
                                 &mut visited,
                                 common_nodes,
+                                core_nodes,
                                 t_common,
                                 t_core,
                             );
                             new += c.0;
-                            res.push((sample_id.clone(), hap_id.clone(), new, c.1, c.2));
+                            common += c.1;
+                            core += c.2;
+                            res.push((sample_id.clone(), hap_id.clone(), new, common, core));
                         }
                     }
                     Some(hap_id) => {
@@ -679,11 +687,14 @@ fn cumulative_count_bp(
                                     exclude_nodes,
                                     &mut visited,
                                     common_nodes,
+                                    core_nodes,
                                     t_common,
                                     t_core,
                                 );
                                 new += c.0;
-                                res.push((sample_id.clone(), hap_id.clone(), new, c.1, c.2));
+                                common += c.1;
+                                core += c.2;
+                                res.push((sample_id.clone(), hap_id.clone(), new, common, core));
                             }
                         };
                     }
@@ -742,11 +753,12 @@ fn main() -> Result<(), io::Error> {
     }
 
     let mut common_nodes: FxHashSet<Handle> = FxHashSet::default();
-    if params.min_depth > 1 {
+    let mut core_nodes: FxHashSet<Handle> = FxHashSet::default();
+//    if params.min_depth > 1 {
         // XXX should this also be applied in case of counting edges?
         let mut cov: FxHashMap<Handle, usize> = FxHashMap::default();
         paths.iter().for_each(|(pname, p)| {
-            if exclude_path_re.is_none() || exclude_path_re.as_ref().unwrap().is_match(pname) {
+            if exclude_path_re.is_none() || !exclude_path_re.as_ref().unwrap().is_match(pname) {
                 p.values()
                     .for_each(|pp| calculate_depth_nodes(&mut cov, pp))
             }
@@ -755,11 +767,15 @@ fn main() -> Result<(), io::Error> {
             if c < &params.min_depth {
                 exclude_nodes.insert(v.forward());
             }
-            if *c as f64 >= &params.common * 2.0 * (samples.len() as f64) {
+            if (*c as f64) >= &params.common * 2.0 * (samples.len() as f64) {
                 common_nodes.insert(v.forward());
             }
+            if (*c as f64) >= &params.core * 2.0 * (samples.len() as f64) {
+                core_nodes.insert(v.forward());
+            }
         }
-    }
+//    }
+    log::info!("identified {} common nodes (occuring in {} or more genomes) and {} core nodes (occurring in {} or more genomes)", common_nodes.len(), params.common * 2.0 * (samples.len() as f64), core_nodes.len(), params.core * 2.0 * (samples.len() as f64));
 
     if params.permute > 0 {
         writeln!(
@@ -826,6 +842,7 @@ fn main() -> Result<(), io::Error> {
                     &parse_length(&params.graph),
                     &exclude_nodes,
                     &common_nodes,
+                    &core_nodes,
                     params.common,
                     params.core,
                 ),
@@ -879,6 +896,7 @@ fn main() -> Result<(), io::Error> {
                 &parse_length(&params.graph),
                 &exclude_nodes,
                 &common_nodes,
+                &core_nodes,
                 params.common,
                 params.core,
             ),
