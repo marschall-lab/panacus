@@ -424,9 +424,6 @@ fn cumulative_count_bp_one_haplotype(
             if !exclude_nodes.contains(&vv) {
                 if visited.contains_key(&vv) {
                     visited.get_mut(&vv).unwrap().insert(haplotype_id);
-                    if common_nodes.contains(&vv) {
-                        major += 1
-                    }
                 } else {
                     new += lengths.get(&vv).unwrap();
                     let mut x = FxHashSet::default();
