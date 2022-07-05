@@ -1,2 +1,4 @@
+**/*.swo
+**/*.swp
 Cargo.lock
 target/
