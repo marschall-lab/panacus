@@ -20,13 +20,6 @@ pub struct Command {
     pub graph: String,
 
     #[clap(
-        index = 2,
-        required = true,
-        help = "file of samples; their order determines the cumulative count"
-    )]
-    pub samples: String,
-
-    #[clap(
         short = 't',
         long = "type",
         help = "type: node or edge count",
