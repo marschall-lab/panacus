@@ -1,5 +1,5 @@
 [package]
-name = "pgrowth"
+name = "pangenome-growth"
 version = "0.1.0"
 edition = "2018"
 

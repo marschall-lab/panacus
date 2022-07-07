@@ -1,13 +1,12 @@
 /* standard use */
 use std::fs;
-use std::io;
 use std::io::prelude::*;
 
 /* crate use */
 use clap::Parser;
 
 /* private use */
-use pgrowth;
+mod io;
 
 #[derive(clap::Parser, Debug)]
 #[clap(
@@ -47,7 +46,7 @@ pub struct Command {
     #[clap(
         short = 'g',
         long = "groupby",
-        help = "merge counts from paths by path-group mapping from given tap-separated file",
+        help = "merge counts from paths by path-group mapping from given tab-separated file",
         default_value = ""
     )]
     pub groups: String,
@@ -70,24 +69,24 @@ pub struct Command {
     #[clap(
         short = 'o',
         long = "ordered",
-        help = "rather then computing growth across all permutations of the input, produce counts in the order of the paths in the GFA file, or, if a grouping file is specified, in the order of the provided groups"
+        help = "rather than computing growth across all permutations of the input, produce counts in the order of the paths in the GFA file, or, if a grouping file is specified, in the order of the provided groups"
     )]
     pub ordered: bool,
 }
 
-fn main() -> Result<(), io::Error> {
+fn main() -> Result<(), std::io::Error> {
     env_logger::init();
 
     // print output to stdout
-    let mut out = io::BufWriter::new(std::io::stdout());
+    let mut out = std::io::BufWriter::new(std::io::stdout());
 
     // initialize command line parser & parse command line arguments
     let params = Command::parse();
 
-    let data = io::BufReader::new(fs::File::open(&params.graph)?);
+    let data = std::io::BufReader::new(fs::File::open(&params.graph)?);
     log::info!("loading graph from {}", params.graph);
 
-    let paths = pgrowth::io::parse_gfa(data, false, &":".to_string());
+    let paths = io::parse_gfa(data, false, &":".to_string());
     log::info!(
         "identified a total of {} paths in {} samples",
         paths.values().map(|x| x.len()).sum::<usize>(),
