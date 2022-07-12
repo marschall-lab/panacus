@@ -4,9 +4,11 @@ use std::io::prelude::*;
 
 /* crate use */
 use clap::Parser;
+use rustc_hash::FxHashMap;
 
 /* private use */
 mod io;
+mod core;
 
 #[derive(clap::Parser, Debug)]
 #[clap(
@@ -74,6 +76,11 @@ pub struct Command {
     pub ordered: bool,
 }
 
+fn some_function<T: core::Countable>(map: FxHashMap<T, usize>) {
+    let bla = "nothing";
+
+}
+
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
 
@@ -92,6 +99,9 @@ fn main() -> Result<(), std::io::Error> {
         paths.values().map(|x| x.len()).sum::<usize>(),
         paths.len()
     );
+
+    let test : FxHashMap<core::Node, usize> = FxHashMap::default();
+    some_function(test);
 
     out.flush()?;
     log::info!("done");
