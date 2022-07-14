@@ -7,8 +7,8 @@ use clap::Parser;
 use rustc_hash::FxHashMap;
 
 /* private use */
-mod io;
 mod core;
+mod io;
 
 #[derive(clap::Parser, Debug)]
 #[clap(
@@ -78,11 +78,12 @@ pub struct Command {
 
 fn some_function<T: core::Countable>(map: FxHashMap<T, usize>) {
     let bla = "nothing";
-
 }
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
+
+    log::debug!("node ID has {} bits and mask is {:b}", core::BITS_NODEID, core::MASK_LEN);
 
     // print output to stdout
     let mut out = std::io::BufWriter::new(std::io::stdout());
@@ -100,7 +101,25 @@ fn main() -> Result<(), std::io::Error> {
         paths.len()
     );
 
-    let test : FxHashMap<core::Node, usize> = FxHashMap::default();
+    let v = core::Node::new(23, 100);
+    log::info!(
+        "node 23, hash: {:b}, id: {}, len: {}",
+        v.hash(),
+        v.id(),
+        v.len()
+    );
+
+    let e = core::Edge::new(23, false, 24, true);
+    log::info!(
+        "edge >23<24, hash: {:b}, id1: {}, id2: {}, is_reverse1: {}, is_reverse2: {}",
+        e.hash(),
+        e.id1(),
+        e.id2(),
+        e.is_reverse1(),
+        e.is_reverse2()
+    );
+
+    let test: FxHashMap<core::Node, usize> = FxHashMap::default();
     some_function(test);
 
     out.flush()?;
