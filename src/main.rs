@@ -83,7 +83,11 @@ fn some_function<T: core::Countable>(map: FxHashMap<T, usize>) {
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
 
-    log::debug!("node ID has {} bits and mask is {:b}", core::BITS_NODEID, core::MASK_LEN);
+    log::debug!(
+        "node ID has {} bits and mask is {:b}",
+        core::BITS_NODEID,
+        core::MASK_LEN
+    );
 
     // print output to stdout
     let mut out = std::io::BufWriter::new(std::io::stdout());

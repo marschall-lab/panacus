@@ -28,10 +28,10 @@ impl Node {
             MASK_LEN
         );
         assert!(
-            id < u64::MAX-MASK_LEN,
+            id < u64::MAX - MASK_LEN,
             "node id ({}) >= {}, which is not permissible with this program",
             id,
-            u64::MAX-MASK_LEN
+            u64::MAX - MASK_LEN
         );
         Self((id << BITS_NODEID) + length)
     }
@@ -61,13 +61,13 @@ impl Edge {
             id1 < (u32::MAX - u32::pow(2, 31)).into(),
             "node id ({}) >= {}, which is not permissible with this program",
             id1,
-            u32::MAX - u32::pow(2, 31) 
+            u32::MAX - u32::pow(2, 31)
         );
         assert!(
             id2 < (u32::MAX - u32::pow(2, 31)).into(),
             "node id ({}) >= {}, which is not permissible with this program",
             id2,
-            u32::MAX - u32::pow(2, 31) 
+            u32::MAX - u32::pow(2, 31)
         );
         let mut hash = (id1 << 32) + id2;
         if is_reverse1 {
@@ -88,7 +88,7 @@ impl Edge {
     }
 
     pub fn id2(self) -> u64 {
-        self.0 & (u32::MAX as u64 - 2^32)
+        self.0 & (u32::MAX as u64 - 2 ^ 32)
     }
 
     pub fn is_reverse2(self) -> bool {
