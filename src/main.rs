@@ -117,10 +117,10 @@ fn main() -> Result<(), std::io::Error> {
     log::info!(
         "edge >23<24, hash: {:b}, id1: {}, id2: {}, is_reverse1: {}, is_reverse2: {}",
         e.hash(),
-        e.id1(),
-        e.id2(),
-        e.is_reverse1(),
-        e.is_reverse2()
+        e.uid(),
+        e.vid(),
+        e.u_is_reverse(),
+        e.v_is_reverse()
     );
 
     let test: FxHashMap<core::Node, usize> = FxHashMap::default();
