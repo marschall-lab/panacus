@@ -19,7 +19,7 @@ pub fn parse_gfa<R: std::io::Read>(
         .flexible(true)
         .has_header(false);
 
-    for row in reader.into_iter() {
+    for row in reader {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
         let fst_col = row_it.next().unwrap();
@@ -50,7 +50,7 @@ pub fn parse_gfa<R: std::io::Read>(
             let path_name = str::from_utf8(row_it.next().unwrap()).unwrap();
             let segments = path_name.split(walk_field_sep).collect::<Vec<&str>>();
             let sample_id =
-                segments[0].to_string().split(".").collect::<Vec<&str>>()[0].to_string();
+                segments[0].to_string().split('.').collect::<Vec<&str>>()[0].to_string();
             let hap_id: String = if segments.len() > 1 {
                 if merge_chr && segments[1].to_lowercase().starts_with("chr") {
                     "chromosomes".to_string()

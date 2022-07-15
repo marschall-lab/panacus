@@ -76,8 +76,8 @@ pub struct Command {
     pub ordered: bool,
 }
 
-fn some_function<T: core::Countable>(map: FxHashMap<T, usize>) {
-    let bla = "nothing";
+fn some_function<T: core::Countable>(_map: FxHashMap<T, usize>) {
+    let _bla = "nothing";
 }
 
 fn main() -> Result<(), std::io::Error> {

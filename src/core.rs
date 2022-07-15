@@ -1,12 +1,11 @@
 /* crate use */
-use rustc_hash::FxHashMap;
+
 
 
 pub const MASK_LEN: u64 = 1073741823;
 pub const BITS_NODEID: u8 = 64 - MASK_LEN.count_ones() as u8;
 
 pub trait Countable: Sized + Copy {
-    #[inline]
     fn hash(self) -> u64;
 }
 
@@ -103,7 +102,7 @@ impl Edge {
     }
 
     pub fn vid(self) -> u64 {
-        self.0 & (u32::MAX as u64 - 2 ^ 32)
+        self.0 & ((u32::MAX as u64 - 2) ^ 32)
     }
 
     pub fn v_is_reverse(self) -> bool {
@@ -118,7 +117,7 @@ impl Edge {
 pub struct Abacus<T: Countable>(Vec<T>);
 
 impl Abacus<Node>{
-    fn from_gfa<R: std::io::Read>(mut data: &std::io::BufReader<R>) {
+    fn from_gfa<R: std::io::Read>(_data: &std::io::BufReader<R>) {
         
     }
 }
