@@ -22,6 +22,7 @@ impl Countable for Node {
 }
 
 impl Node {
+    #[inline]
     pub fn new(id: u64, length: u64) -> Self {
         assert!(
             length < MASK_LEN,
@@ -39,14 +40,17 @@ impl Node {
         Self((id << BITS_NODEID) + length)
     }
 
+    #[inline]
     pub fn id(self) -> u64 {
         self.0 >> BITS_NODEID
     }
 
+    #[inline]
     pub fn len(self) -> u64 {
         self.0 & MASK_LEN
     }
 
+    #[inline]
     pub fn hash(self) -> u64 {
         Countable::hash(self)
     }
@@ -59,6 +63,7 @@ impl Countable for Edge {
 }
 
 impl Edge {
+    #[inline]
     pub fn new(id1: u64, is_reverse1: bool, id2: u64, is_reverse2: bool) -> Self {
         assert!(
             id1 < (u32::MAX - u32::pow(2, 31)).into(),
@@ -85,6 +90,7 @@ impl Edge {
         Self(hash)
     }
 
+    #[inline]
     fn canonize(id1: u64, is_reverse1: bool, id2: u64, is_reverse2: bool) -> (u64, bool, u64, bool) {
         if (is_reverse1 && is_reverse2) || (is_reverse1 != is_reverse2 && id1 > id2) {
             (id2, !is_reverse2, id1, !is_reverse1)
@@ -93,22 +99,27 @@ impl Edge {
         }
     }
 
+    #[inline]
     pub fn uid(self) -> u64 {
         (self.0 >> 32) & (u32::MAX - u32::pow(2, 31)) as u64
     }
 
+    #[inline]
     pub fn u_is_reverse(self) -> bool {
         (self.0 & u64::pow(2, 63)) > 0
     }
 
+    #[inline]
     pub fn vid(self) -> u64 {
         self.0 & ((u32::MAX as u64 - 2) ^ 32)
     }
 
+    #[inline]
     pub fn v_is_reverse(self) -> bool {
         (self.0 & u64::pow(2, 31)) > 0
     }
 
+    #[inline]
     pub fn hash(self) -> u64 {
         Countable::hash(self)
     }
