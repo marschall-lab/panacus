@@ -8,7 +8,6 @@ use rustc_hash::FxHashMap;
 
 /* private use */
 mod core;
-mod io;
 
 #[derive(clap::Parser, Debug)]
 #[clap(
@@ -76,8 +75,8 @@ pub struct Command {
     pub ordered: bool,
 }
 
-fn some_function<T: core::Countable>(_map: FxHashMap<T, usize>) {
-    let _bla = "nothing";
+fn some_function<T: core::Countable>(abacus: core::Abacus<T>) {
+    log::info!("abacus has {} paths and {} countables", abacus.paths.len(), abacus.countable2path.len());
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -95,15 +94,15 @@ fn main() -> Result<(), std::io::Error> {
     // initialize command line parser & parse command line arguments
     let params = Command::parse();
 
-    let data = std::io::BufReader::new(fs::File::open(&params.graph)?);
+    let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
     log::info!("loading graph from {}", params.graph);
 
-    let paths = io::parse_gfa(data, false, &":".to_string());
-    log::info!(
-        "identified a total of {} paths in {} samples",
-        paths.values().map(|x| x.len()).sum::<usize>(),
-        paths.len()
-    );
+//    let paths = io::parse_gfa(data, false, &":".to_string());
+//    log::info!(
+//        "identified a total of {} paths in {} samples",
+//        paths.values().map(|x| x.len()).sum::<usize>(),
+//        paths.len()
+//    );
 
     let v = core::Node::new(23, 100);
     log::info!(
@@ -123,8 +122,9 @@ fn main() -> Result<(), std::io::Error> {
         e.v_is_reverse()
     );
 
-    let test: FxHashMap<core::Node, usize> = FxHashMap::default();
-    some_function(test);
+    let abacus = core::Abacus::<core::Node>::from_gfa(&mut data);
+
+    some_function(abacus);
 
     out.flush()?;
     log::info!("done");

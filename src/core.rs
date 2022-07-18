@@ -1,6 +1,11 @@
+/* standard use */
+use std::str;
+
 /* crate use */
+use rustc_hash::FxHashMap;
+use quick_csv::Csv;
 
-
+mod io;
 
 pub const MASK_LEN: u64 = 1073741823;
 pub const BITS_NODEID: u8 = 64 - MASK_LEN.count_ones() as u8;
@@ -125,10 +130,50 @@ impl Edge {
     }
 }
 
-pub struct Abacus<T: Countable>(Vec<T>);
+
+#[derive(Debug, Clone)]
+pub struct Abacus<T: Countable> {
+    pub countable2path: FxHashMap<T, Vec<usize>>,
+    pub paths: Vec<(String, String, String, usize, usize)>,
+
+}
+
 
 impl Abacus<Node>{
-    fn from_gfa<R: std::io::Read>(_data: &std::io::BufReader<R>) {
-        
+    pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Self {
+
+        let mut countable2path: FxHashMap<Node, Vec<usize>> = FxHashMap::default();
+        let mut paths: Vec<(String, String, String, usize, usize)> = Vec::new();
+
+        let mut node2id : FxHashMap<String, u64> = FxHashMap::default();
+        let mut node_count = 0;
+
+        let reader = Csv::from_reader(data)
+            .delimiter(b'\t')
+            .flexible(true)
+            .has_header(false);
+        for row in reader {
+            let row = row.unwrap();
+            let mut row_it = row.bytes_columns();
+            let fst_col = row_it.next().unwrap();
+            if fst_col == &[b'S'] {
+                let sid = row_it.next().expect("segment line has no segment ID");
+                node2id.entry(str::from_utf8(sid).unwrap().to_string()).or_insert({node_count += 1; node_count-1});
+            } else if fst_col == &[b'W'] {
+                let (sample_id, hap_id, seq_id, seq_start, seq_end, walk) = io::parse_walk_line(row_it); 
+                paths.push((sample_id, hap_id, seq_id, seq_start, seq_end));
+                walk.into_iter().for_each(|(node, _)| {
+                    countable2path.entry(Node::new(*node2id.get(&node).expect(&format!("unkown node {}", &node)), 1)).or_insert(Vec::new()).push(paths.len());
+                });
+            } else if &[b'P'] == fst_col {
+                let (sample_id, hap_id, seq_id, seq_start, seq_end, path) = io::parse_path_line(row_it); 
+                paths.push((sample_id, hap_id, seq_id, seq_start, seq_end));
+                path.into_iter().for_each(|(node, _)| {
+                    countable2path.entry(Node::new(*node2id.get(&node).expect(&format!("unkown node {}", &node)), 1)).or_insert(Vec::new()).push(paths.len());
+                });
+            }
+        }
+
+        Abacus { countable2path, paths }
     }
 }
