@@ -1,0 +1,13 @@
+This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021/MacPorts 2021.58693_2) (preloaded format=xelatex)
+ restricted \write18 enabled.
+entering extended mode
+! I can't find file `manuscript.tex'.
+<*> manuscript.tex
+                  
+(Press Enter to retry, or Control-D to exit)
+Please type another input file name: 
+! Emergency stop.
+<*> manuscript.tex
+                  
+No pages of output.
+Transcript written on texput.log.
