@@ -96,10 +96,9 @@ fn main() -> Result<(), std::io::Error> {
     log::info!("first pass through file: counting P/W lines..");
     {
         let mut predata = std::io::BufReader::new(fs::File::open(&params.graph)?);
-        walks_paths = core::count_path_walk_lines(&mut predata);
+        walks_paths = core::io::count_pw_lines(&mut predata);
     }
     log::info!("..done; found {} paths/walks", &walks_paths);
-    
 
     let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
     log::info!("loading graph from {}", params.graph);
@@ -112,11 +111,7 @@ fn main() -> Result<(), std::io::Error> {
     //    );
 
     let v = core::Node::new(23, 100);
-    log::info!(
-        "node 23, id: {}, len: {}",
-        v.id(),
-        v.len()
-    );
+    log::info!("node 23, id: {}, len: {}", v.id(), v.len());
 
     let e = core::Edge::new(23, false, 24, true);
     log::info!(
