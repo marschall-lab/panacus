@@ -1,102 +1,64 @@
 /* standard use */
+use std::hash::{Hash, Hasher};
 use std::str;
 
 /* crate use */
-use rustc_hash::FxHashMap;
 use quick_csv::Csv;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::HashMap;
 
 mod io;
 
-pub const MASK_LEN: u64 = 1073741823;
-pub const BITS_NODEID: u8 = 64 - MASK_LEN.count_ones() as u8;
-
-pub trait Countable: Sized + Copy {
-    fn hash(self) -> u64;
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+pub struct Node {
+    id: u32,
+    len: u32
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Eq, Ord)]
-pub struct Node(u64);
+pub struct Edge {
+    uid: usize,
+    u_is_reverse: bool,
+    vid: usize,
+    v_is_reverse: bool
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Eq, Ord)]
-pub struct Edge(u64);
-
-impl Countable for Node {
-    fn hash(self) -> u64 {
-        self.0
+impl Hash for Node {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
     }
 }
+
 
 impl Node {
-    #[inline]
-    pub fn new(id: u64, length: u64) -> Self {
-        assert!(
-            length < MASK_LEN,
-            "length ({}) of node {} is >= {}, which is not permissible with this program",
-            length,
-            id,
-            MASK_LEN
-        );
-        assert!(
-            id < u64::MAX - MASK_LEN,
-            "node id ({}) >= {}, which is not permissible with this program",
-            id,
-            u64::MAX - MASK_LEN
-        );
-        Self((id << BITS_NODEID) + length)
+    pub fn new(id: u32, length: u32) -> Self {
+        Self { id: id, len: length}
     }
 
-    #[inline]
-    pub fn id(self) -> u64 {
-        self.0 >> BITS_NODEID
+    pub fn id(self) -> u32 {
+        self.id
     }
 
-    #[inline]
-    pub fn len(self) -> u64 {
-        self.0 & MASK_LEN
-    }
-
-    #[inline]
-    pub fn hash(self) -> u64 {
-        Countable::hash(self)
-    }
-}
-
-impl Countable for Edge {
-    fn hash(self) -> u64 {
-        self.0
+    pub fn len(self) -> u32 {
+        self.len
     }
 }
 
 impl Edge {
     #[inline]
-    pub fn new(id1: u64, is_reverse1: bool, id2: u64, is_reverse2: bool) -> Self {
-        assert!(
-            id1 < (u32::MAX - u32::pow(2, 31)).into(),
-            "node id ({}) >= {}, which is not permissible with this program",
-            id1,
-            u32::MAX - u32::pow(2, 31)
-        );
-        assert!(
-            id2 < (u32::MAX - u32::pow(2, 31)).into(),
-            "node id ({}) >= {}, which is not permissible with this program",
-            id2,
-            u32::MAX - u32::pow(2, 31)
-        );
-
-        let (uid, u_is_reverse, vid, v_is_reverse) = Edge::canonize(id1, is_reverse1, id2, is_reverse2);
-        
-        let mut hash = (uid << 32) + vid;
-        if u_is_reverse {
-            hash += u64::pow(2, 63);
-        }
-        if v_is_reverse {
-            hash += u64::pow(2, 31);
-        }
-        Self(hash)
+    pub fn new(id1: usize, is_reverse1: bool, id2: usize, is_reverse2: bool) -> Self {
+        let (uid, u_is_reverse, vid, v_is_reverse) =
+            Edge::canonize(id1, is_reverse1, id2, is_reverse2);
+        Self{ uid, u_is_reverse, vid, v_is_reverse }
     }
 
     #[inline]
-    fn canonize(id1: u64, is_reverse1: bool, id2: u64, is_reverse2: bool) -> (u64, bool, u64, bool) {
+    fn canonize(
+        id1: usize,
+        is_reverse1: bool,
+        id2: usize,
+        is_reverse2: bool,
+    ) -> (usize, bool, usize, bool) {
         if (is_reverse1 && is_reverse2) || (is_reverse1 != is_reverse2 && id1 > id2) {
             (id2, !is_reverse2, id1, !is_reverse1)
         } else {
@@ -104,48 +66,36 @@ impl Edge {
         }
     }
 
-    #[inline]
-    pub fn uid(self) -> u64 {
-        (self.0 >> 32) & (u32::MAX - u32::pow(2, 31)) as u64
+    pub fn uid(self) -> usize {
+        self.uid
     }
 
-    #[inline]
     pub fn u_is_reverse(self) -> bool {
-        (self.0 & u64::pow(2, 63)) > 0
+        self.u_is_reverse
     }
 
-    #[inline]
-    pub fn vid(self) -> u64 {
-        self.0 & ((u32::MAX as u64 - 2) ^ 32)
+    pub fn vid(self) -> usize {
+        self.vid
     }
 
-    #[inline]
     pub fn v_is_reverse(self) -> bool {
-        (self.0 & u64::pow(2, 31)) > 0
+        self.v_is_reverse
     }
 
-    #[inline]
-    pub fn hash(self) -> u64 {
-        Countable::hash(self)
-    }
 }
-
 
 #[derive(Debug, Clone)]
-pub struct Abacus<T: Countable> {
+pub struct Abacus<T> {
     pub countable2path: FxHashMap<T, Vec<usize>>,
     pub paths: Vec<(String, String, String, usize, usize)>,
-
 }
 
-
-impl Abacus<Node>{
+impl Abacus<Node> {
     pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Self {
-
         let mut countable2path: FxHashMap<Node, Vec<usize>> = FxHashMap::default();
         let mut paths: Vec<(String, String, String, usize, usize)> = Vec::new();
 
-        let mut node2id : FxHashMap<String, u64> = FxHashMap::default();
+        let mut node2id: FxHashMap<String, u32> = FxHashMap::default();
         let mut node_count = 0;
 
         let reader = Csv::from_reader(data)
@@ -158,22 +108,99 @@ impl Abacus<Node>{
             let fst_col = row_it.next().unwrap();
             if fst_col == &[b'S'] {
                 let sid = row_it.next().expect("segment line has no segment ID");
-                node2id.entry(str::from_utf8(sid).unwrap().to_string()).or_insert({node_count += 1; node_count-1});
+                node2id
+                    .entry(str::from_utf8(sid).unwrap().to_string())
+                    .or_insert({
+                        node_count += 1;
+                        node_count - 1
+                    });
+                countable2path.insert(Node::new(node_count -1, 1), Vec::new());
             } else if fst_col == &[b'W'] {
-                let (sample_id, hap_id, seq_id, seq_start, seq_end, walk) = io::parse_walk_line(row_it); 
+                let (sample_id, hap_id, seq_id, seq_start, seq_end, walk) =
+                    io::parse_walk_line(row_it);
                 paths.push((sample_id, hap_id, seq_id, seq_start, seq_end));
                 walk.into_iter().for_each(|(node, _)| {
-                    countable2path.entry(Node::new(*node2id.get(&node).expect(&format!("unkown node {}", &node)), 1)).or_insert(Vec::new()).push(paths.len());
+                    countable2path
+                        .get_mut(&Node::new(
+                            *node2id.get(&node).expect(&format!("unknown node {}", &node)),
+                            1,
+                        )).expect(&format!("unknown node {}", &node))
+                        .push(paths.len());
                 });
             } else if &[b'P'] == fst_col {
-                let (sample_id, hap_id, seq_id, seq_start, seq_end, path) = io::parse_path_line(row_it); 
+                let (sample_id, hap_id, seq_id, seq_start, seq_end, path) =
+                    io::parse_path_line(row_it);
                 paths.push((sample_id, hap_id, seq_id, seq_start, seq_end));
-                path.into_iter().for_each(|(node, _)| {
-                    countable2path.entry(Node::new(*node2id.get(&node).expect(&format!("unkown node {}", &node)), 1)).or_insert(Vec::new()).push(paths.len());
-                });
+                let l = paths.len();
+                let cur_len = countable2path.len();
+                log::debug!("updating count data structure..");
+                for (node, _) in path.into_iter() {
+                    countable2path
+                        .entry(Node::new(
+                            *node2id.get(&node).expect(&format!("unkown node {}", &node)),
+                            1,
+                        ))
+                        .or_insert(Vec::new())
+                        .push(l);
+                }
+                log::debug!(
+                    "done; data structure has now {} more elements",
+                    countable2path.len() - cur_len
+                );
             }
         }
 
-        Abacus { countable2path, paths }
+        Abacus {
+            countable2path,
+            paths,
+        }
     }
 }
+
+pub fn count_path_walk_lines<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> usize {
+    let mut count = 0;
+
+    let reader = Csv::from_reader(data)
+        .delimiter(b'\t')
+        .flexible(true)
+        .has_header(false);
+    for row in reader {
+        let row = row.unwrap();
+        let mut row_it = row.bytes_columns();
+        let fst_col = row_it.next().unwrap();
+        if fst_col == &[b'W'] || fst_col == &[b'P'] {
+            count += 1;
+        } 
+    }
+
+    count
+
+}
+
+
+//pub fn count_path_walk_lines(data: &mut dyn std::io::Read) -> usize {
+//    let mut count = 0;
+//
+//    let mut it = data.bytes();
+//    let mut b = it.next();
+//    while b.is_some() {
+//        if let Some(res) = &b {
+//            let c = res.as_ref().unwrap();
+//            if c == &b'\n' || c == &b'\r' {
+//                b = it.next();
+//                if let Some(res) = &b {
+//                    let c = res.as_ref().unwrap();
+//                    if c == &b'P' || c == &b'W' {
+//                        count += 1;
+//                        b = it.next();
+//                    }
+//                }
+//            }
+//        } else {
+//            b = it.next();
+//        }
+//    }
+//
+//    count
+//
+//}

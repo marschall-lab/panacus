@@ -75,18 +75,16 @@ pub struct Command {
     pub ordered: bool,
 }
 
-fn some_function<T: core::Countable>(abacus: core::Abacus<T>) {
-    log::info!("abacus has {} paths and {} countables", abacus.paths.len(), abacus.countable2path.len());
+fn some_function<T>(abacus: core::Abacus<T>) {
+    log::info!(
+        "abacus has {} paths and {} countables",
+        abacus.paths.len(),
+        abacus.countable2path.len()
+    );
 }
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
-
-    log::debug!(
-        "node ID has {} bits and mask is {:b}",
-        core::BITS_NODEID,
-        core::MASK_LEN
-    );
 
     // print output to stdout
     let mut out = std::io::BufWriter::new(std::io::stdout());
@@ -94,28 +92,35 @@ fn main() -> Result<(), std::io::Error> {
     // initialize command line parser & parse command line arguments
     let params = Command::parse();
 
+    let mut walks_paths = 0;
+    log::info!("first pass through file: counting P/W lines..");
+    {
+        let mut predata = std::io::BufReader::new(fs::File::open(&params.graph)?);
+        walks_paths = core::count_path_walk_lines(&mut predata);
+    }
+    log::info!("..done; found {} paths/walks", &walks_paths);
+    
+
     let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
     log::info!("loading graph from {}", params.graph);
 
-//    let paths = io::parse_gfa(data, false, &":".to_string());
-//    log::info!(
-//        "identified a total of {} paths in {} samples",
-//        paths.values().map(|x| x.len()).sum::<usize>(),
-//        paths.len()
-//    );
+    //    let paths = io::parse_gfa(data, false, &":".to_string());
+    //    log::info!(
+    //        "identified a total of {} paths in {} samples",
+    //        paths.values().map(|x| x.len()).sum::<usize>(),
+    //        paths.len()
+    //    );
 
     let v = core::Node::new(23, 100);
     log::info!(
-        "node 23, hash: {:b}, id: {}, len: {}",
-        v.hash(),
+        "node 23, id: {}, len: {}",
         v.id(),
         v.len()
     );
 
     let e = core::Edge::new(23, false, 24, true);
     log::info!(
-        "edge >23<24, hash: {:b}, id1: {}, id2: {}, is_reverse1: {}, is_reverse2: {}",
-        e.hash(),
+        "edge >23<24, id1: {}, id2: {}, is_reverse1: {}, is_reverse2: {}",
         e.uid(),
         e.vid(),
         e.u_is_reverse(),
