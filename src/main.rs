@@ -31,7 +31,7 @@ pub struct Command {
     #[clap(
         short = 's',
         long = "subset",
-        help = "produce counts by subsetting the graph to a given list of paths or path coordinates (3-column tab-separated file)",
+        help = "produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
         default_value = ""
     )]
     pub positive_list: String,
@@ -39,7 +39,7 @@ pub struct Command {
     #[clap(
         short = 'e',
         long = "exclude",
-        help = "exclude bps/nodes/edges in growth count that intersect with paths (or path coordinates) provided by the given file",
+        help = "exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
         default_value = ""
     )]
     pub negative_list: String,
@@ -47,7 +47,7 @@ pub struct Command {
     #[clap(
         short = 'g',
         long = "groupby",
-        help = "merge counts from paths by path-group mapping from given tab-separated file",
+        help = "merge counts from paths by path-group mapping from given tab-separated two-column file",
         default_value = ""
     )]
     pub groups: String,
@@ -92,6 +92,25 @@ fn main() -> Result<(), std::io::Error> {
     // initialize command line parser & parse command line arguments
     let params = Command::parse();
 
+    let mut subset_coords = Vec::new();
+    if !params.positive_list.is_empty() {
+        log::info!("loading subset coordinates from {}", params.positive_list);
+        let mut data = std::io::BufReader::new(fs::File::open(&params.positive_list)?);
+        subset_coords = core::io::parse_bed(&mut data);
+        log::debug!("loaded {} coordinates", subset_coords.len());
+    }
+
+    let mut exclude_coords = Vec::new();
+    if !params.negative_list.is_empty() {
+        log::info!(
+            "loading exclusion coordinates from {}",
+            params.negative_list
+        );
+        let mut data = std::io::BufReader::new(fs::File::open(&params.negative_list)?);
+        exclude_coords = core::io::parse_bed(&mut data);
+        log::debug!("loaded {} coordinates", exclude_coords.len());
+    }
+
     let mut walks_paths = 0;
     log::info!("first pass through file: counting P/W lines..");
     {
@@ -101,27 +120,8 @@ fn main() -> Result<(), std::io::Error> {
     log::info!("..done; found {} paths/walks", &walks_paths);
 
     let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
+
     log::info!("loading graph from {}", params.graph);
-
-    //    let paths = io::parse_gfa(data, false, &":".to_string());
-    //    log::info!(
-    //        "identified a total of {} paths in {} samples",
-    //        paths.values().map(|x| x.len()).sum::<usize>(),
-    //        paths.len()
-    //    );
-
-    let v = core::Node::new(23, 100);
-    log::info!("node 23, id: {}, len: {}", v.id(), v.len());
-
-    let e = core::Edge::new(23, false, 24, true);
-    log::info!(
-        "edge >23<24, id1: {}, id2: {}, is_reverse1: {}, is_reverse2: {}",
-        e.uid(),
-        e.vid(),
-        e.u_is_reverse(),
-        e.v_is_reverse()
-    );
-
     let abacus = core::Abacus::<core::Node>::from_gfa(&mut data);
 
     some_function(abacus);

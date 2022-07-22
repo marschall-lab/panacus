@@ -29,7 +29,7 @@ impl Hash for Node {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Hash, Eq, Ord)]
 pub struct PathSegment {
     sample: String,
     haplotype: Option<String>,
@@ -66,7 +66,7 @@ impl PathSegment {
 
         let segments = s.split('#').collect::<Vec<&str>>();
         match segments.len() {
-            2.. => {
+            3 => {
                 res.sample = segments[0].to_string();
                 res.haplotype = Some(segments[1].to_string());
                 let seq_coords = segments[2].split(':').collect::<Vec<&str>>();
@@ -78,14 +78,29 @@ impl PathSegment {
                 } else {
                     assert!(
                         seq_coords.len() == 1,
-                        r"unknown format, expected string of kind \w#\w#\w:\d-\d, but got {}",
+                        r"unknown format, expected string of kind \w#\w(#\w)?:\d-\d, but got {}",
+                        &s
+                    );
+                }
+            }
+            2 => {
+                res.sample = segments[0].to_string();
+                let seq_coords = segments[1].split(':').collect::<Vec<&str>>();
+                res.seqid = Some(seq_coords[0].to_string());
+                if seq_coords.len() == 2 {
+                    let start_end = seq_coords[1].split('-').collect::<Vec<&str>>();
+                    res.start = usize::from_str(start_end[0]).ok();
+                    res.end = usize::from_str(start_end[1]).ok();
+                } else {
+                    assert!(
+                        seq_coords.len() == 1,
+                        r"unknown format, expected string of kind \w#\w(#\w)?:\d-\d, but got {}",
                         &s
                     );
                 }
             }
             1 => {
                 res.sample = segments[0].to_string();
-                res.haplotype = Some(segments[1].to_string());
             }
             _ => (),
         }
@@ -95,15 +110,17 @@ impl PathSegment {
     pub fn id(&self) -> String {
         if self.haplotype.is_some() {
             format!(
-                "{}#{}#{}",
+                "{}#{}{}",
                 self.sample,
                 self.haplotype.as_ref().unwrap(),
                 if self.seqid.is_some() {
-                    self.seqid.as_ref().unwrap().as_str()
+                    "#".to_owned() + self.seqid.as_ref().unwrap().as_str()
                 } else {
-                    "*"
+                    "".to_string()
                 }
             )
+        } else if self.seqid.is_some() {
+            format!("{}#{}", self.sample, self.seqid.as_ref().unwrap().as_str())
         } else {
             self.sample.clone()
         }
@@ -128,6 +145,36 @@ impl fmt::Display for PathSegment {
         Ok(())
     }
 }
+
+
+//impl Hash for PathSegment {
+//    fn hash<H: Hasher>(&self, state: &mut H) {
+//        format!(
+//                "{}#{}#{}:{}-{}",
+//                self.sample,
+//                if let Some(hapid) = &self.haplotype {
+//                    hapid.as_str()
+//                } else {
+//                    "*"
+//                },
+//                if let Some(seqid) = &self.seqid {
+//                    seqid.as_str()
+//                } else {
+//                    "*"
+//                },
+//                if let Some(start) = &self.start {
+//                    start.to_string()
+//                } else {
+//                    "*".to_string()
+//                },
+//                if let Some(end) = &self.end {
+//                    end.to_string()
+//                } else {
+//                    "*".to_string()
+//                }
+//            ).hash(state);
+//    }
+//}
 
 impl Node {
     pub fn new(id: u32, length: u32) -> Self {

@@ -8,7 +8,7 @@ use quick_csv::{columns::BytesColumns, Csv};
 
 use super::{Node, PathSegment};
 
-pub fn parse_walk_line<'a>(mut row_it: BytesColumns<'a>) -> (PathSegment, Vec<(String, bool)>) {
+pub fn parse_walk_line(mut row_it: BytesColumns) -> (PathSegment, Vec<(String, bool)>) {
     let sample_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
     let hap_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
     let seq_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
@@ -158,9 +158,74 @@ pub fn count_pw_lines<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> usi
 //
 //}
 
-pub fn parse_path_list<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<PathSegment> {
+pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<PathSegment> {
     let mut res = Vec::new();
 
+    let reader = Csv::from_reader(data)
+        .delimiter(b'\t')
+        .flexible(true)
+        .has_header(false);
+    let mut is_header = true;
+    let mut is_full_bed = false;
+    for (i, row) in reader.enumerate() {
+        let row = row.unwrap();
+        let mut row_it = row.bytes_columns();
+        let path_name = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
+        // recognize BED header
+        if is_header 
+            && (path_name.starts_with("browser ")
+                || path_name.starts_with("track ")
+                || path_name.starts_with("#"))
+        {
+            continue;
+        }
+        is_header = false;
+        let mut path_seg = PathSegment::from_string(&path_name);
+        if let Some(start) = row_it.next() {
+            if let Some(end) = row_it.next() {
+                path_seg.start = usize::from_str(str::from_utf8(start).unwrap()).ok();
+                path_seg.end = usize::from_str(str::from_utf8(end).unwrap()).ok();
+            } else {
+                panic!(
+                    "erroneous input in line {}: row must have either 1, 3, or 12 columns, but has 2",
+                    i
+                );
+            }
+            if let Some(block_count_raw) = row_it.nth(6) {
+                if !is_full_bed {
+                    log::debug!("assuming from now (line {}) on that file is in full bed (12 columns) format", i);
+                }
+                let block_count =
+                    usize::from_str(str::from_utf8(block_count_raw).unwrap()).unwrap();
+                is_full_bed = true;
+                let mut block_sizes = str::from_utf8(row_it.next().unwrap()).unwrap().split(',');
+                let mut block_starts = str::from_utf8(row_it.next().unwrap()).unwrap().split(',');
+                for _ in 0..block_count {
+                    let size = usize::from_str(block_sizes.next().unwrap().trim()).unwrap();
+                    let start = usize::from_str(block_starts.next().unwrap().trim()).unwrap();
+
+                    let mut tmp = path_seg.clone();
+                    if tmp.start.is_some() {
+                        tmp.start = Some(tmp.start.unwrap() + start);
+                    } else {
+                        tmp.start = Some(start);
+                    }
+                    tmp.end = Some(start + size);
+                    res.push(tmp);
+                }
+            }
+        }
+        if !is_full_bed {
+            res.push(path_seg);
+        }
+    }
+
+    res
+}
+
+pub fn parse_groups<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> FxHashMap<PathSegment, String> {
+    let mut res = FxHashMap::default();
+    
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
@@ -168,20 +233,13 @@ pub fn parse_path_list<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Ve
     for (i, row) in reader.enumerate() {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
-        let mut path_seg =
-            PathSegment::from_string(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
-        if let Some(start) = row_it.next() {
-            if let Some(end) = row_it.next() {
-                path_seg.start = usize::from_str(str::from_utf8(start).unwrap()).ok();
-                path_seg.end = usize::from_str(str::from_utf8(end).unwrap()).ok();
-            } else {
-                panic!(
-                    "erroneous input in line {}: row must have either 1 or >3 columns, but has 2",
-                    i
-                );
-            }
+        let path_seg = PathSegment::from_string(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
+        if path_seg.coords().is_some() {
+            panic!("Error in line {}: coordinates are not permitted in grouping paths", i);
         }
-        res.push(path_seg);
+        if res.insert(path_seg, str::from_utf8(row_it.next().unwrap()).unwrap().to_string()).is_some() {
+            panic!("Error in line {}: contains duplicate path entry", i);
+        }
     }
 
     res
