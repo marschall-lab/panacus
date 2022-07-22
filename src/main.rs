@@ -111,6 +111,14 @@ fn main() -> Result<(), std::io::Error> {
         log::debug!("loaded {} coordinates", exclude_coords.len());
     }
 
+    let mut groups = FxHashMap::default();
+    if !params.groups.is_empty() {
+        log::info!("loading groups from {}", params.groups);
+        let mut data = std::io::BufReader::new(fs::File::open(&params.groups)?);
+        groups = core::io::parse_groups(&mut data);
+        log::debug!("loaded {} group assignments ", groups.len());
+    }
+
     let mut walks_paths = 0;
     log::info!("first pass through file: counting P/W lines..");
     {
