@@ -1,9 +1,12 @@
 /* standard use */
 use std::fs;
 use std::io::prelude::*;
+use std::path::Path;
+use std::str::FromStr;
 
 /* crate use */
 use clap::Parser;
+use regex::Regex;
 use rustc_hash::FxHashMap;
 
 /* private use */
@@ -55,8 +58,8 @@ pub struct Command {
     #[clap(
         short = 'c',
         long = "coverage_thresholds",
-        help = "list of named coverage thresholds of the form <name1>=<threshold1>,<name2>=<threshold2> or a file that provides a name-threshold pairs in a tab-separated file",
-        default_value = "0.5"
+        help = "list of (named) coverage thresholds of the form <threshold1>,<threshold2>,.. or <name1>=<threshold1>,<name2>=<threshold2> or a file that provides these thresholds in a tab-separated format; a threshold is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+        default_value = "cumulative_count=1"
     )]
     pub thresholds: String,
 
@@ -94,7 +97,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut subset_coords = Vec::new();
     if !params.positive_list.is_empty() {
-        log::info!("loading subset coordinates from {}", params.positive_list);
+        log::info!("loading subset coordinates from {}", &params.positive_list);
         let mut data = std::io::BufReader::new(fs::File::open(&params.positive_list)?);
         subset_coords = core::io::parse_bed(&mut data);
         log::debug!("loaded {} coordinates", subset_coords.len());
@@ -104,7 +107,7 @@ fn main() -> Result<(), std::io::Error> {
     if !params.negative_list.is_empty() {
         log::info!(
             "loading exclusion coordinates from {}",
-            params.negative_list
+            &params.negative_list
         );
         let mut data = std::io::BufReader::new(fs::File::open(&params.negative_list)?);
         exclude_coords = core::io::parse_bed(&mut data);
@@ -113,10 +116,53 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut groups = FxHashMap::default();
     if !params.groups.is_empty() {
-        log::info!("loading groups from {}", params.groups);
+        log::info!("loading groups from {}", &params.groups);
         let mut data = std::io::BufReader::new(fs::File::open(&params.groups)?);
         groups = core::io::parse_groups(&mut data);
         log::debug!("loaded {} group assignments ", groups.len());
+    }
+
+    let mut coverage_thresholds = Vec::new();
+    if !params.thresholds.is_empty() {
+        if Path::new(&params.thresholds).exists() {
+            log::info!("loading coverage thresholds from {}", &params.thresholds);
+            let mut data = std::io::BufReader::new(fs::File::open(&params.groups)?);
+            coverage_thresholds = core::io::parse_coverage_threshold_file(&mut data);
+        } else {
+            let re = Regex::new(r"^\s?([!-<,>-~]+)\s?=\s?([!-<,>-~]+)\s*$").unwrap();
+            for el in params.thresholds.split(',') {
+                if let Some(t) = usize::from_str(el.trim()).ok() {
+                    coverage_thresholds
+                        .push((el.trim().to_string(), core::CoverageThreshold::Absolute(t)));
+                } else if let Some(t) = f64::from_str(el.trim()).ok() {
+                    coverage_thresholds
+                        .push((el.trim().to_string(), core::CoverageThreshold::Relative(t)));
+                } else if let Some(caps) = re.captures(&el) {
+                    let name = caps.get(1).unwrap().as_str().trim().to_string();
+                    let threshold_str = caps.get(2).unwrap().as_str();
+                    let threshold = if let Some(t) = usize::from_str(threshold_str).ok() {
+                        core::CoverageThreshold::Absolute(t)
+                    } else {
+                        core::CoverageThreshold::Relative(f64::from_str(threshold_str).unwrap())
+                    };
+                    coverage_thresholds.push((name, threshold));
+                } else {
+                    panic!(
+                        "coverage threshold \"{}\" string is not well-formed",
+                        &params.thresholds
+                    );
+                }
+            }
+        }
+        log::debug!(
+            "loaded {} coverage thresholds:\n{}",
+            coverage_thresholds.len(),
+            coverage_thresholds
+                .iter()
+                .map(|(n, t)| format!("\t{}: {}", n, t))
+                .collect::<Vec<String>>()
+                .join("\n")
+        );
     }
 
     let mut walks_paths = 0;

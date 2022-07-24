@@ -9,6 +9,22 @@ use std::collections::HashMap;
 
 pub mod io;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CoverageThreshold {
+    Relative(f64),
+    Absolute(usize),
+}
+
+impl fmt::Display for CoverageThreshold {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CoverageThreshold::Relative(c) => write!(formatter, "{}R", c)?,
+            CoverageThreshold::Absolute(c) => write!(formatter, "{}A", c)?,
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Node {
     id: u32,
@@ -145,7 +161,6 @@ impl fmt::Display for PathSegment {
         Ok(())
     }
 }
-
 
 //impl Hash for PathSegment {
 //    fn hash<H: Hasher>(&self, state: &mut H) {

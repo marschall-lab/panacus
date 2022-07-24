@@ -6,7 +6,7 @@ use std::str::{self, FromStr};
 /* crate use */
 use quick_csv::{columns::BytesColumns, Csv};
 
-use super::{Node, PathSegment};
+use super::{CoverageThreshold, Node, PathSegment};
 
 pub fn parse_walk_line(mut row_it: BytesColumns) -> (PathSegment, Vec<(String, bool)>) {
     let sample_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
@@ -172,7 +172,7 @@ pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<Path
         let mut row_it = row.bytes_columns();
         let path_name = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
         // recognize BED header
-        if is_header 
+        if is_header
             && (path_name.starts_with("browser ")
                 || path_name.starts_with("track ")
                 || path_name.starts_with("#"))
@@ -223,9 +223,11 @@ pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<Path
     res
 }
 
-pub fn parse_groups<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> FxHashMap<PathSegment, String> {
+pub fn parse_groups<R: std::io::Read>(
+    data: &mut std::io::BufReader<R>,
+) -> FxHashMap<PathSegment, String> {
     let mut res = FxHashMap::default();
-    
+
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
@@ -233,11 +235,21 @@ pub fn parse_groups<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> FxHas
     for (i, row) in reader.enumerate() {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
-        let path_seg = PathSegment::from_string(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
+        let path_seg =
+            PathSegment::from_string(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
         if path_seg.coords().is_some() {
-            panic!("Error in line {}: coordinates are not permitted in grouping paths", i);
+            panic!(
+                "Error in line {}: coordinates are not permitted in grouping paths",
+                i
+            );
         }
-        if res.insert(path_seg, str::from_utf8(row_it.next().unwrap()).unwrap().to_string()).is_some() {
+        if res
+            .insert(
+                path_seg,
+                str::from_utf8(row_it.next().unwrap()).unwrap().to_string(),
+            )
+            .is_some()
+        {
             panic!("Error in line {}: contains duplicate path entry", i);
         }
     }
@@ -308,6 +320,42 @@ pub fn parse_gfa_nodecount<R: std::io::Read>(
         }
     }
     (countable2path, paths)
+}
+
+pub fn parse_coverage_threshold_file<R: std::io::Read>(
+    data: &mut std::io::BufReader<R>,
+) -> Vec<(String, CoverageThreshold)> {
+    let mut res = Vec::new();
+
+    let reader = Csv::from_reader(data)
+        .delimiter(b'\t')
+        .flexible(true)
+        .has_header(false);
+    for row in reader {
+        let row = row.unwrap();
+        let mut row_it = row.bytes_columns();
+        let name = str::from_utf8(row_it.next().unwrap())
+            .unwrap()
+            .trim()
+            .to_string();
+        let threshold = if let Some(col) = row_it.next() {
+            let threshold_str = str::from_utf8(col).unwrap();
+            if let Some(t) = usize::from_str(threshold_str).ok() {
+                CoverageThreshold::Absolute(t)
+            } else {
+                CoverageThreshold::Relative(f64::from_str(threshold_str).unwrap())
+            }
+        } else {
+            if let Some(t) = usize::from_str(&name[..]).ok() {
+                CoverageThreshold::Absolute(t)
+            } else {
+                CoverageThreshold::Relative(f64::from_str(&name[..]).unwrap())
+            }
+        };
+        res.push((name, threshold));
+    }
+
+    res
 }
 
 //    fn parse_length(gfa_file: &str) -> FxHashMap<Handle, usize> {
