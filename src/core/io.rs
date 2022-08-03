@@ -221,7 +221,7 @@ pub fn count_pw_lines(pathfile: &str) -> Result<usize, Box<dyn Error>> {
 
 pub fn parse_path_line( 
     buf: &[u8],
-    node2id: &FxHashMap<Vec<u8>, u32>) 
+    node2id: &HashMap<Vec<u8>, u32>) 
 -> (PathSegment, Vec<(u32, bool)>) 
 {
     let mut iter = buf.iter();
@@ -243,7 +243,7 @@ pub fn parse_path_line(
 
 fn parse_path( 
     path_data: &[u8],
-    node2id: &FxHashMap<Vec<u8>, u32>) 
+    node2id: &HashMap<Vec<u8>, u32>) 
 -> Vec<(u32, bool)> 
 {
 
@@ -266,7 +266,7 @@ pub fn parse_gfa_nodecount(pathfile: &str) -> Result<(FxHashMap<Node, Vec<usize>
     let mut nodes_table: FxHashMap<Node, Vec<usize>> = FxHashMap::default();
     let mut paths: Vec<PathSegment> = Vec::new();
 
-    let mut node2id: FxHashMap<Vec<u8>, u32> = FxHashMap::default();
+    let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
     let mut node_count = 0;
 
     let mut bf = std::io::BufReader::new(std::fs::File::open(pathfile)?);
