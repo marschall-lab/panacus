@@ -11,61 +11,6 @@ use quick_csv::{columns::BytesColumns, Csv};
 
 use super::{CoverageThreshold, Node, PathSegment};
 
-pub fn parse_walk_line(mut row_it: BytesColumns) -> (PathSegment, Vec<(String, bool)>) {
-    let sample_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
-    let hap_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
-    let seq_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
-    let seq_start = match str::from_utf8(row_it.next().unwrap()).unwrap() {
-        "*" => None,
-        a => Some(usize::from_str(a).unwrap()),
-    };
-
-    let seq_end = match str::from_utf8(row_it.next().unwrap()).unwrap() {
-        "*" => None,
-        a => Some(usize::from_str(a).unwrap()),
-    };
-
-    let path_seg = PathSegment::new(sample_id, hap_id, seq_id, seq_start, seq_end);
-
-    log::info!("processing walk {}", &path_seg);
-
-    let walk_data = row_it.next().unwrap();
-    let walk = parse_walk(walk_data.to_vec());
-    (path_seg, walk)
-}
-
-fn parse_walk(walk_data: Vec<u8>) -> Vec<(String, bool)> {
-    let mut walk: Vec<(String, bool)> = Vec::new();
-
-    let mut cur_el: Vec<u8> = Vec::new();
-    for c in walk_data {
-        if (c == b'>' || c == b'<') && !cur_el.is_empty() {
-            let sid = str::from_utf8(&cur_el[1..]).unwrap().to_string();
-            assert!(
-                cur_el[0] == b'>' || cur_el[0] == b'<',
-                "unknown orientation {} or segment {}",
-                cur_el[0],
-                sid
-            );
-            walk.push((sid, cur_el[0] == b'<'));
-            cur_el.clear();
-        }
-        cur_el.push(c);
-    }
-
-    if !cur_el.is_empty() {
-        let sid = str::from_utf8(&cur_el[1..]).unwrap().to_string();
-        assert!(
-            cur_el[0] == b'>' || cur_el[0] == b'<',
-            "unknown orientation {} or segment {}",
-            cur_el[0],
-            sid
-        );
-        walk.push((sid, cur_el[0] == b'<'));
-    }
-    walk
-}
-
 pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<PathSegment> {
     let mut res = Vec::new();
 
@@ -88,7 +33,7 @@ pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<Path
             continue;
         }
         is_header = false;
-        let mut path_seg = PathSegment::from_string(&path_name);
+        let mut path_seg = PathSegment::from_str(&path_name);
         if let Some(start) = row_it.next() {
             if let Some(end) = row_it.next() {
                 path_seg.start = usize::from_str(str::from_utf8(start).unwrap()).ok();
@@ -146,7 +91,7 @@ pub fn parse_groups<R: std::io::Read>(
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
         let path_seg =
-            PathSegment::from_string(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
+            PathSegment::from_str(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
         if path_seg.coords().is_some() {
             panic!(
                 "Error in line {}: coordinates are not permitted in grouping paths",
@@ -219,6 +164,67 @@ pub fn count_pw_lines(pathfile: &str) -> Result<usize, Box<dyn Error>> {
     Ok(count)
 }
 
+
+pub fn parse_walk_line(buf: &[u8], node2id: &HashMap<Vec<u8>, u32>)  -> (PathSegment, Vec<(u32, bool)>) {
+    let mut six_col : Vec<&str> = Vec::with_capacity(6);
+
+    let mut it = buf.iter();
+    let mut i = 0;
+    for _ in 0..6 {
+        let j = it.position(|x| x == &b'\t').unwrap();
+        six_col.push(&str::from_utf8(&buf[i..i+j]).unwrap());
+        i += j+1;
+    }
+
+    let seq_start = match six_col[4] {
+        "*" => None,
+        a => Some(usize::from_str(a).unwrap()),
+    };
+
+    let seq_end = match six_col[5] {
+        "*" => None,
+        a => Some(usize::from_str(a).unwrap()),
+    };
+
+    let path_seg = PathSegment::new(six_col[1].to_string(), six_col[2].to_string(), six_col[3].to_string(), seq_start, seq_end);
+
+    log::info!("processing walk {}", &path_seg);
+
+    let walk_end = it.position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r').unwrap();
+    let walk = parse_walk(&buf[i..i+walk_end], node2id);
+    (path_seg, walk)
+}
+
+
+fn parse_walk(walk_data: &[u8], node2id: &HashMap<Vec<u8>, u32>) -> Vec<(u32, bool)> {
+    let mut walk: Vec<(u32, bool)> = Vec::new();
+
+    let mut i = 0;
+    for j in 0..walk_data.len() {
+        if (walk_data[j] == b'>' || walk_data[j] == b'<') && i < j {
+            assert!(
+                walk_data[i] == b'>' || walk_data[i] == b'<',
+                "unknown orientation of segment {}",
+                str::from_utf8(&walk_data[i..j]).unwrap()
+            );
+            walk.push((*node2id.get(&walk_data[i+1..j]).unwrap(), walk_data[i] == b'<'));
+            i = j;
+        }
+    }
+
+    if i < walk_data.len() {
+        assert!(
+            walk_data[i] == b'>' || walk_data[i] == b'<',
+            "unknown orientation of segment {}",
+            str::from_utf8(&walk_data[i..]).unwrap()
+        );
+        walk.push((*node2id.get(&walk_data[i+1..]).expect(&format!("cannot find node {} (position {} in walk) in node2id map", str::from_utf8(&walk_data[i..]).unwrap(), i)[..]), walk_data[i] == b'<'));
+    }
+
+    walk
+}
+
+
 pub fn parse_path_line( 
     buf: &[u8],
     node2id: &HashMap<Vec<u8>, u32>) 
@@ -236,7 +242,7 @@ pub fn parse_path_line(
 
     log::info!("processing path {}", path_name);
     (
-        PathSegment::from_string(path_name),
+        PathSegment::from_str(path_name),
         parse_path(path_data, &node2id),
     )
 }
@@ -288,7 +294,12 @@ pub fn parse_gfa_nodecount(pathfile: &str) -> Result<(FxHashMap<Node, Vec<usize>
             paths.push(path_seg);
 
             log::debug!("updating count data structure..");
-        } //Missing the Walk path 
+        } else if buf[0] == b'W' {
+            let (path_seg, walk) = parse_walk_line(&buf, &node2id);
+            paths.push(path_seg);
+
+            log::debug!("updating count data structure..");
+        } 
 
         buf.clear();
     }

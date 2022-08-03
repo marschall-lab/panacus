@@ -71,7 +71,7 @@ impl PathSegment {
         }
     }
 
-    pub fn from_string(s: &str) -> Self {
+    pub fn from_str(s: &str) -> Self {
         let mut res = PathSegment {
             sample: s.to_string(),
             haplotype: None,
