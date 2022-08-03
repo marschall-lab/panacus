@@ -167,19 +167,12 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut walks_paths = 0;
     log::info!("first pass through file: counting P/W lines..");
-    {
-        let mut predata = std::io::BufReader::new(fs::File::open(&params.graph)?);
-        walks_paths = core::io::count_pw_lines(&mut predata);
-    }
+    walks_paths = core::io::count_pw_lines(&params.graph).unwrap();
     log::info!("..done; found {} paths/walks", &walks_paths);
 
-    let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
-
     log::info!("loading graph from {}", params.graph);
-    let abacus = core::Abacus::<core::Node>::from_gfa(&mut data);
-
-    some_function(abacus);
-
+    let abacus = core::Abacus::<core::Node>::from_gfa(&params.graph);
+    //some_function(abacus);
     out.flush()?;
     log::info!("done");
     Ok(())

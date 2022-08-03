@@ -25,9 +25,9 @@ impl fmt::Display for CoverageThreshold {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Node {
-    id: u32,
+    id: String,
     len: u32,
 }
 
@@ -71,9 +71,9 @@ impl PathSegment {
         }
     }
 
-    pub fn from_string(s: &String) -> Self {
+    pub fn from_string(s: &str) -> Self {
         let mut res = PathSegment {
-            sample: s.clone(),
+            sample: s.to_string(),
             haplotype: None,
             seqid: None,
             start: None,
@@ -192,20 +192,21 @@ impl fmt::Display for PathSegment {
 //}
 
 impl Node {
-    pub fn new(id: u32, length: u32) -> Self {
+    pub fn new(id: String, len: u32) -> Self {
         Self {
             id: id,
-            len: length,
+            len: len,
         }
     }
 
-    pub fn id(self) -> u32 {
+    pub fn id(self) -> String {
         self.id
     }
 
     pub fn len(self) -> u32 {
         self.len
     }
+
 }
 
 impl Edge {
@@ -259,8 +260,8 @@ pub struct Abacus<T> {
 }
 
 impl Abacus<Node> {
-    pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Self {
-        let (countable2path, paths) = io::parse_gfa_nodecount(data);
+    pub fn from_gfa(data: &str) -> Self {
+        let (countable2path, paths) = io::parse_gfa_nodecount(data).unwrap();
         Abacus {
             countable2path,
             paths,
