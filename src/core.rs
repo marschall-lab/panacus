@@ -45,8 +45,7 @@ pub struct Edge {
 }
 
 pub struct Prep {
-    pub num_nodes : usize,
-    pub num_walks_paths: usize,
+    pub path_segments: Vec<PathSegment>,
     pub node2id: HashMap<Vec<u8>, u32>,
 }
 
@@ -58,8 +57,8 @@ pub struct NodeTable {
 impl NodeTable {
     pub fn new(num_walks_paths: usize) -> Self {
         Self {
-            T:  [(); SIZE_T].map(|_| vec![]),
-            ts: [(); SIZE_T].map(|_| vec![0; num_walks_paths+1]),
+            T: [(); SIZE_T].map(|_| vec![]),
+            ts: [(); SIZE_T].map(|_| vec![0; num_walks_paths + 1]),
         }
     }
 }
@@ -212,10 +211,7 @@ impl fmt::Display for PathSegment {
 
 impl Node {
     pub fn new(id: String, len: u32) -> Self {
-        Self {
-            id: id,
-            len: len,
-        }
+        Self { id: id, len: len }
     }
 
     pub fn id(self) -> String {
@@ -278,8 +274,8 @@ impl Edge {
 }
 
 #[derive(Debug, Clone)]
-pub struct Abacus {
-    pub countable: Vec<u32>,
+pub struct Abacus<T> {
+    pub countable: Vec<T>,
     pub path_segs: Vec<PathSegment>,
 }
 
@@ -287,20 +283,14 @@ struct Wrap<T>(*mut T);
 unsafe impl Sync for Wrap<Vec<u32>> {}
 unsafe impl Sync for Wrap<Vec<usize>> {}
 
-impl Abacus {
-    pub fn from_gfa(data: &str, prep: Prep) -> Self {
-        io::parse_gfa_nodecount(data, prep).unwrap()
-    }
-
-    pub fn node_table2abacus(
-        node_table: NodeTable, 
-        prep: Prep, 
-        path_segs: Vec<PathSegment>) 
-    -> Self 
-    {
-        let mut countable: Vec<u32> = vec![0; prep.num_nodes];
-        let mut last: Vec<usize> = vec![0; prep.num_nodes];
-        let mut order_path: Vec<usize> = vec![0; prep.num_walks_paths];
+impl Abacus<u32> {
+    pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, prep: Prep) -> Self {
+        log::info!("parsing path + walk sequences");
+        let node_table = io::parse_gfa_nodecount(data, &prep);
+        log::info!("counting abacus entries..");
+        let mut countable: Vec<u32> = vec![0; prep.node2id.len()];
+        let mut last: Vec<usize> = vec![0; prep.node2id.len()];
+        let mut order_path: Vec<usize> = vec![0; prep.path_segments.len()];
         // Dummy order
         for i in 0..order_path.len() {
             order_path[i] = i;
@@ -312,15 +302,15 @@ impl Abacus {
 
         Abacus {
             countable: countable,
-            path_segs: path_segs
+            path_segs: prep.path_segments.clone(),
         }
     }
 
-    //pub fn add_count( 
+    //pub fn add_count(
     //    i: usize,
     //    path_id: usize,
-    //    countable: &mut Vec<u32>, 
-    //    last: &mut Vec<usize>, 
+    //    countable: &mut Vec<u32>,
+    //    last: &mut Vec<usize>,
     //    node_table: &NodeTable)
     //{
     //    let start = node_table.ts[i][path_id] as usize;
@@ -334,20 +324,20 @@ impl Abacus {
     //    }
     //}
 
-    pub fn count_nodes(
-        countable: &mut Vec<u32>, 
-        last: &mut Vec<usize>, 
-        node_table: &NodeTable, 
-        path_id: usize)
-    {
+    fn count_nodes(
+        countable: &mut Vec<u32>,
+        last: &mut Vec<usize>,
+        node_table: &NodeTable,
+        path_id: usize,
+    ) {
         let countable_ptr = Wrap(countable);
         let last_ptr = Wrap(last);
-        
+
         // Parallel node counting
-        (0..SIZE_T).into_par_iter().for_each(|i| { 
+        (0..SIZE_T).into_par_iter().for_each(|i| {
             //Abacus::add_count(i, path_id, &mut countable, &mut last, &node_table);
             let start = node_table.ts[i][path_id] as usize;
-            let end = node_table.ts[i][path_id+1] as usize;
+            let end = node_table.ts[i][path_id + 1] as usize;
             for j in start..end {
                 let sid = node_table.T[i][j] as usize;
                 unsafe {
