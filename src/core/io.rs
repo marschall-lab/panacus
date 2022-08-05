@@ -9,7 +9,11 @@ use std::io::{self, Read, BufRead, Lines};
 /* crate use */
 use quick_csv::{columns::BytesColumns, Csv};
 
-use super::{CoverageThreshold, Node, PathSegment};
+//use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
+use super::{CoverageThreshold, Node, PathSegment, Prep, Abacus, NodeTable, SIZE_T};
+
 
 pub fn parse_walk_line(mut row_it: BytesColumns) -> (PathSegment, Vec<(String, bool)>) {
     let sample_id = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
@@ -205,10 +209,10 @@ pub fn parse_coverage_threshold_file<R: std::io::Read>(
 
 pub fn count_pw_lines(pathfile: &str) -> Result<usize, Box<dyn Error>> {
     //let mut streams = HashMap::new();
-    let mut bf = std::io::BufReader::new(std::fs::File::open(pathfile)?);
+    let mut br = std::io::BufReader::new(std::fs::File::open(pathfile)?);
     let mut buf = vec![];
     let mut count: usize = 0;
-    while bf.read_until(b'\n',&mut buf).unwrap_or(0) > 0 {
+    while br.read_until(b'\n',&mut buf).unwrap_or(0) > 0 {
         //println!("{}", str::from_utf8(&buf).unwrap());
         if buf[0] == b'W' || buf[0] == b'P' {
             count += 1;
@@ -221,81 +225,120 @@ pub fn count_pw_lines(pathfile: &str) -> Result<usize, Box<dyn Error>> {
 
 pub fn parse_path_line( 
     buf: &[u8],
-    node2id: &HashMap<Vec<u8>, u32>) 
--> (PathSegment, Vec<(u32, bool)>) 
+    node2id: &HashMap<Vec<u8>, u32>,
+    node_table: &mut NodeTable,
+    num_path: u32)
+-> PathSegment
 {
     let mut iter = buf.iter();
 
     let start = iter.position(|&x| x == b'\t').unwrap()+1;
     let offset = iter.position(|&x| x == b'\t').unwrap();
     let path_name = str::from_utf8(&buf[start..start+offset]).unwrap();
+    log::info!("processing path {}", path_name);
 
     let start = start+offset+1;
     let offset = iter.position(|&x| x == b'\t' || x == b'\n').unwrap();
     let path_data = &buf[start..start+offset];
 
-    log::info!("processing path {}", path_name);
-    (
-        PathSegment::from_string(path_name),
-        parse_path(path_data, &node2id),
-    )
+    parse_path(path_data, node2id, node_table, num_path);
+
+    PathSegment::from_string(path_name)
 }
 
 fn parse_path( 
     path_data: &[u8],
-    node2id: &HashMap<Vec<u8>, u32>) 
--> Vec<(u32, bool)> 
+    node2id: &HashMap<Vec<u8>, u32>,
+    node_table: &mut NodeTable,
+    num_path: u32)
 {
 
     log::debug!("parsing path string of size {}..", path_data.len());
-    let mut path: Vec<(u32, bool)> = Vec::new();
 
-    for node in path_data.split(|&x| x == b','){
+    let mut num_nodes_path = 0;
+    let num_path = num_path as usize;
+
+    //path_data.par_split(|&x| x == b',').for_each( |node| {
+    path_data.split(|&x| x == b',').for_each( |node| {
         //let sid = str::from_utf8(&node[0..node.len()-1]).unwrap().to_string();
         let sid = *node2id.get(&node[0..node.len()-1]).unwrap();
         let strand = node[node.len()-1]==b'-';
-
-        path.push((sid, strand));
+        let idx = (sid as usize)%SIZE_T;
+        //let guard = T_mut[idx].lock().unwrap();
+        node_table.T[idx].push(sid);
+        node_table.ts[idx][num_path+1] += 1;
+    });
+    
+    // Compute prefix sum
+    for i in 0..SIZE_T {
+        node_table.ts[i][num_path+1] += node_table.ts[i][num_path];
     }
 
-    log::debug!("..done; path has {} elements", path.len());
-    path
+    log::debug!("..done; path has {} elements", num_nodes_path);
 }
 
-pub fn parse_gfa_nodecount(pathfile: &str) -> Result<(FxHashMap<Node, Vec<usize>>, Vec<PathSegment>),Box<dyn Error>> {
-    let mut nodes_table: FxHashMap<Node, Vec<usize>> = FxHashMap::default();
-    let mut paths: Vec<PathSegment> = Vec::new();
+pub fn parse_gfa_nodecount(
+    pathfile: &str, 
+    prep: Prep) 
+-> Result<Abacus, Box<dyn Error>> 
+{
+    let mut node_table = NodeTable::new(prep.num_walks_paths);
+    let mut path_segs: Vec<PathSegment> = vec![];
 
-    let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
-    let mut node_count = 0;
-
-    let mut bf = std::io::BufReader::new(std::fs::File::open(pathfile)?);
+    // Reading GFA file searching for (P)aths and (W)alks
     let mut buf = vec![];
-    while bf.read_until(b'\n',&mut buf).unwrap_or(0) > 0 {
-        if buf[0] == b'S' {
-            let mut iter = buf.iter();
-
-            let start = iter.position(|&x| x == b'\t').unwrap()+1;
-            let offset = iter.position(|&x| x == b'\t').unwrap();
-            let sid = buf[start..start+offset].to_vec();
-            //Insert node id into hashtable
-            node2id
-                .entry(sid)
-                .or_insert(node_count);
-            node_count += 1;
-        } else if buf[0] == b'P' {
-            let (path_seg, path) = parse_path_line(&buf, &node2id);
-            paths.push(path_seg);
-
+    let mut br = std::io::BufReader::new(std::fs::File::open(pathfile)?);
+    let mut num_path = 0;
+    while br.read_until(b'\n',&mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'P' {
+            let path_seg = parse_path_line(&buf, &prep.node2id, &mut node_table, num_path);
+            path_segs.push(path_seg);
+            num_path += 1;
             log::debug!("updating count data structure..");
         } //Missing the Walk path 
 
         buf.clear();
     }
 
-    Ok((nodes_table, paths)) //For now this stuff is empty, now working on it
+    //Calculating Abacus based on paths.
+    log::info!("counting abacus entries..");
+    Ok(Abacus::node_table2abacus(node_table, prep, path_segs))
 }
 
+pub fn preprocessing(pathfile: &str) -> Result<Prep, Box<dyn Error>> 
+{
+    let mut node_count = 0;
+    let mut num_walks_paths = 0;
+    let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
+
+    let mut br = std::io::BufReader::new(std::fs::File::open(pathfile)?);
+    let mut buf = vec![];
+    while br.read_until(b'\n',&mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'S' {
+            let mut iter = buf.iter();
+
+            let start = iter.position(|&x| x == b'\t').unwrap()+1;
+            let offset = iter.position(|&x| x == b'\t').unwrap();
+            let sid = buf[start..start+offset].to_vec();
+            node2id
+                .entry(sid)
+                .or_insert(node_count);
+            node_count += 1;
+        } else if buf[0] == b'P' || buf[0] == b'W' {
+            num_walks_paths += 1;
+        }
+
+        buf.clear();
+    }
+
+    let prep = Prep{
+        num_nodes: node_count as usize, 
+        num_walks_paths: num_walks_paths as usize, 
+        node2id: node2id
+    };
+
+    Ok(prep) 
+}
 
 //pub fn count_path_walk_lines(data: &mut dyn std::io::Read) -> usize {
 //    let mut count = 0;

@@ -9,6 +9,7 @@ use clap::Parser;
 use regex::Regex;
 use rustc_hash::FxHashMap;
 
+pub use self::core::Prep;
 /* private use */
 mod core;
 
@@ -78,13 +79,13 @@ pub struct Command {
     pub ordered: bool,
 }
 
-fn some_function<T>(abacus: core::Abacus<T>) {
-    log::info!(
-        "abacus has {} paths and {} countables",
-        abacus.paths.len(),
-        abacus.countable2path.len()
-    );
-}
+//fn some_function<T>(abacus: core::Abacus<T>) {
+//    log::info!(
+//        "abacus has {} paths and {} countables",
+//        abacus.paths.len(),
+//        abacus.countable2path.len()
+//    );
+//}
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
@@ -165,14 +166,28 @@ fn main() -> Result<(), std::io::Error> {
         );
     }
 
-    let mut walks_paths = 0;
-    log::info!("first pass through file: counting P/W lines..");
-    walks_paths = core::io::count_pw_lines(&params.graph).unwrap();
-    log::info!("..done; found {} paths/walks", &walks_paths);
+    log::info!("preprocessing: processing nodes and counting P/W lines");
+    let prep = core::io::preprocessing(&params.graph).unwrap();
+    log::info!("..done; found {} paths/walks and {} nodes", 
+        prep.num_walks_paths, prep.num_nodes);
 
     log::info!("loading graph from {}", params.graph);
-    let abacus = core::Abacus::<core::Node>::from_gfa(&params.graph);
+    //let abacus = core::Abacus::<core::Node>::from_gfa(&params.graph, prep);
+    let abacus = core::Abacus::from_gfa(&params.graph, prep);
     //some_function(abacus);
+    log::info!(
+        "abacus has {} paths and {} countables",
+        abacus.path_segs.len(),
+        abacus.countable.len()
+    );
+
+    let hist = abacus.construct_hist();
+    //for i in hist.iter() {
+    //    println!("{}", i);
+    //}
+    
+
+
     out.flush()?;
     log::info!("done");
     Ok(())
