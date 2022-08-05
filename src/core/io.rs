@@ -4,7 +4,8 @@ use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 use std::str::{self, FromStr};
 use std::error::Error;
-use std::io::{self, Read, BufRead, Lines};
+use std::io::BufRead;
+use std::ops::DerefMut;
 
 /* crate use */
 use quick_csv::{columns::BytesColumns, Csv};
@@ -12,7 +13,7 @@ use quick_csv::{columns::BytesColumns, Csv};
 //use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
-use super::{CoverageThreshold, Node, PathSegment, Prep, Abacus, NodeTable, SIZE_T};
+use super::{CoverageThreshold, Node, PathSegment, Prep, Abacus, NodeTable, Wrap, SIZE_T};
 
 
 pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<PathSegment> {
@@ -263,16 +264,28 @@ fn parse_path(
 
     let mut num_nodes_path = 0;
     let num_path = num_path as usize;
+    let T_ptr = Wrap(&mut node_table.T);
+    let ts_ptr = Wrap(&mut node_table.ts);
 
-    //path_data.par_split(|&x| x == b',').for_each( |node| {
-    path_data.split(|&x| x == b',').for_each( |node| {
+    let mut mutex_vec: Vec<_> = node_table.T.iter().map(|x| Arc::new(Mutex::new(x))).collect();
+
+    path_data.par_split(|&x| x == b',').for_each( |node| {
+    //path_data.split(|&x| x == b',').for_each( |node| {
         //let sid = str::from_utf8(&node[0..node.len()-1]).unwrap().to_string();
         let sid = *node2id.get(&node[0..node.len()-1]).unwrap();
         let strand = node[node.len()-1]==b'-';
         let idx = (sid as usize)%SIZE_T;
         //let guard = T_mut[idx].lock().unwrap();
-        node_table.T[idx].push(sid);
-        node_table.ts[idx][num_path+1] += 1;
+        
+        if let Ok(lock) = mutex_vec[idx].lock() {
+            unsafe{
+                (*T_ptr.0)[idx].push(sid);
+                (*ts_ptr.0)[idx][num_path+1] += 1;
+            }
+        }
+
+        //node_table.T[idx].push(sid);
+        //node_table.ts[idx][num_path+1] += 1;
     });
     
     // Compute prefix sum

@@ -50,10 +50,13 @@ pub struct Prep {
     pub node2id: HashMap<Vec<u8>, u32>,
 }
 
+unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 pub struct NodeTable {
     pub T: [Vec<u32>; SIZE_T],
     pub ts: [Vec<u32>; SIZE_T],
 }
+
+
 
 impl NodeTable {
     pub fn new(num_walks_paths: usize) -> Self {
