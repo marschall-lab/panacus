@@ -13,6 +13,10 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 pub mod io;
 
 const SIZE_T: usize = 1024;
+struct Wrap<T>(*mut T);
+unsafe impl Sync for Wrap<Vec<u32>> {}
+unsafe impl Sync for Wrap<Vec<usize>> {}
+unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CoverageThreshold {
@@ -50,13 +54,10 @@ pub struct Prep {
     pub node2id: HashMap<Vec<u8>, u32>,
 }
 
-unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 pub struct NodeTable {
     pub T: [Vec<u32>; SIZE_T],
     pub ts: [Vec<u32>; SIZE_T],
 }
-
-
 
 impl NodeTable {
     pub fn new(num_walks_paths: usize) -> Self {
@@ -286,9 +287,6 @@ pub struct Abacus {
     pub path_segs: Vec<PathSegment>,
 }
 
-struct Wrap<T>(*mut T);
-unsafe impl Sync for Wrap<Vec<u32>> {}
-unsafe impl Sync for Wrap<Vec<usize>> {}
 
 impl Abacus {
     pub fn from_gfa(data: &str, prep: Prep) -> Self {
@@ -319,24 +317,6 @@ impl Abacus {
         }
     }
 
-    //pub fn add_count( 
-    //    i: usize,
-    //    path_id: usize,
-    //    countable: &mut Vec<u32>, 
-    //    last: &mut Vec<usize>, 
-    //    node_table: &NodeTable)
-    //{
-    //    let start = node_table.ts[i][path_id] as usize;
-    //    let end = node_table.ts[i][path_id+1] as usize;
-    //    for j in start..end {
-    //        let sid = node_table.T[i][j] as usize;
-    //        if last[sid] != path_id {
-    //            countable[sid] += 1;
-    //            last[sid] = path_id;
-    //        }
-    //    }
-    //}
-
     pub fn count_nodes(
         countable: &mut Vec<u32>, 
         last: &mut Vec<usize>, 
@@ -364,6 +344,7 @@ impl Abacus {
     }
 
     pub fn construct_hist(&self) -> Vec<u32> {
+
         let mut hist: Vec<u32> = vec![0; self.path_segs.len()];
         for iter in self.countable.iter() {
             hist[*iter as usize] += 1;

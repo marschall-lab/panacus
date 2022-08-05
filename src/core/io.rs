@@ -170,7 +170,13 @@ pub fn count_pw_lines(pathfile: &str) -> Result<usize, Box<dyn Error>> {
 }
 
 
-pub fn parse_walk_line(buf: &[u8], node2id: &HashMap<Vec<u8>, u32>)  -> (PathSegment, Vec<(u32, bool)>) {
+pub fn parse_walk_line(
+    buf: &[u8], 
+    node2id: &HashMap<Vec<u8>, u32>,
+    node_table: &mut NodeTable,
+    num_walk: u32)
+-> PathSegment
+{
     let mut six_col : Vec<&str> = Vec::with_capacity(6);
 
     let mut it = buf.iter();
@@ -191,42 +197,70 @@ pub fn parse_walk_line(buf: &[u8], node2id: &HashMap<Vec<u8>, u32>)  -> (PathSeg
         a => Some(usize::from_str(a).unwrap()),
     };
 
-    let path_seg = PathSegment::new(six_col[1].to_string(), six_col[2].to_string(), six_col[3].to_string(), seq_start, seq_end);
-
-    log::info!("processing walk {}", &path_seg);
-
     let walk_end = it.position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r').unwrap();
-    let walk = parse_walk(&buf[i..i+walk_end], node2id);
-    (path_seg, walk)
+    let path_walk = &buf[i..i+walk_end];
+
+    let path_seg = PathSegment::new(six_col[1].to_string(), six_col[2].to_string(), six_col[3].to_string(), seq_start, seq_end);
+    log::info!("processing walk {}", path_seg);
+
+    parse_walk(path_walk, node2id, node_table, num_walk);
+
+    path_seg
 }
 
+fn parse_walk(
+    walk_data: &[u8], 
+    node2id: &HashMap<Vec<u8>, u32>,
+    node_table: &mut NodeTable,
+    num_walk: u32)
+{
 
-fn parse_walk(walk_data: &[u8], node2id: &HashMap<Vec<u8>, u32>) -> Vec<(u32, bool)> {
-    let mut walk: Vec<(u32, bool)> = Vec::new();
+    //let mut i = 0;
+    //for j in 0..walk_data.len() {
+    //    if (walk_data[j] == b'>' || walk_data[j] == b'<') && i < j {
+    //        walk.push((*node2id.get(&walk_data[i+1..j]).unwrap(), walk_data[i] == b'<'));
+    //        i = j;
+    //    }
+    //}
 
-    let mut i = 0;
-    for j in 0..walk_data.len() {
-        if (walk_data[j] == b'>' || walk_data[j] == b'<') && i < j {
-            assert!(
-                walk_data[i] == b'>' || walk_data[i] == b'<',
-                "unknown orientation of segment {}",
-                str::from_utf8(&walk_data[i..j]).unwrap()
-            );
-            walk.push((*node2id.get(&walk_data[i+1..j]).unwrap(), walk_data[i] == b'<'));
-            i = j;
+    //if i < walk_data.len() {
+    //    assert!(
+    //        walk_data[i] == b'>' || walk_data[i] == b'<',
+    //        "unknown orientation of segment {}",
+    //        str::from_utf8(&walk_data[i..]).unwrap()
+    //    );
+    //    walk.push((*node2id.get(&walk_data[i+1..]).expect(&format!("cannot find node {} (position {} in walk) in node2id map", str::from_utf8(&walk_data[i..]).unwrap(), i)[..]), walk_data[i] == b'<'));
+    //}
+    log::debug!("parsing path string of size {}..", walk_data.len());
+
+    let num_walk = num_walk as usize;
+    let T_ptr = Wrap(&mut node_table.T);
+    let ts_ptr = Wrap(&mut node_table.ts);
+
+    let mut mutex_vec: Vec<_> = node_table.T.iter().map(|x| Arc::new(Mutex::new(x))).collect();
+
+    walk_data.par_split(|&x| x == b'<' || x == b'>').for_each( |node| { // Parallel
+    //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
+        if let Some(sid) = node2id.get(&node[0..node.len()]) {
+            let sid = *sid;
+            let idx = (sid as usize)%SIZE_T;
+            
+            if let Ok(lock) = mutex_vec[idx].lock() {
+                unsafe{
+                    (*T_ptr.0)[idx].push(sid);
+                    (*ts_ptr.0)[idx][num_walk+1] += 1;
+                }
+            }
+            //Sequential
+            //node_table.T[idx].push(sid);
+            //node_table.ts[idx][num_path+1] += 1;
         }
+    });
+    
+    // Compute prefix sum
+    for i in 0..SIZE_T {
+        node_table.ts[i][num_walk+1] += node_table.ts[i][num_walk];
     }
-
-    if i < walk_data.len() {
-        assert!(
-            walk_data[i] == b'>' || walk_data[i] == b'<',
-            "unknown orientation of segment {}",
-            str::from_utf8(&walk_data[i..]).unwrap()
-        );
-        walk.push((*node2id.get(&walk_data[i+1..]).expect(&format!("cannot find node {} (position {} in walk) in node2id map", str::from_utf8(&walk_data[i..]).unwrap(), i)[..]), walk_data[i] == b'<'));
-    }
-
-    walk
 }
 
 
@@ -242,15 +276,26 @@ pub fn parse_path_line(
     let start = iter.position(|&x| x == b'\t').unwrap()+1;
     let offset = iter.position(|&x| x == b'\t').unwrap();
     let path_name = str::from_utf8(&buf[start..start+offset]).unwrap();
-    log::info!("processing path {}", path_name);
 
     let start = start+offset+1;
     let offset = iter.position(|&x| x == b'\t' || x == b'\n').unwrap();
     let path_data = &buf[start..start+offset];
 
+    let path_seg = PathSegment::from_str(path_name);
+    log::info!("processing path {}", path_seg);
     parse_path(path_data, node2id, node_table, num_path);
 
-    PathSegment::from_str(path_name)
+    path_seg
+}
+
+fn modify_address<T>(start_vec: &[T], add: usize) -> &T {
+    let start_ptr = start_vec.as_ptr() as usize;
+    //let comma_ptr = node_ptr + node.len();
+    let mod_ptr = start_ptr + add;
+    let new_ptr = unsafe { &*(mod_ptr as *const T) };
+    //println!("{:p} {:p}", a, node.as_ptr());
+    //println!("{} {} {} {}", node[0], a, b',', node.len());
+    new_ptr
 }
 
 fn parse_path( 
@@ -262,20 +307,17 @@ fn parse_path(
 
     log::debug!("parsing path string of size {}..", path_data.len());
 
-    let mut num_nodes_path = 0;
     let num_path = num_path as usize;
     let T_ptr = Wrap(&mut node_table.T);
     let ts_ptr = Wrap(&mut node_table.ts);
 
     let mut mutex_vec: Vec<_> = node_table.T.iter().map(|x| Arc::new(Mutex::new(x))).collect();
 
-    path_data.par_split(|&x| x == b',').for_each( |node| {
-    //path_data.split(|&x| x == b',').for_each( |node| {
-        //let sid = str::from_utf8(&node[0..node.len()-1]).unwrap().to_string();
+    path_data.par_split(|&x| x == b',').for_each( |node| { // Parallel
+    //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
         let sid = *node2id.get(&node[0..node.len()-1]).unwrap();
         let strand = node[node.len()-1]==b'-';
         let idx = (sid as usize)%SIZE_T;
-        //let guard = T_mut[idx].lock().unwrap();
         
         if let Ok(lock) = mutex_vec[idx].lock() {
             unsafe{
@@ -284,8 +326,10 @@ fn parse_path(
             }
         }
 
+        //Sequential
         //node_table.T[idx].push(sid);
         //node_table.ts[idx][num_path+1] += 1;
+
     });
     
     // Compute prefix sum
@@ -293,7 +337,6 @@ fn parse_path(
         node_table.ts[i][num_path+1] += node_table.ts[i][num_path];
     }
 
-    log::debug!("..done; path has {} elements", num_nodes_path);
 }
 
 pub fn parse_gfa_nodecount(
@@ -315,7 +358,7 @@ pub fn parse_gfa_nodecount(
             num_path += 1;
             log::debug!("updating count data structure..");
         } else if buf[0] == b'W' {
-            let (path_seg, walk) = parse_walk_line(&buf, &prep.node2id);
+            let path_seg = parse_walk_line(&buf, &prep.node2id, &mut node_table, num_path);
             path_segs.push(path_seg);
             num_path += 1;
             log::debug!("updating count data structure..");
@@ -363,6 +406,66 @@ pub fn preprocessing(pathfile: &str) -> Result<Prep, Box<dyn Error>>
 
     Ok(prep) 
 }
+
+//pub fn parse_walk_line(buf: &[u8], node2id: &HashMap<Vec<u8>, u32>)  -> (PathSegment, Vec<(u32, bool)>) {
+//    let mut six_col : Vec<&str> = Vec::with_capacity(6);
+//
+//    let mut it = buf.iter();
+//    let mut i = 0;
+//    for _ in 0..6 {
+//        let j = it.position(|x| x == &b'\t').unwrap();
+//        six_col.push(&str::from_utf8(&buf[i..i+j]).unwrap());
+//        i += j+1;
+//    }
+//
+//    let seq_start = match six_col[4] {
+//        "*" => None,
+//        a => Some(usize::from_str(a).unwrap()),
+//    };
+//
+//    let seq_end = match six_col[5] {
+//        "*" => None,
+//        a => Some(usize::from_str(a).unwrap()),
+//    };
+//
+//    let path_seg = PathSegment::new(six_col[1].to_string(), six_col[2].to_string(), six_col[3].to_string(), seq_start, seq_end);
+//
+//    log::info!("processing walk {}", &path_seg);
+//
+//    let walk_end = it.position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r').unwrap();
+//    let walk = parse_walk(&buf[i..i+walk_end], node2id);
+//    (path_seg, walk)
+//}
+//
+//
+//fn parse_walk(walk_data: &[u8], node2id: &HashMap<Vec<u8>, u32>) -> Vec<(u32, bool)> {
+//    let mut walk: Vec<(u32, bool)> = Vec::new();
+//
+//    let mut i = 0;
+//    for j in 0..walk_data.len() {
+//        if (walk_data[j] == b'>' || walk_data[j] == b'<') && i < j {
+//            assert!(
+//                walk_data[i] == b'>' || walk_data[i] == b'<',
+//                "unknown orientation of segment {}",
+//                str::from_utf8(&walk_data[i..j]).unwrap()
+//            );
+//            walk.push((*node2id.get(&walk_data[i+1..j]).unwrap(), walk_data[i] == b'<'));
+//            i = j;
+//        }
+//    }
+//
+//    if i < walk_data.len() {
+//        assert!(
+//            walk_data[i] == b'>' || walk_data[i] == b'<',
+//            "unknown orientation of segment {}",
+//            str::from_utf8(&walk_data[i..]).unwrap()
+//        );
+//        walk.push((*node2id.get(&walk_data[i+1..]).expect(&format!("cannot find node {} (position {} in walk) in node2id map", str::from_utf8(&walk_data[i..]).unwrap(), i)[..]), walk_data[i] == b'<'));
+//    }
+//
+//    walk
+//}
+
 
 //pub fn count_path_walk_lines(data: &mut dyn std::io::Read) -> usize {
 //    let mut count = 0;

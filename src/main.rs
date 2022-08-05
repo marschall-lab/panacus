@@ -3,6 +3,7 @@ use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
 use std::str::FromStr;
+use std::time::{Duration, Instant};
 
 /* crate use */
 use clap::Parser;
@@ -89,6 +90,7 @@ pub struct Command {
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
+    let timer = Instant::now();
 
     // print output to stdout
     let mut out = std::io::BufWriter::new(std::io::stdout());
@@ -186,9 +188,11 @@ fn main() -> Result<(), std::io::Error> {
     //    println!("{}", i);
     //}
     
-
-
     out.flush()?;
     log::info!("done");
+    let duration = timer.elapsed();
+    log::info!("done");
+    log::info!("time elapsed: {:?} ", duration);
+
     Ok(())
 }
