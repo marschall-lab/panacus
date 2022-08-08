@@ -30,12 +30,14 @@ impl fmt::Display for CoverageThreshold {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub struct Node {
-    id: String,
-    len: u32,
-}
+//#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+//pub struct Node {
+//    id: String,
+//    len: u32,
+//}
 
+
+trait Group 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Eq, Ord)]
 pub struct Edge {
     uid: usize,
@@ -58,7 +60,7 @@ impl NodeTable {
     pub fn new(num_walks_paths: usize) -> Self {
         Self {
             T: [(); SIZE_T].map(|_| vec![]),
-            ts: [(); SIZE_T].map(|_| vec![0; num_walks_paths + 1]),
+            ts: [(); SIZE_T].map(|_| vec![0; num_walks_paths]),
         }
     }
 }
@@ -209,25 +211,25 @@ impl fmt::Display for PathSegment {
 //    }
 //}
 
-impl Node {
-    pub fn new(id: String, len: u32) -> Self {
-        Self { id: id, len: len }
-    }
-
-    pub fn id(self) -> String {
-        self.id
-    }
-
-    pub fn len(self) -> u32 {
-        self.len
-    }
-}
-
-impl Hash for Node {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
+//impl Node {
+//    pub fn new(id: String, len: u32) -> Self {
+//        Self { id: id, len: len }
+//    }
+//
+//    pub fn id(self) -> String {
+//        self.id
+//    }
+//
+//    pub fn len(self) -> u32 {
+//        self.len
+//    }
+//}
+//
+//impl Hash for Node {
+//    fn hash<H: Hasher>(&self, state: &mut H) {
+//        self.id.hash(state);
+//    }
+//}
 
 impl Edge {
     #[inline]
