@@ -1,11 +1,9 @@
 /* standard use */
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::str::{self, FromStr};
 
 /* crate use */
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 //use rayon::prelude::*;
 //use rayon::par_iter::{IntoParallelIterator, ParallelIterator};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -51,6 +49,7 @@ pub struct Edge {
 pub struct Prep {
     pub path_segments: Vec<PathSegment>,
     pub node2id: HashMap<Vec<u8>, u32>,
+    pub groups: Vec<(PathSegment, String)>,
 }
 
 pub struct NodeTable {
@@ -158,7 +157,11 @@ impl PathSegment {
                 }
             )
         } else if self.seqid.is_some() {
-            format!("{}#{}", self.sample, self.seqid.as_ref().unwrap().as_str())
+            format!(
+                "{}#*#{}",
+                self.sample,
+                self.seqid.as_ref().unwrap().as_str()
+            )
         } else {
             self.sample.clone()
         }
@@ -280,7 +283,7 @@ impl Edge {
 #[derive(Debug, Clone)]
 pub struct Abacus<T> {
     pub countable: Vec<T>,
-    pub path_segs: Vec<PathSegment>,
+    pub groups: Vec<String>,
 }
 
 impl Abacus<u32> {
@@ -290,19 +293,30 @@ impl Abacus<u32> {
         log::info!("counting abacus entries..");
         let mut countable: Vec<u32> = vec![0; prep.node2id.len()];
         let mut last: Vec<usize> = vec![0; prep.node2id.len()];
+
         let mut order_path: Vec<usize> = vec![0; prep.path_segments.len()];
         // Dummy order
         for i in 0..order_path.len() {
             order_path[i] = i;
         }
 
-        for path_id in order_path {
-            Abacus::count_nodes(&mut countable, &mut last, &node_table, path_id);
+        let mut groups = Vec::new();
+        for (path_id, group_id) in Abacus::get_path_order(&prep) {
+            if groups.is_empty() || groups.last().unwrap() != group_id {
+                groups.push(group_id.to_string());
+            }
+            Abacus::count_nodes(
+                &mut countable,
+                &mut last,
+                &node_table,
+                path_id,
+                groups.len() - 1,
+            );
         }
 
         Abacus {
             countable: countable,
-            path_segs: prep.path_segments.clone(),
+            groups: groups,
         }
     }
 
@@ -311,6 +325,7 @@ impl Abacus<u32> {
         last: &mut Vec<usize>,
         node_table: &NodeTable,
         path_id: usize,
+        group_id: usize,
     ) {
         let countable_ptr = Wrap(countable);
         let last_ptr = Wrap(last);
@@ -323,17 +338,54 @@ impl Abacus<u32> {
             for j in start..end {
                 let sid = node_table.T[i][j] as usize;
                 unsafe {
-                    if last[sid] != path_id {
+                    if last[sid] != group_id {
                         (*countable_ptr.0)[sid] += 1;
-                        (*last_ptr.0)[sid] = path_id;
+                        (*last_ptr.0)[sid] = group_id;
                     }
                 }
             }
         });
     }
 
+    fn get_path_order<'a>(prep: &'a Prep) -> Vec<(usize, &'a str)> {
+        // orders the pathsegments in prep.path_segments by the order given in prep.groups
+        // the returned vector maps indices of prep_path_segments to the group identifier
+
+        let mut group_order = Vec::new();
+        let mut group_to_paths: HashMap<&str, Vec<&PathSegment>> = HashMap::default();
+
+        let mut path_to_id: HashMap<&PathSegment, usize> = HashMap::default();
+        prep.path_segments.iter().enumerate().for_each(|(i, s)| {
+            path_to_id.insert(s, i);
+        });
+
+        prep.groups.iter().for_each(|(k, v)| {
+            group_to_paths
+                .entry(&v[..])
+                .or_insert({
+                    group_order.push(&v[..]);
+                    Vec::new()
+                })
+                .push(k)
+        });
+
+        let mut res = Vec::with_capacity(prep.path_segments.len());
+        let empty: Vec<&PathSegment> = Vec::new();
+        for g in group_order.into_iter() {
+            res.extend(
+                group_to_paths
+                    .get(g)
+                    .unwrap()
+                    .iter()
+                    .map(|x| (*path_to_id.get(x).unwrap(), g)),
+            );
+        }
+
+        res
+    }
+
     pub fn construct_hist(&self) -> Vec<u32> {
-        let mut hist: Vec<u32> = vec![0; self.path_segs.len()];
+        let mut hist: Vec<u32> = vec![0; self.groups.len()];
         for iter in self.countable.iter() {
             hist[*iter as usize] += 1;
         }

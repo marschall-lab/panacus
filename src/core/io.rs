@@ -1,8 +1,8 @@
 /* standard use */
 
-use rustc_hash::FxHashMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
+use std::iter::FromIterator;
 use std::str::{self, FromStr};
 
 /* crate use */
@@ -78,9 +78,10 @@ pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     res
 }
 
-pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> FxHashMap<PathSegment, String> {
-    let mut res = FxHashMap::default();
+pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Vec<(PathSegment, String)> {
+    let mut res: Vec<(PathSegment, String)> = Vec::new();
 
+    let mut visited: HashSet<PathSegment> = HashSet::default();
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
@@ -90,21 +91,23 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> FxHashMap<PathSegment, 
         let mut row_it = row.bytes_columns();
         let path_seg =
             PathSegment::from_str(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
+        if visited.contains(&path_seg) {
+            panic!(
+                "Error in line {}: path segment {} has been already assigned to a group",
+                i, &path_seg
+            );
+        }
+        visited.insert(path_seg.clone());
         if path_seg.coords().is_some() {
             panic!(
                 "Error in line {}: coordinates are not permitted in grouping paths",
-                i
+                i,
             );
         }
-        if res
-            .insert(
-                path_seg,
-                str::from_utf8(row_it.next().unwrap()).unwrap().to_string(),
-            )
-            .is_some()
-        {
-            panic!("Error in line {}: contains duplicate path entry", i);
-        }
+        res.push((
+            path_seg,
+            str::from_utf8(row_it.next().unwrap()).unwrap().to_string(),
+        ));
     }
 
     res
@@ -311,24 +314,41 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Nod
     let mut node_table = NodeTable::new(prep.path_segments.len());
     let mut path_segs: Vec<PathSegment> = vec![];
 
+    let valid_path_segments: HashSet<String> =
+        HashSet::from_iter(prep.groups.iter().map(|(x, _)| x.id()));
+
     // Reading GFA file searching for (P)aths and (W)alks
     let mut buf = vec![];
     let mut num_path = 0;
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' {
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
-            log::debug!("updating count data structure..");
-            parse_path_seq(&buf_path_seg, &prep.node2id, &mut node_table, num_path);
-            log::debug!("done");
-            path_segs.push(path_seg);
-            num_path += 1;
+            if valid_path_segments.contains(&path_seg.id()) {
+                log::debug!("updating count data structure..");
+                parse_path_seq(&buf_path_seg, &prep.node2id, &mut node_table, num_path);
+                log::debug!("done");
+                path_segs.push(path_seg);
+                num_path += 1;
+            } else {
+                log::info!(
+                    "no group association found for path {}, skipping",
+                    &path_seg
+                );
+            }
         } else if buf[0] == b'W' {
             let (path_seg, buf_walk_seq) = parse_walk_identifier(&buf);
-            log::debug!("updating count data structure..");
-            parse_walk_seq(&buf_walk_seq, &prep.node2id, &mut node_table, num_path);
-            log::debug!("done");
-            path_segs.push(path_seg);
-            num_path += 1;
+            if valid_path_segments.contains(&path_seg.id()) {
+                log::debug!("updating count data structure..");
+                parse_walk_seq(&buf_walk_seq, &prep.node2id, &mut node_table, num_path);
+                log::debug!("done");
+                path_segs.push(path_seg);
+                num_path += 1;
+            } else {
+                log::info!(
+                    "no group association found for path {}, skipping",
+                    &path_seg
+                );
+            }
         }
 
         buf.clear();
@@ -336,7 +356,10 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Nod
     node_table
 }
 
-pub fn preprocessing<R: Read>(data: &mut BufReader<R>) -> Prep {
+pub fn preprocessing<R: Read>(
+    data: &mut BufReader<R>,
+    groups: &Option<Vec<(PathSegment, String)>>,
+) -> Prep {
     let mut node_count = 0;
     let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
     let mut paths: Vec<PathSegment> = Vec::new();
@@ -363,6 +386,10 @@ pub fn preprocessing<R: Read>(data: &mut BufReader<R>) -> Prep {
     }
 
     Prep {
+        groups: match groups {
+            Some(g) => g.clone(),
+            None => paths.iter().map(|x| (x.clone(), x.to_string())).collect(),
+        },
         path_segments: paths,
         node2id: node2id,
     }

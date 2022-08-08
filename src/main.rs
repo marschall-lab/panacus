@@ -1,14 +1,14 @@
 /* standard use */
+use std::collections::HashMap;
 use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /* crate use */
 use clap::Parser;
 use regex::Regex;
-use rustc_hash::FxHashMap;
 
 pub use self::core::Prep;
 /* private use */
@@ -25,9 +25,9 @@ pub struct Command {
     pub graph: String,
 
     #[clap(
-        short = 't',
-        long = "type",
-        help = "type: node or edge count",
+        short = 'c',
+        long = "count",
+        help = "count type: node or edge count",
         default_value = "nodes",
         possible_values = &["nodes", "edges", "bp"],
     )]
@@ -58,9 +58,9 @@ pub struct Command {
     pub groups: String,
 
     #[clap(
-        short = 'c',
-        long = "coverage_thresholds",
-        help = "list of (named) coverage thresholds of the form <threshold1>,<threshold2>,.. or <name1>=<threshold1>,<name2>=<threshold2> or a file that provides these thresholds in a tab-separated format; a threshold is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+        short = 'l',
+        long = "coverage_level",
+        help = "list of (named) coverage levels of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
         default_value = "cumulative_count=1"
     )]
     pub thresholds: String,
@@ -78,6 +78,14 @@ pub struct Command {
         help = "rather than computing growth across all permutations of the input, produce counts in the order of the paths in the GFA file, or, if a grouping file is specified, in the order of the provided groups"
     )]
     pub ordered: bool,
+
+    #[clap(
+        short = 't',
+        long = "threads",
+        help = "run in parallel on N threads",
+        default_value = "1"
+    )]
+    pub threads: usize,
 }
 
 //fn some_function<T>(abacus: core::Abacus<T>) {
@@ -98,6 +106,16 @@ fn main() -> Result<(), std::io::Error> {
     // initialize command line parser & parse command line arguments
     let params = Command::parse();
 
+    if params.threads > 0 {
+        log::info!("running pangenome-growth on {} threads", &params.threads);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(params.threads)
+            .build_global()
+            .unwrap();
+    } else {
+        log::info!("running pangenome-growth using all available CPUs");
+    }
+
     let mut subset_coords = Vec::new();
     if !params.positive_list.is_empty() {
         log::info!("loading subset coordinates from {}", &params.positive_list);
@@ -117,12 +135,15 @@ fn main() -> Result<(), std::io::Error> {
         log::debug!("loaded {} coordinates", exclude_coords.len());
     }
 
-    let mut groups = FxHashMap::default();
+    let mut groups = None;
     if !params.groups.is_empty() {
         log::info!("loading groups from {}", &params.groups);
         let mut data = std::io::BufReader::new(fs::File::open(&params.groups)?);
-        groups = core::io::parse_groups(&mut data);
-        log::debug!("loaded {} group assignments ", groups.len());
+        groups = Some(core::io::parse_groups(&mut data));
+        log::debug!(
+            "loaded {} group assignments ",
+            groups.as_ref().unwrap().len()
+        );
     }
 
     let mut coverage_thresholds = Vec::new();
@@ -170,7 +191,7 @@ fn main() -> Result<(), std::io::Error> {
 
     log::info!("preprocessing: processing nodes and counting P/W lines");
     let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
-    let prep = core::io::preprocessing(&mut data);
+    let prep: Prep = core::io::preprocessing(&mut data, &groups);
     log::info!(
         "..done; found {} paths/walks and {} nodes",
         prep.path_segments.len(),
@@ -183,8 +204,8 @@ fn main() -> Result<(), std::io::Error> {
     let abacus = core::Abacus::from_gfa(&mut data, prep);
     //some_function(abacus);
     log::info!(
-        "abacus has {} paths and {} countables",
-        abacus.path_segs.len(),
+        "abacus has {} path groups and {} countables",
+        abacus.groups.len(),
         abacus.countable.len()
     );
 
@@ -193,10 +214,8 @@ fn main() -> Result<(), std::io::Error> {
     //    println!("{}", i);
     //}
     out.flush()?;
-    log::info!("done");
     let duration = timer.elapsed();
-    log::info!("done");
-    log::info!("time elapsed: {:?} ", duration);
+    log::info!("done; time elapsed: {:?} ", duration);
 
     Ok(())
 }
