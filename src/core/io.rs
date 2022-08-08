@@ -2,19 +2,18 @@
 
 use rustc_hash::FxHashMap;
 use std::collections::HashMap;
-use std::error::Error;
-use std::io::{self, BufRead, Lines, Read};
+use std::io::{BufReader, Read, BufRead};
 use std::str::{self, FromStr};
 
 /* crate use */
-use quick_csv::{columns::BytesColumns, Csv};
+use quick_csv::Csv;
 
 //use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use super::{Abacus, CoverageThreshold, Node, NodeTable, PathSegment, Prep, SIZE_T};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
-pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<PathSegment> {
+pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     let mut res = Vec::new();
 
     let reader = Csv::from_reader(data)
@@ -79,8 +78,8 @@ pub fn parse_bed<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Vec<Path
     res
 }
 
-pub fn parse_groups<R: std::io::Read>(
-    data: &mut std::io::BufReader<R>,
+pub fn parse_groups<R: Read>(
+    data: &mut BufReader<R>,
 ) -> FxHashMap<PathSegment, String> {
     let mut res = FxHashMap::default();
 
@@ -113,8 +112,8 @@ pub fn parse_groups<R: std::io::Read>(
     res
 }
 
-pub fn parse_coverage_threshold_file<R: std::io::Read>(
-    data: &mut std::io::BufReader<R>,
+pub fn parse_coverage_threshold_file<R: Read>(
+    data: &mut BufReader<R>,
 ) -> Vec<(String, CoverageThreshold)> {
     let mut res = Vec::new();
 
@@ -147,22 +146,6 @@ pub fn parse_coverage_threshold_file<R: std::io::Read>(
     }
 
     res
-}
-
-pub fn count_pw_lines(pathfile: &str) -> Result<usize, Box<dyn Error>> {
-    //let mut streams = HashMap::new();
-    let mut br = std::io::BufReader::new(std::fs::File::open(pathfile)?);
-    let mut buf = vec![];
-    let mut count: usize = 0;
-    while br.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-        //println!("{}", str::from_utf8(&buf).unwrap());
-        if buf[0] == b'W' || buf[0] == b'P' {
-            count += 1;
-        }
-        buf.clear();
-    }
-
-    Ok(count)
 }
 
 pub fn parse_walk_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
@@ -201,7 +184,7 @@ fn parse_walk_seq(
     data: &[u8],
     node2id: &HashMap<Vec<u8>, u32>,
     node_table: &mut NodeTable,
-    num_path: u32,
+    num_path: usize,
 ) {
     let mut it = data.iter();
     let end = it
@@ -209,8 +192,6 @@ fn parse_walk_seq(
         .unwrap();
 
     log::debug!("parsing path sequences of size {}..", end);
-
-    let num_path = num_path as usize;
 
     let mut nnodes = 0;
 
@@ -278,7 +259,7 @@ fn parse_path_seq(
     data: &[u8],
     node2id: &HashMap<Vec<u8>, u32>,
     node_table: &mut NodeTable,
-    num_path: u32,
+    num_path: usize,
 ) {
     let mut it = data.iter();
     let end = it
@@ -288,7 +269,6 @@ fn parse_path_seq(
     log::debug!("parsing path sequences of size {}..", end);
 
     let mut nnodes = 0;
-    let num_path = num_path as usize;
 
     //path_data.par_split(|&x| x == b',').for_each( |node| {
     data[..end].split(|&x| x == b',').for_each(|node| {
@@ -315,8 +295,8 @@ fn parse_path_seq(
     log::debug!("..done; path has {} elements", nnodes);
 }
 
-pub fn parse_gfa_nodecount<R: std::io::Read>(
-    data: &mut std::io::BufReader<R>,
+pub fn parse_gfa_nodecount<R: Read>(
+    data: &mut BufReader<R>,
     prep: &Prep,
 ) -> NodeTable {
     let mut node_table = NodeTable::new(prep.path_segments.len());
@@ -347,10 +327,10 @@ pub fn parse_gfa_nodecount<R: std::io::Read>(
     node_table
 }
 
-pub fn preprocessing<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Prep {
+pub fn preprocessing<R: Read>(data: &mut BufReader<R>) -> Prep {
     let mut node_count = 0;
     let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
-    let mut paths: Vec<PathSegment> = Vec::new();
+    let mut paths: Vec<Group> = Vec::new();
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
