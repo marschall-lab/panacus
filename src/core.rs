@@ -13,6 +13,10 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 pub mod io;
 
 const SIZE_T: usize = 1024;
+struct Wrap<T>(*mut T);
+unsafe impl Sync for Wrap<Vec<u32>> {}
+unsafe impl Sync for Wrap<Vec<usize>> {}
+unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CoverageThreshold {
@@ -36,8 +40,6 @@ impl fmt::Display for CoverageThreshold {
 //    len: u32,
 //}
 
-
-trait Group 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Eq, Ord)]
 pub struct Edge {
     uid: usize,
@@ -60,7 +62,7 @@ impl NodeTable {
     pub fn new(num_walks_paths: usize) -> Self {
         Self {
             T: [(); SIZE_T].map(|_| vec![]),
-            ts: [(); SIZE_T].map(|_| vec![0; num_walks_paths]),
+            ts: [(); SIZE_T].map(|_| vec![0; num_walks_paths + 1]),
         }
     }
 }
@@ -281,10 +283,6 @@ pub struct Abacus<T> {
     pub path_segs: Vec<PathSegment>,
 }
 
-struct Wrap<T>(*mut T);
-unsafe impl Sync for Wrap<Vec<u32>> {}
-unsafe impl Sync for Wrap<Vec<usize>> {}
-
 impl Abacus<u32> {
     pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, prep: Prep) -> Self {
         log::info!("parsing path + walk sequences");
@@ -307,24 +305,6 @@ impl Abacus<u32> {
             path_segs: prep.path_segments.clone(),
         }
     }
-
-    //pub fn add_count(
-    //    i: usize,
-    //    path_id: usize,
-    //    countable: &mut Vec<u32>,
-    //    last: &mut Vec<usize>,
-    //    node_table: &NodeTable)
-    //{
-    //    let start = node_table.ts[i][path_id] as usize;
-    //    let end = node_table.ts[i][path_id+1] as usize;
-    //    for j in start..end {
-    //        let sid = node_table.T[i][j] as usize;
-    //        if last[sid] != path_id {
-    //            countable[sid] += 1;
-    //            last[sid] = path_id;
-    //        }
-    //    }
-    //}
 
     fn count_nodes(
         countable: &mut Vec<u32>,
