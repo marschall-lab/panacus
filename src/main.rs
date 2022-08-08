@@ -169,13 +169,18 @@ fn main() -> Result<(), std::io::Error> {
     }
 
     log::info!("preprocessing: processing nodes and counting P/W lines");
-    let prep = core::io::preprocessing(&params.graph).unwrap();
-    log::info!("..done; found {} paths/walks and {} nodes", 
-        prep.num_walks_paths, prep.num_nodes);
+    let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
+    let prep = core::io::preprocessing(&mut data);
+    log::info!(
+        "..done; found {} paths/walks and {} nodes",
+        prep.path_segments.len(),
+        prep.node2id.len()
+    );
 
     log::info!("loading graph from {}", params.graph);
+    let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
     //let abacus = core::Abacus::<core::Node>::from_gfa(&params.graph, prep);
-    let abacus = core::Abacus::from_gfa(&params.graph, prep);
+    let abacus = core::Abacus::from_gfa(&mut data, prep);
     //some_function(abacus);
     log::info!(
         "abacus has {} paths and {} countables",
@@ -187,7 +192,6 @@ fn main() -> Result<(), std::io::Error> {
     //for i in hist.iter() {
     //    println!("{}", i);
     //}
-    
     out.flush()?;
     log::info!("done");
     let duration = timer.elapsed();
