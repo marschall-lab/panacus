@@ -1,5 +1,6 @@
 /* standard use */
 use std::fmt;
+use std::iter::FromIterator;
 use std::str::{self, FromStr};
 
 /* crate use */
@@ -48,8 +49,10 @@ pub struct Edge {
 
 pub struct Prep {
     pub path_segments: Vec<PathSegment>,
+    pub node_len: Vec<u32>,
     pub node2id: HashMap<Vec<u8>, u32>,
     pub groups: Vec<(PathSegment, String)>,
+    pub subset_coords: Option<Vec<PathSegment>>,
 }
 
 pub struct NodeTable {

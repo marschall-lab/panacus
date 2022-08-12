@@ -116,12 +116,15 @@ fn main() -> Result<(), std::io::Error> {
         log::info!("running pangenome-growth using all available CPUs");
     }
 
-    let mut subset_coords = Vec::new();
+    let mut subset_coords = None;
     if !params.positive_list.is_empty() {
         log::info!("loading subset coordinates from {}", &params.positive_list);
         let mut data = std::io::BufReader::new(fs::File::open(&params.positive_list)?);
-        subset_coords = core::io::parse_bed(&mut data);
-        log::debug!("loaded {} coordinates", subset_coords.len());
+        subset_coords = Some(core::io::parse_bed(&mut data));
+        log::debug!(
+            "loaded {} coordinates",
+            subset_coords.as_ref().unwrap().len()
+        );
     }
 
     let mut exclude_coords = Vec::new();
@@ -191,7 +194,7 @@ fn main() -> Result<(), std::io::Error> {
 
     log::info!("preprocessing: processing nodes and counting P/W lines");
     let mut data = std::io::BufReader::new(fs::File::open(&params.graph)?);
-    let prep: Prep = core::io::preprocessing(&mut data, &groups);
+    let prep: Prep = core::io::preprocessing(&mut data, groups, subset_coords);
     log::info!(
         "..done; found {} paths/walks and {} nodes",
         prep.path_segments.len(),

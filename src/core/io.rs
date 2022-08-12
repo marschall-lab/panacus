@@ -184,6 +184,9 @@ pub fn parse_walk_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
 fn parse_walk_seq(
     data: &[u8],
     node2id: &HashMap<Vec<u8>, u32>,
+    node_len: &Vec<u32>,
+    offset: usize,
+    subset_coords: &[(usize, usize)],
     node_table: &mut NodeTable,
     num_walk: usize,
 ) {
@@ -194,34 +197,38 @@ fn parse_walk_seq(
 
     log::debug!("parsing path sequences of size {}..", end);
 
-    let T_ptr = Wrap(&mut node_table.T);
-    let ts_ptr = Wrap(&mut node_table.ts);
-
-    let mut mutex_vec: Vec<_> = node_table
-        .T
-        .iter()
-        .map(|x| Arc::new(Mutex::new(x)))
+    // XXX ignore first > | < so that no empty is created for 1st node
+    let sids: Vec<u32> = data[1..end]
+        .par_split(|&x| x == b'<' || x == b'>')
+        .map(|node| {
+            *node2id.get(&node[..]).expect(
+                &format!(
+                    "walk contains unknown node {} ",
+                    str::from_utf8(&node[..]).unwrap()
+                )[..],
+            )
+        })
         .collect();
 
-    data.par_split(|&x| x == b'<' || x == b'>')
-        .for_each(|node| {
-            // Parallel
-            //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
-            if let Some(sid) = node2id.get(&node[0..node.len()]) {
-                let sid = *sid;
-                let idx = (sid as usize) % SIZE_T;
+    let mut i = 0;
+    let mut p = offset;
 
-                if let Ok(lock) = mutex_vec[idx].lock() {
-                    unsafe {
-                        (*T_ptr.0)[idx].push(sid);
-                        (*ts_ptr.0)[idx][num_walk + 1] += 1;
-                    }
-                }
-                //Sequential
-                //node_table.T[idx].push(sid);
-                //node_table.ts[idx][num_path+1] += 1;
-            }
-        });
+    for sid in sids {
+        // update current pointer in subset_coords list
+        while i < subset_coords.len() && subset_coords[i].1 <= p {
+            i += 1;
+        }
+
+        let l = node_len[sid as usize] as usize;
+
+        // check if the current position fits within active segment
+        if i < subset_coords.len() && subset_coords[i].0 <= p + l {
+            let idx = (sid as usize) % SIZE_T;
+            node_table.T[idx].push(sid);
+            node_table.ts[idx][num_walk + 1] += 1;
+        }
+        p += l;
+    }
 
     // Compute prefix sum
     for i in 0..SIZE_T {
@@ -242,19 +249,22 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
     )
 }
 
-fn modify_address<T>(start_vec: &[T], add: usize) -> &T {
-    let start_ptr = start_vec.as_ptr() as usize;
-    //let comma_ptr = node_ptr + node.len();
-    let mod_ptr = start_ptr + add;
-    let new_ptr = unsafe { &*(mod_ptr as *const T) };
-    //println!("{:p} {:p}", a, node.as_ptr());
-    //println!("{} {} {} {}", node[0], a, b',', node.len());
-    new_ptr
-}
+//fn modify_address<T>(start_vec: &[T], add: usize) -> &T {
+//    let start_ptr = start_vec.as_ptr() as usize;
+//    //let comma_ptr = node_ptr + node.len();
+//    let mod_ptr = start_ptr + add;
+//    let new_ptr = unsafe { &*(mod_ptr as *const T) };
+//    //println!("{:p} {:p}", a, node.as_ptr());
+//    //println!("{} {} {} {}", node[0], a, b',', node.len());
+//    new_ptr
+//}
 
 fn parse_path_seq(
     data: &[u8],
     node2id: &HashMap<Vec<u8>, u32>,
+    node_len: &Vec<u32>,
+    offset: usize,
+    subset_coords: &[(usize, usize)],
     node_table: &mut NodeTable,
     num_path: usize,
 ) {
@@ -266,41 +276,46 @@ fn parse_path_seq(
     log::debug!("parsing path sequences of size {}..", end);
 
     let num_path = num_path as usize;
-    let T_ptr = Wrap(&mut node_table.T);
-    let ts_ptr = Wrap(&mut node_table.ts);
 
-    let mut mutex_vec: Vec<_> = node_table
-        .T
-        .iter()
-        .map(|x| Arc::new(Mutex::new(x)))
+    let sids: Vec<u32> = data[..end]
+        .par_split(|&x| x == b',')
+        .map(|node| {
+            // Parallel
+            //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
+            let sid = *node2id.get(&node[0..node.len() - 1]).expect(&format!(
+                "unknown node {}",
+                &str::from_utf8(node).unwrap()[..]
+            ));
+            let o = node[node.len() - 1];
+            assert!(
+                o == b'-' || o == b'+',
+                "unknown orientation of segment {}",
+                str::from_utf8(&node).unwrap()
+            );
+
+            sid
+        })
         .collect();
 
-    data[..end].par_split(|&x| x == b',').for_each(|node| {
-        // Parallel
-        //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
-        let sid = *node2id.get(&node[0..node.len() - 1]).expect(&format!(
-            "unknown node {}",
-            &str::from_utf8(node).unwrap()[..]
-        ));
-        let o = node[node.len() - 1];
-        assert!(
-            o == b'-' || o == b'+',
-            "unknown orientation of segment {}",
-            str::from_utf8(&node).unwrap()
-        );
-        let idx = (sid as usize) % SIZE_T;
+    let mut i = 0;
+    let mut p = offset;
 
-        if let Ok(lock) = mutex_vec[idx].lock() {
-            unsafe {
-                (*T_ptr.0)[idx].push(sid);
-                (*ts_ptr.0)[idx][num_path + 1] += 1;
-            }
+    for sid in sids {
+        // update current pointer in subset_coords list
+        while i < subset_coords.len() && subset_coords[i].1 <= p {
+            i += 1;
         }
 
-        //Sequential
-        //node_table.T[idx].push(sid);
-        //node_table.ts[idx][num_path+1] += 1;
-    });
+        let l = node_len[sid as usize] as usize;
+
+        // check if the current position fits within active segment
+        if i < subset_coords.len() && subset_coords[i].0 <= p + l {
+            let idx = (sid as usize) % SIZE_T;
+            node_table.T[idx].push(sid);
+            node_table.ts[idx][num_path + 1] += 1;
+        }
+        p += l;
+    }
 
     // Compute prefix sum
     for i in 0..SIZE_T {
@@ -310,47 +325,86 @@ fn parse_path_seq(
     log::debug!("..done");
 }
 
+fn build_subpath_map(subset_coords: &Vec<PathSegment>) -> HashMap<String, Vec<(usize, usize)>> {
+    let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
+
+    subset_coords.into_iter().for_each(|x| {
+        res.entry(x.id())
+            .or_insert(HashSet::default())
+            .insert(match x.coords() {
+                None => (0, usize::MAX),
+                Some((i, j)) => (i, j),
+            });
+    });
+
+    HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
+        let mut v: Vec<(usize, usize)> = coords.into_iter().collect();
+        v.sort();
+        (pid, v)
+    }))
+}
+
 pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> NodeTable {
     let mut node_table = NodeTable::new(prep.path_segments.len());
     let mut path_segs: Vec<PathSegment> = vec![];
 
-    let valid_path_segments: HashSet<String> =
-        HashSet::from_iter(prep.groups.iter().map(|(x, _)| x.id()));
+    let subset_map = match &prep.subset_coords {
+        None => HashMap::default(),
+        Some(coords) => build_subpath_map(coords),
+    };
 
     // Reading GFA file searching for (P)aths and (W)alks
     let mut buf = vec![];
     let mut num_path = 0;
+    let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' {
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
-            if valid_path_segments.contains(&path_seg.id()) {
-                log::debug!("updating count data structure..");
-                parse_path_seq(&buf_path_seg, &prep.node2id, &mut node_table, num_path);
-                log::debug!("done");
-                path_segs.push(path_seg);
-                num_path += 1;
-            } else {
-                log::info!(
-                    "no group association found for path {}, skipping",
-                    &path_seg
-                );
-            }
+            log::debug!("updating count data structure..");
+            parse_path_seq(
+                &buf_path_seg,
+                &prep.node2id,
+                &prep.node_len,
+                path_seg.coords().get_or_insert((0, 0)).0,
+                if prep.subset_coords.is_none() {
+                    &complete[..]
+                } else {
+                    match subset_map.get(&path_seg.id()) {
+                        // empty slice
+                        None => &complete[1..],
+                        Some(coords) => &coords[..],
+                    }
+                },
+                &mut node_table,
+                num_path,
+            );
+            log::debug!("done");
+            path_segs.push(path_seg);
+            num_path += 1;
         } else if buf[0] == b'W' {
             let (path_seg, buf_walk_seq) = parse_walk_identifier(&buf);
-            if valid_path_segments.contains(&path_seg.id()) {
-                log::debug!("updating count data structure..");
-                parse_walk_seq(&buf_walk_seq, &prep.node2id, &mut node_table, num_path);
-                log::debug!("done");
-                path_segs.push(path_seg);
-                num_path += 1;
-            } else {
-                log::info!(
-                    "no group association found for path {}, skipping",
-                    &path_seg
-                );
-            }
+            log::debug!("updating count data structure..");
+            parse_walk_seq(
+                &buf_walk_seq,
+                &prep.node2id,
+                &prep.node_len,
+                path_seg.coords().get_or_insert((0, 0)).0,
+                if prep.subset_coords.is_none() {
+                    &complete[..]
+                } else {
+                    match subset_map.get(&path_seg.id()) {
+                        // empty slice
+                        None => &complete[1..],
+                        Some(coords) => &coords[..],
+                    }
+                },
+                &mut node_table,
+                num_path,
+            );
+            log::debug!("done");
+            path_segs.push(path_seg);
+            num_path += 1;
         }
-
         buf.clear();
     }
     node_table
@@ -358,28 +412,34 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Nod
 
 pub fn preprocessing<R: Read>(
     data: &mut BufReader<R>,
-    groups: &Option<Vec<(PathSegment, String)>>,
+    groups: Option<Vec<(PathSegment, String)>>,
+    subset_coords: Option<Vec<PathSegment>>,
 ) -> Prep {
     let mut node_count = 0;
     let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
-    let mut paths: Vec<PathSegment> = Vec::new();
+    let mut path_segments: Vec<PathSegment> = Vec::new();
+    let mut node_len: Vec<u32> = Vec::new();
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'S' {
             let mut iter = buf.iter();
-
             let start = iter.position(|&x| x == b'\t').unwrap() + 1;
             let offset = iter.position(|&x| x == b'\t').unwrap();
             let sid = buf[start..start + offset].to_vec();
+            let start = start + offset + 1;
+            let offset = iter
+                .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
+                .unwrap();
+            node_len.push(offset as u32);
             node2id.entry(sid).or_insert(node_count);
             node_count += 1;
         } else if buf[0] == b'P' {
             let (path_seg, _) = parse_path_identifier(&buf);
-            paths.push(path_seg);
+            path_segments.push(path_seg);
         } else if buf[0] == b'W' {
             let (path_seg, _) = parse_walk_identifier(&buf);
-            paths.push(path_seg);
+            path_segments.push(path_seg);
         }
 
         buf.clear();
@@ -387,11 +447,13 @@ pub fn preprocessing<R: Read>(
 
     Prep {
         groups: match groups {
-            Some(g) => g.clone(),
-            None => paths.iter().map(|x| (x.clone(), x.to_string())).collect(),
+            Some(g) => g,
+            None => path_segments.iter().map(|x| (x.clone(), x.id())).collect(),
         },
-        path_segments: paths,
+        path_segments: path_segments,
+        node_len: node_len,
         node2id: node2id,
+        subset_coords: subset_coords,
     }
 }
 
