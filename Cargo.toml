@@ -16,6 +16,7 @@ rand        = "0.8.4"
 regex = "1"
 rustc-hash = "1"
 rayon = "1.5.3"
+rug = "1.16.0"
 
 # Logging and error management
 anyhow     = "1"

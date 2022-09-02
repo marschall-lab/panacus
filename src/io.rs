@@ -1,17 +1,15 @@
 /* standard use */
-
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::iter::FromIterator;
 use std::str::{self, FromStr};
-
-/* crate use */
+/* external crate */
 use quick_csv::Csv;
-
-//use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use super::{Abacus, CoverageThreshold, NodeTable, PathSegment, Prep, Wrap, SIZE_T};
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
+//use std::sync::{Arc, Mutex};
+/* private use */
+use crate::abacus::{*};
+use crate::graph::{*};
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     let mut res = Vec::new();
@@ -187,7 +185,7 @@ fn parse_walk_seq(
     node_len: &Vec<u32>,
     offset: usize,
     subset_coords: &[(usize, usize)],
-    node_table: &mut NodeTable,
+    node_table: &mut ItemTable,
     num_walk: usize,
 ) {
     let mut it = data.iter();
@@ -224,15 +222,15 @@ fn parse_walk_seq(
         // check if the current position fits within active segment
         if i < subset_coords.len() && subset_coords[i].0 <= p + l {
             let idx = (sid as usize) % SIZE_T;
-            node_table.T[idx].push(sid);
-            node_table.ts[idx][num_walk + 1] += 1;
+            node_table.items[idx].push(sid);
+            node_table.id_prefsum[idx][num_walk + 1] += 1;
         }
         p += l;
     }
 
     // Compute prefix sum
     for i in 0..SIZE_T {
-        node_table.ts[i][num_walk + 1] += node_table.ts[i][num_walk];
+        node_table.id_prefsum[i][num_walk + 1] += node_table.id_prefsum[i][num_walk];
     }
 }
 
@@ -265,7 +263,7 @@ fn parse_path_seq(
     node_len: &Vec<u32>,
     offset: usize,
     subset_coords: &[(usize, usize)],
-    node_table: &mut NodeTable,
+    node_table: &mut ItemTable,
     num_path: usize,
 ) {
     let mut it = data.iter();
@@ -311,15 +309,15 @@ fn parse_path_seq(
         // check if the current position fits within active segment
         if i < subset_coords.len() && subset_coords[i].0 <= p + l {
             let idx = (sid as usize) % SIZE_T;
-            node_table.T[idx].push(sid);
-            node_table.ts[idx][num_path + 1] += 1;
+            node_table.items[idx].push(sid);
+            node_table.id_prefsum[idx][num_path + 1] += 1;
         }
         p += l;
     }
 
     // Compute prefix sum
     for i in 0..SIZE_T {
-        node_table.ts[i][num_path + 1] += node_table.ts[i][num_path];
+        node_table.id_prefsum[i][num_path + 1] += node_table.id_prefsum[i][num_path];
     }
 
     log::debug!("..done");
@@ -344,8 +342,8 @@ fn build_subpath_map(subset_coords: &Vec<PathSegment>) -> HashMap<String, Vec<(u
     }))
 }
 
-pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> NodeTable {
-    let mut node_table = NodeTable::new(prep.path_segments.len());
+pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> ItemTable {
+    let mut node_table = ItemTable::new(prep.path_segments.len());
     let mut path_segs: Vec<PathSegment> = vec![];
 
     let subset_map = match &prep.subset_coords {
@@ -366,15 +364,15 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Nod
                 &prep.node2id,
                 &prep.node_len,
                 path_seg.coords().get_or_insert((0, 0)).0,
-                if prep.subset_coords.is_none() {
-                    &complete[..]
-                } else {
-                    match subset_map.get(&path_seg.id()) {
-                        // empty slice
-                        None => &complete[1..],
-                        Some(coords) => &coords[..],
-                    }
-                },
+                    if prep.subset_coords.is_none() {
+                        &complete[..]
+                    } else {
+                        match subset_map.get(&path_seg.id()) {
+                            // empty slice
+                            None => &complete[1..],
+                            Some(coords) => &coords[..],
+                        }
+                    },
                 &mut node_table,
                 num_path,
             );
@@ -389,15 +387,15 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Nod
                 &prep.node2id,
                 &prep.node_len,
                 path_seg.coords().get_or_insert((0, 0)).0,
-                if prep.subset_coords.is_none() {
-                    &complete[..]
-                } else {
-                    match subset_map.get(&path_seg.id()) {
-                        // empty slice
-                        None => &complete[1..],
-                        Some(coords) => &coords[..],
-                    }
-                },
+                    if prep.subset_coords.is_none() {
+                        &complete[..]
+                    } else {
+                        match subset_map.get(&path_seg.id()) {
+                            // empty slice
+                            None => &complete[1..],
+                            Some(coords) => &coords[..],
+                        }
+                    },
                 &mut node_table,
                 num_path,
             );
@@ -427,7 +425,6 @@ pub fn preprocessing<R: Read>(
             let start = iter.position(|&x| x == b'\t').unwrap() + 1;
             let offset = iter.position(|&x| x == b'\t').unwrap();
             let sid = buf[start..start + offset].to_vec();
-            let start = start + offset + 1;
             let offset = iter
                 .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
                 .unwrap();
