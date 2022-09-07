@@ -5,10 +5,10 @@
 /* external crate*/
 use rayon::prelude::*;
 //use rayon::par_iter::{IntoParallelIterator, ParallelIterator};
-use std::collections::{HashMap};
+use std::collections::HashMap;
 /* private use */
+use crate::graph::*;
 use crate::io;
-use crate::graph::{*};
 
 pub const SIZE_T: usize = 1024;
 struct Wrap<T>(*mut T);
@@ -99,9 +99,51 @@ impl Abacus<u32> {
         });
     }
 
+
+    //Why &self and not self? we could destroy abacus at this point.
+    pub fn construct_hist(&self) -> Vec<u32> {
+        //Hist must be of size = num_groups + 1.
+        //Having an index that starts from 1, instead of 0,
+        //makes easier the calculation in hist2pangrowth.
+        //(Index 0 is ignored, i.e. no item is present in 0 groups)
+        let mut hist: Vec<u32> = vec![0; self.groups.len() + 1];
+        for iter in self.countable.iter() {
+            hist[*iter as usize] += 1;
+        }
+        hist
+    }
+
+    pub fn hist2pangrowth(hist: Vec<u32>) -> Vec<u32> {
+        let n = hist.len() - 1; // hist has length n+1: from 0..n (both included)
+        let pangrowth: Vec<u32> = Vec::with_capacity(n + 1);
+        let mut n_fall_m = rug::Integer::from(1);
+        let tot = rug::Integer::from(hist.iter().sum::<u32>());
+
+        // perc_mult[i] contains the percentage of combinations that
+        // have an item of multiplicity i
+        let mut perc_mult: Vec<rug::Integer> = Vec::with_capacity(n + 1);
+        perc_mult.resize(n + 1, rug::Integer::from(1));
+
+        for m in 1..n + 1 {
+            let mut y = rug::Integer::from(0);
+            for i in 1..n - m + 1 {
+                perc_mult[i] *= n - m - i + 1;
+                y += hist[i] * &perc_mult[i];
+            }
+            n_fall_m *= n - m + 1;
+
+            let dividend: rug::Integer = rug::Integer::from(&n_fall_m * &tot - &y);
+            let divisor: rug::Integer = rug::Integer::from(&n_fall_m);
+            let (pang_m, _) = dividend.div_rem(rug::Integer::from(divisor));
+            println!("{} {}", m, pang_m);
+        }
+        //println!("tot: {}", tot);
+        pangrowth
+    }
+
     fn get_path_order<'a>(prep: &'a Prep) -> Vec<(usize, &'a str)> {
-        // orders the pathsegments in prep.path_segments by the order given 
-        // in prep.groups. The returned vector maps indices of prep_path_segments 
+        // orders the pathsegments in prep.path_segments by the order given
+        // in prep.groups. The returned vector maps indices of prep_path_segments
         // to the group identifier
 
         let mut group_order = Vec::new();
@@ -135,47 +177,6 @@ impl Abacus<u32> {
         }
 
         res
-    }
-
-    //Why &self and not self? we could destroy abacus at this point.
-    pub fn construct_hist(&self) -> Vec<u32> {
-        //Hist must be of size = num_groups + 1.
-        //Having an index that starts from 1, instead of 0, 
-        //makes easier the calculation in hist2pangrowth. 
-        //(Index 0 is ignored, i.e. no item is present in 0 groups)
-        let mut hist: Vec<u32> = vec![0; self.groups.len() + 1];
-        for iter in self.countable.iter() {
-            hist[*iter as usize] += 1;
-        }
-        hist
-    }
-
-    pub fn hist2pangrowth(hist: Vec<u32>) -> Vec<u32> {
-        let n = hist.len()-1; // hist has length n+1: from 0..n (both included)
-        let pangrowth: Vec<u32> = Vec::with_capacity(n + 1);
-        let mut n_fall_m = rug::Integer::from(1);
-        let tot = rug::Integer::from(hist.iter().sum::<u32>());
-
-        // perc_mult[i] contains the percentage of combinations that
-        // have an item of multiplicity i
-        let mut perc_mult: Vec<rug::Integer> = Vec::with_capacity(n + 1);
-        perc_mult.resize(n + 1, rug::Integer::from(1));
-
-        for m in 1..n + 1 {
-            let mut y = rug::Integer::from(0);
-            for i in 1..n - m + 1 {
-                perc_mult[i] *= n - m - i + 1;
-                y += hist[i] * &perc_mult[i];
-            }
-            n_fall_m *= n - m + 1;
-
-            let dividend: rug::Integer = rug::Integer::from(&n_fall_m * &tot - &y);
-            let divisor: rug::Integer = rug::Integer::from(&n_fall_m);
-            let (pang_m, _) = dividend.div_rem(rug::Integer::from(divisor));
-            println!("{} {}", m, pang_m);
-        }
-        //println!("tot: {}", tot);
-        pangrowth
     }
 
 }

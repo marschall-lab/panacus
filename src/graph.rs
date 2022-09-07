@@ -3,7 +3,7 @@ use std::fmt;
 use std::str::{self, FromStr};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CoverageThreshold {
+pub enum Threshold {
     Relative(f64),
     Absolute(usize),
 }
@@ -31,11 +31,11 @@ pub struct PathSegment {
     pub end: Option<usize>,
 }
 
-impl fmt::Display for CoverageThreshold {
+impl fmt::Display for Threshold {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            CoverageThreshold::Relative(c) => write!(formatter, "{}R", c)?,
-            CoverageThreshold::Absolute(c) => write!(formatter, "{}A", c)?,
+            Threshold::Relative(c) => write!(formatter, "{}R", c)?,
+            Threshold::Absolute(c) => write!(formatter, "{}A", c)?,
         }
         Ok(())
     }
@@ -196,5 +196,3 @@ impl fmt::Display for PathSegment {
         Ok(())
     }
 }
-
-

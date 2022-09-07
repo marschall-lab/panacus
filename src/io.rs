@@ -8,8 +8,8 @@ use quick_csv::Csv;
 use rayon::prelude::*;
 //use std::sync::{Arc, Mutex};
 /* private use */
-use crate::abacus::{*};
-use crate::graph::{*};
+use crate::abacus::*;
+use crate::graph::*;
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     let mut res = Vec::new();
@@ -111,9 +111,7 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Vec<(PathSegment, Strin
     res
 }
 
-pub fn parse_coverage_threshold_file<R: Read>(
-    data: &mut BufReader<R>,
-) -> Vec<(String, CoverageThreshold)> {
+pub fn parse_coverage_threshold_file<R: Read>(data: &mut BufReader<R>) -> Vec<(String, Threshold)> {
     let mut res = Vec::new();
 
     let reader = Csv::from_reader(data)
@@ -130,15 +128,15 @@ pub fn parse_coverage_threshold_file<R: Read>(
         let threshold = if let Some(col) = row_it.next() {
             let threshold_str = str::from_utf8(col).unwrap();
             if let Some(t) = usize::from_str(threshold_str).ok() {
-                CoverageThreshold::Absolute(t)
+                Threshold::Absolute(t)
             } else {
-                CoverageThreshold::Relative(f64::from_str(threshold_str).unwrap())
+                Threshold::Relative(f64::from_str(threshold_str).unwrap())
             }
         } else {
             if let Some(t) = usize::from_str(&name[..]).ok() {
-                CoverageThreshold::Absolute(t)
+                Threshold::Absolute(t)
             } else {
-                CoverageThreshold::Relative(f64::from_str(&name[..]).unwrap())
+                Threshold::Relative(f64::from_str(&name[..]).unwrap())
             }
         };
         res.push((name, threshold));
@@ -364,15 +362,15 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Ite
                 &prep.node2id,
                 &prep.node_len,
                 path_seg.coords().get_or_insert((0, 0)).0,
-                    if prep.subset_coords.is_none() {
-                        &complete[..]
-                    } else {
-                        match subset_map.get(&path_seg.id()) {
-                            // empty slice
-                            None => &complete[1..],
-                            Some(coords) => &coords[..],
-                        }
-                    },
+                if prep.subset_coords.is_none() {
+                    &complete[..]
+                } else {
+                    match subset_map.get(&path_seg.id()) {
+                        // empty slice
+                        None => &complete[1..],
+                        Some(coords) => &coords[..],
+                    }
+                },
                 &mut node_table,
                 num_path,
             );
@@ -387,15 +385,15 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Ite
                 &prep.node2id,
                 &prep.node_len,
                 path_seg.coords().get_or_insert((0, 0)).0,
-                    if prep.subset_coords.is_none() {
-                        &complete[..]
-                    } else {
-                        match subset_map.get(&path_seg.id()) {
-                            // empty slice
-                            None => &complete[1..],
-                            Some(coords) => &coords[..],
-                        }
-                    },
+                if prep.subset_coords.is_none() {
+                    &complete[..]
+                } else {
+                    match subset_map.get(&path_seg.id()) {
+                        // empty slice
+                        None => &complete[1..],
+                        Some(coords) => &coords[..],
+                    }
+                },
                 &mut node_table,
                 num_path,
             );
@@ -453,6 +451,7 @@ pub fn preprocessing<R: Read>(
         subset_coords: subset_coords,
     }
 }
+
 
 //pub fn parse_walk_line(buf: &[u8], node2id: &HashMap<Vec<u8>, u32>)  -> (PathSegment, Vec<(u32, bool)>) {
 //    let mut six_col : Vec<&str> = Vec::with_capacity(6);
