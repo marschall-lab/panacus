@@ -255,6 +255,41 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
 //    new_ptr
 //}
 
+pub fn parse_graph_marginals<R: Read>(
+    data: &mut BufReader<R>,
+) -> (HashMap<Vec<u8>, u32>, Vec<u32>, Vec<PathSegment>) {
+    let mut node_count = 0;
+    let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
+    let mut path_segments: Vec<PathSegment> = Vec::new();
+    let mut node_len: Vec<u32> = Vec::new();
+
+    let mut buf = vec![];
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'S' {
+            let mut iter = buf.iter();
+            let start = iter.position(|&x| x == b'\t').unwrap() + 1;
+            let offset = iter.position(|&x| x == b'\t').unwrap();
+            let sid = buf[start..start + offset].to_vec();
+            let offset = iter
+                .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
+                .unwrap();
+            node_len.push(offset as u32);
+            node2id.entry(sid).or_insert(node_count);
+            node_count += 1;
+        } else if buf[0] == b'P' {
+            let (path_seg, _) = parse_path_identifier(&buf);
+            path_segments.push(path_seg);
+        } else if buf[0] == b'W' {
+            let (path_seg, _) = parse_walk_identifier(&buf);
+            path_segments.push(path_seg);
+        }
+
+        buf.clear();
+    }
+
+    (node2id, node_len, path_segments)
+}
+
 fn parse_path_seq(
     data: &[u8],
     node2id: &HashMap<Vec<u8>, u32>,
@@ -340,11 +375,14 @@ fn build_subpath_map(subset_coords: &Vec<PathSegment>) -> HashMap<String, Vec<(u
     }))
 }
 
-pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> ItemTable {
-    let mut node_table = ItemTable::new(prep.path_segments.len());
+pub fn parse_gfa_nodecount<R: Read>(
+    data: &mut BufReader<R>,
+    abacus_data: &AbacusData,
+) -> ItemTable {
+    let mut node_table = ItemTable::new(abacus_data.path_segments.len());
     let mut path_segs: Vec<PathSegment> = vec![];
 
-    let subset_map = match &prep.subset_coords {
+    let subset_map = match &abacus_data.subset_coords {
         None => HashMap::default(),
         Some(coords) => build_subpath_map(coords),
     };
@@ -359,10 +397,10 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Ite
             log::debug!("updating count data structure..");
             parse_path_seq(
                 &buf_path_seg,
-                &prep.node2id,
-                &prep.node_len,
+                &abacus_data.node2id,
+                &abacus_data.node_len,
                 path_seg.coords().get_or_insert((0, 0)).0,
-                if prep.subset_coords.is_none() {
+                if abacus_data.subset_coords.is_none() {
                     &complete[..]
                 } else {
                     match subset_map.get(&path_seg.id()) {
@@ -382,10 +420,10 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Ite
             log::debug!("updating count data structure..");
             parse_walk_seq(
                 &buf_walk_seq,
-                &prep.node2id,
-                &prep.node_len,
+                &abacus_data.node2id,
+                &abacus_data.node_len,
                 path_seg.coords().get_or_insert((0, 0)).0,
-                if prep.subset_coords.is_none() {
+                if abacus_data.subset_coords.is_none() {
                     &complete[..]
                 } else {
                     match subset_map.get(&path_seg.id()) {
@@ -405,53 +443,6 @@ pub fn parse_gfa_nodecount<R: Read>(data: &mut BufReader<R>, prep: &Prep) -> Ite
     }
     node_table
 }
-
-pub fn preprocessing<R: Read>(
-    data: &mut BufReader<R>,
-    groups: Option<Vec<(PathSegment, String)>>,
-    subset_coords: Option<Vec<PathSegment>>,
-) -> Prep {
-    let mut node_count = 0;
-    let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
-    let mut path_segments: Vec<PathSegment> = Vec::new();
-    let mut node_len: Vec<u32> = Vec::new();
-
-    let mut buf = vec![];
-    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-        if buf[0] == b'S' {
-            let mut iter = buf.iter();
-            let start = iter.position(|&x| x == b'\t').unwrap() + 1;
-            let offset = iter.position(|&x| x == b'\t').unwrap();
-            let sid = buf[start..start + offset].to_vec();
-            let offset = iter
-                .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
-                .unwrap();
-            node_len.push(offset as u32);
-            node2id.entry(sid).or_insert(node_count);
-            node_count += 1;
-        } else if buf[0] == b'P' {
-            let (path_seg, _) = parse_path_identifier(&buf);
-            path_segments.push(path_seg);
-        } else if buf[0] == b'W' {
-            let (path_seg, _) = parse_walk_identifier(&buf);
-            path_segments.push(path_seg);
-        }
-
-        buf.clear();
-    }
-
-    Prep {
-        groups: match groups {
-            Some(g) => g,
-            None => path_segments.iter().map(|x| (x.clone(), x.id())).collect(),
-        },
-        path_segments: path_segments,
-        node_len: node_len,
-        node2id: node2id,
-        subset_coords: subset_coords,
-    }
-}
-
 
 //pub fn parse_walk_line(buf: &[u8], node2id: &HashMap<Vec<u8>, u32>)  -> (PathSegment, Vec<(u32, bool)>) {
 //    let mut six_col : Vec<&str> = Vec::with_capacity(6);
