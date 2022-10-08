@@ -47,6 +47,11 @@ fn main() -> Result<(), std::io::Error> {
                 abacus_data.node2id.len()
             );
 
+            if abacus_data.path_segments.len() == 0 {
+                log::error!("there's nothing to do--graph does not contain any annotated paths (P/W lines), exiting");
+                return Ok(());
+            }
+
             // creating the abacus from the gfa
             log::info!("loading graph from {}", gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);

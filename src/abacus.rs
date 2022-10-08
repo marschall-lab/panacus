@@ -31,7 +31,7 @@ pub struct AbacusData {
     pub count: CountType,
     pub node_len: Vec<u32>,
     pub node2id: HashMap<Vec<u8>, u32>,
-    pub groups: Option<Vec<(PathSegment, String)>>,
+    pub groups: Vec<(PathSegment, String)>,
     pub subset_coords: Option<Vec<PathSegment>>,
     pub exclude_coords: Option<Vec<PathSegment>>,
 }
@@ -80,38 +80,40 @@ impl AbacusData {
             _ => unreachable!(),
         };
 
-        let mut subset_coords = None;
-        if !positive_list.is_empty() {
-            log::info!("loading subset coordinates from {}", positive_list);
-            let mut data = std::io::BufReader::new(fs::File::open(positive_list)?);
-            subset_coords = Some(io::parse_bed(&mut data));
-            log::debug!(
-                "loaded {} coordinates",
-                subset_coords.as_ref().unwrap().len()
-            );
-        }
-
-        let mut exclude_coords = None;
-        if !negative_list.is_empty() {
-            log::info!("loading exclusion coordinates from {}", negative_list);
-            let mut data = std::io::BufReader::new(fs::File::open(negative_list)?);
-            exclude_coords = Some(io::parse_bed(&mut data));
-            log::debug!(
-                "loaded {} coordinates",
-                exclude_coords.as_ref().unwrap().len()
-            );
-        }
-
-        let mut groups = None;
-        if !groupby.is_empty() {
+        let groups = if groupby.is_empty() {
+            log::info!("no explicit group file given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
+            path_segments
+                .iter()
+                .cloned()
+                .zip(path_segments.iter().map(|x| x.id()))
+                .collect()
+        } else {
             log::info!("loading groups from {}", groupby);
             let mut data = std::io::BufReader::new(fs::File::open(groupby)?);
-            groups = Some(io::parse_groups(&mut data));
-            log::debug!(
-                "loaded {} group assignments ",
-                groups.as_ref().unwrap().len()
-            );
-        }
+            let g = io::parse_groups(&mut data);
+            log::debug!("loaded {} group assignments", g.len());
+            g
+        };
+
+        let subset_coords = if positive_list.is_empty() {
+            None
+        } else {
+            log::info!("loading subset coordinates from {}", positive_list);
+            let mut data = std::io::BufReader::new(fs::File::open(positive_list)?);
+            let coords = io::parse_bed(&mut data);
+            log::debug!("loaded {} coordinates", coords.len());
+            Some(coords)
+        };
+
+        let exclude_coords = if negative_list.is_empty() {
+            None
+        } else {
+            log::info!("loading exclusion coordinates from {}", negative_list);
+            let mut data = std::io::BufReader::new(fs::File::open(negative_list)?);
+            let coords = io::parse_bed(&mut data);
+            log::debug!("loaded {} coordinates", coords.len());
+            Some(coords)
+        };
 
         Ok(Self {
             path_segments: path_segments,
@@ -311,20 +313,15 @@ impl Abacus<u32> {
                 path_to_id.insert(s, i);
             });
 
-        abacus_data
-            .groups
-            .as_ref()
-            .unwrap()
-            .iter()
-            .for_each(|(k, v)| {
-                group_to_paths
-                    .entry(&v[..])
-                    .or_insert({
-                        group_order.push(&v[..]);
-                        Vec::new()
-                    })
-                    .push(k)
-            });
+        abacus_data.groups.iter().for_each(|(k, v)| {
+            group_to_paths
+                .entry(&v[..])
+                .or_insert({
+                    group_order.push(&v[..]);
+                    Vec::new()
+                })
+                .push(k)
+        });
 
         let mut res = Vec::with_capacity(abacus_data.path_segments.len());
         //let empty: Vec<&PathSegment> = Vec::new();

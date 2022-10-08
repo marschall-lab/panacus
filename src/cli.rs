@@ -1,13 +1,10 @@
 /* standard crate */
-use std::fs;
-use std::path::Path;
 use std::str::FromStr;
 /* external crate */
 use clap::{Parser, Subcommand};
 use regex::Regex;
 /* private use */
 use crate::graph::*;
-use crate::io;
 
 #[derive(Parser, Debug)]
 #[clap(
