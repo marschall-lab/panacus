@@ -1,10 +1,16 @@
 /* standard crate */
+use std::fs;
+use std::io::{BufWriter, Write};
 use std::str::FromStr;
+
 /* external crate */
 use clap::{Parser, Subcommand};
 use regex::Regex;
 /* private use */
+use crate::abacus::*;
 use crate::graph::*;
+use crate::hist::*;
+use crate::util::*;
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -21,14 +27,14 @@ struct Command {
 #[derive(Subcommand, Debug)]
 pub enum Params {
     #[clap(
-        about = "run in default mode, i.e., run hist an growth successively and output only the results of the latter"
+        about = "Run in default mode, i.e., run hist and growth successively and output the results of the latter"
     )]
-    Growth {
+    Histgrowth {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
 
         #[clap(short, long,
-        help = "count type: node or edge count",
+        help = "Count type: node, basepair (bp) or edge count",
         default_value = "nodes",
         possible_values = &["nodes", "edges", "bp"],
     )]
@@ -38,7 +44,7 @@ pub enum Params {
             name = "subset",
             short,
             long,
-            help = "produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
             default_value = ""
         )]
         positive_list: String,
@@ -47,7 +53,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
             default_value = ""
         )]
         negative_list: String,
@@ -55,7 +61,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "merge counts from paths by path-group mapping from given tab-separated two-column file",
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
             default_value = ""
         )]
         groupby: String,
@@ -63,7 +69,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "list of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
             default_value = "cumulative_count=1"
         )]
         intersection: String,
@@ -71,7 +77,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "list of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
             default_value = "cumulative_count=1"
         )]
         coverage: String,
@@ -79,19 +85,19 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "run in parallel on N threads",
+            help = "Run in parallel on N threads",
             default_value = "1"
         )]
         threads: usize,
     },
 
-    #[clap(about = "calculate coverage histogram from GFA file")]
-    HistOnly {
+    #[clap(about = "Calculate coverage histogram from GFA file")]
+    Hist {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
 
         #[clap(short, long,
-        help = "count type: node or edge count",
+        help = "Count type: node, basepair (bp), or edge count",
         default_value = "nodes",
         possible_values = &["nodes", "edges", "bp"],
     )]
@@ -101,7 +107,7 @@ pub enum Params {
             name = "subset",
             short,
             long,
-            help = "produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
             default_value = ""
         )]
         positive_list: String,
@@ -110,7 +116,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
             default_value = ""
         )]
         negative_list: String,
@@ -118,7 +124,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "merge counts from paths by path-group mapping from given tab-separated two-column file",
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
             default_value = ""
         )]
         groupby: String,
@@ -126,17 +132,17 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "run in parallel on N threads",
+            help = "Run in parallel on N threads",
             default_value = "1"
         )]
         threads: usize,
     },
 
-    #[clap(about = "construct growth table from coverage histogram")]
-    GrowthOnly {
+    #[clap(about = "Construct growth table from coverage histogram")]
+    Growth {
         #[clap(
             index = 1,
-            help = "coverage histogram as tab-separated value (tsv) file",
+            help = "Coverage histogram as tab-separated value (tsv) file",
             required = true
         )]
         hist_file: String,
@@ -144,7 +150,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "list of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
             default_value = "cumulative_count=1"
         )]
         intersection: String,
@@ -152,7 +158,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "list of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
             default_value = "cumulative_count=1"
         )]
         coverage: String,
@@ -160,16 +166,16 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "run in parallel on N threads",
+            help = "Run in parallel on N threads",
             default_value = "1"
         )]
         threads: usize,
     },
 
     #[clap(
-        about = "compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)"
+        about = "Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)"
     )]
-    OrderedGrowth,
+    OrderedHistgrowth,
 }
 
 pub fn parse_coverage_threshold_cli(threshold_str: &str) -> Vec<(String, Threshold)> {
@@ -203,4 +209,122 @@ pub fn parse_coverage_threshold_cli(threshold_str: &str) -> Vec<(String, Thresho
 
 pub fn read_params() -> Params {
     Command::parse().cmd
+}
+
+pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
+    // set the number of threads used in parallel computation
+    if let Params::Histgrowth { threads, .. } | Params::Hist { threads, .. } = params {
+        if threads > 0 {
+            log::info!("running pangenome-growth on {} threads", &threads);
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build_global()
+                .unwrap();
+        } else {
+            log::info!("running pangenome-growth using all available CPUs");
+        }
+    }
+
+    //
+    // 1st step: loading data from group / subset / exclude files and indexing graph
+    //
+    // 
+    let (graph_marginals, abacus_data) = match &params {
+        Params::Histgrowth { gfa_file, count, .. } | Params::Hist { gfa_file, count, .. } => {
+            log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
+            let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+            let graph_marginals = GraphData::from_gfa(&mut data, CountType::from_str(count) == CountType::Edge);
+            log::info!(
+                "..done; found {} paths/walks and {} nodes{}",
+                graph_marginals.path_segments.len(),
+                graph_marginals.node2id.len(),
+                if let Some(edge2id) = &graph_marginals.edge2id {
+                    format!(" edges {}", edge2id.len())
+                } else {
+                    String::new()
+                }
+            );
+
+            if graph_marginals.path_segments.len() == 0 {
+                log::error!("there's nothing to do--graph does not contain any annotated paths (P/W lines), exiting");
+                return Ok(());
+            }
+
+            log::info!("loading data from group / subset / exclude files");
+            let abacus_data = AbacusData::from_params(&params, &graph_marginals)?;
+            
+            (Some(graph_marginals), Some(abacus_data))
+        },
+        _ => (None, None)
+    };
+
+
+    //
+    // 2nd step: build abacus
+    //
+
+    let abacus = match &params {
+        Params::Histgrowth{ gfa_file, .. } | Params::Hist { gfa_file, .. } => {
+            // creating the abacus from the gfa
+            log::info!("loading graph from {}", &gfa_file);
+            let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+            let abacus = Abacus::from_gfa(&mut data, abacus_data.unwrap(), graph_marginals.unwrap());
+            log::info!(
+                "abacus has {} path groups and {} countables",
+                abacus.groups.len(),
+                abacus.countable.len()
+            );
+            Some(abacus)
+        }
+        _ => None,
+    };
+
+    //
+    // 3rd step: build histograam
+    //
+
+    let hist: Hist = match &params {
+        Params::Histgrowth { .. } | Params::Hist { .. } => {
+
+            // constructing histogram
+            log::info!("constructing histogram..");
+            Hist::from_abacus(&abacus.unwrap())
+        },
+        Params::Growth { hist_file, .. } => {
+            log::info!("loading coverage histogram from {}", hist_file);
+            let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
+            Hist::from_tsv(&mut data)
+        },
+        Params::OrderedHistgrowth => {
+            // XXX
+            Hist {
+                ary: Vec::new(),
+                groups: Vec::new(),
+            }
+        }
+    };
+
+    //
+    // 4th step: calculation & output of growth curve / output of histogram
+    //
+    match params {
+        Params::Histgrowth { .. } | Params::Growth { .. } => {
+            // XXX
+            let hist_data = HistData::from_params(&params);
+
+            let growth = hist.calc_growth();
+
+            for (i, pang_m) in growth.into_iter().enumerate() {
+                writeln!(out, "{}\t{}", i + 1, pang_m)?;
+            }
+        }
+        Params::Hist { .. } => {
+            hist.to_tsv(out)?;
+        }
+        Params::OrderedHistgrowth => {
+            unreachable!();
+        }
+    };
+
+    Ok(())
 }

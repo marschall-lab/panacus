@@ -1,12 +1,10 @@
 /* standard use */
 use std::fmt;
 use std::str::{self, FromStr};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Threshold {
-    Relative(f64),
-    Absolute(usize),
-}
+/* private use */
+use crate::io;
 
 //#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 //pub struct Node {
@@ -22,6 +20,25 @@ pub enum Threshold {
 //    v_is_reverse: bool,
 //}
 
+pub struct GraphData {
+    pub node2id: HashMap<Vec<u8>, u32>,
+    pub node_len: Vec<u32>,
+    pub edge2id: Option<HashMap<Vec<u8>, u32>>,
+    pub path_segments: Vec<PathSegment>
+}
+
+impl GraphData {
+    pub fn new( node2id: HashMap<Vec<u8>, u32>, node_len: Vec<u32>, edge2id: Option<HashMap<Vec<u8>, u32>>, path_segments: Vec<PathSegment>) -> Self {
+        Self { node2id, node_len, edge2id, path_segments } 
+    }
+
+    pub fn from_gfa<R: std::io::Read>(
+        data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
+        let (node2id, node_len, edge2id, path_segments) = io::parse_graph_marginals(data, index_edges);
+        Self::new(node2id, node_len, edge2id, path_segments)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Hash, Eq, Ord)]
 pub struct PathSegment {
     pub sample: String,
@@ -29,16 +46,6 @@ pub struct PathSegment {
     pub seqid: Option<String>,
     pub start: Option<usize>,
     pub end: Option<usize>,
-}
-
-impl fmt::Display for Threshold {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Threshold::Relative(c) => write!(formatter, "{}R", c)?,
-            Threshold::Absolute(c) => write!(formatter, "{}A", c)?,
-        }
-        Ok(())
-    }
 }
 
 //impl Edge {
@@ -93,7 +100,7 @@ impl PathSegment {
         start: Option<usize>,
         end: Option<usize>,
     ) -> Self {
-        PathSegment {
+        Self {
             sample: sample,
             haplotype: Some(haplotype),
             seqid: Some(seqid),
