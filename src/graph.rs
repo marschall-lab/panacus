@@ -1,7 +1,7 @@
 /* standard use */
+use std::collections::HashMap;
 use std::fmt;
 use std::str::{self, FromStr};
-use std::collections::HashMap;
 
 /* private use */
 use crate::io;
@@ -24,17 +24,27 @@ pub struct GraphData {
     pub node2id: HashMap<Vec<u8>, u32>,
     pub node_len: Vec<u32>,
     pub edge2id: Option<HashMap<Vec<u8>, u32>>,
-    pub path_segments: Vec<PathSegment>
+    pub path_segments: Vec<PathSegment>,
 }
 
 impl GraphData {
-    pub fn new( node2id: HashMap<Vec<u8>, u32>, node_len: Vec<u32>, edge2id: Option<HashMap<Vec<u8>, u32>>, path_segments: Vec<PathSegment>) -> Self {
-        Self { node2id, node_len, edge2id, path_segments } 
+    pub fn new(
+        node2id: HashMap<Vec<u8>, u32>,
+        node_len: Vec<u32>,
+        edge2id: Option<HashMap<Vec<u8>, u32>>,
+        path_segments: Vec<PathSegment>,
+    ) -> Self {
+        Self {
+            node2id,
+            node_len,
+            edge2id,
+            path_segments,
+        }
     }
 
-    pub fn from_gfa<R: std::io::Read>(
-        data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
-        let (node2id, node_len, edge2id, path_segments) = io::parse_graph_marginals(data, index_edges);
+    pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
+        let (node2id, node_len, edge2id, path_segments) =
+            io::parse_graph_marginals(data, index_edges);
         Self::new(node2id, node_len, edge2id, path_segments)
     }
 }
@@ -154,7 +164,19 @@ impl PathSegment {
                 }
             }
             1 => {
-                res.sample = segments[0].to_string();
+                let seq_coords = segments[0].split(':').collect::<Vec<&str>>();
+                if seq_coords.len() == 2 {
+                    res.sample = seq_coords[0].to_string();
+                    let start_end = seq_coords[1].split('-').collect::<Vec<&str>>();
+                    res.start = usize::from_str(start_end[0]).ok();
+                    res.end = usize::from_str(start_end[1]).ok();
+                } else {
+                    assert!(
+                        seq_coords.len() == 1,
+                        r"unknown format, expected string of kind \w#\w(#\w)?:\d-\d, but got {}",
+                        &s
+                    );
+                }
             }
             _ => (),
         }
@@ -190,6 +212,23 @@ impl PathSegment {
         } else {
             None
         }
+    }
+
+    pub fn covers(&self, other: &PathSegment) -> bool {
+        self.sample == other.sample
+            && (self.haplotype == other.haplotype
+                || (self.haplotype.is_none()
+                    && self.seqid.is_none()
+                    && self.start.is_none()
+                    && self.end.is_none()))
+            && (self.seqid == other.seqid
+                || (self.seqid.is_none() && self.start.is_none() && self.end.is_none()))
+            && (self.start == other.start
+                || self.start.is_none()
+                || (other.start.is_some() && self.start.unwrap() <= other.start.unwrap()))
+            && (self.end == other.end
+                || self.end.is_none()
+                || (other.end.is_some() && self.end.unwrap() >= other.end.unwrap()))
     }
 }
 

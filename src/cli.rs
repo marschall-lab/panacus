@@ -6,11 +6,28 @@ use std::str::FromStr;
 /* external crate */
 use clap::{Parser, Subcommand};
 use regex::Regex;
+use strum::VariantNames;
+
 /* private use */
 use crate::abacus::*;
 use crate::graph::*;
 use crate::hist::*;
 use crate::util::*;
+
+//
+// Credit: Johan Andersson (https://github.com/repi)
+// Code from https://github.com/clap-rs/clap/discussions/4264
+//
+#[macro_export]
+macro_rules! clap_enum_variants {
+    ($e: ty) => {{
+        use clap::builder::TypedValueParser;
+        clap::builder::PossibleValuesParser::new(<$e>::VARIANTS).map(|s| s.parse::<$e>().unwrap())
+    }};
+}
+
+
+
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -27,6 +44,7 @@ struct Command {
 #[derive(Subcommand, Debug)]
 pub enum Params {
     #[clap(
+        alias = "hg",
         about = "Run in default mode, i.e., run hist and growth successively and output the results of the latter"
     )]
     Histgrowth {
@@ -36,9 +54,10 @@ pub enum Params {
         #[clap(short, long,
         help = "Count type: node, basepair (bp) or edge count",
         default_value = "nodes",
-        possible_values = &["nodes", "edges", "bp"],
+        ignore_case = true,
+        value_parser = clap_enum_variants!(CountType),
     )]
-        count: String,
+        count: CountType,
 
         #[clap(
             name = "subset",
@@ -91,7 +110,7 @@ pub enum Params {
         threads: usize,
     },
 
-    #[clap(about = "Calculate coverage histogram from GFA file")]
+    #[clap(alias = "h", about = "Calculate coverage histogram from GFA file")]
     Hist {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
@@ -99,9 +118,10 @@ pub enum Params {
         #[clap(short, long,
         help = "Count type: node, basepair (bp), or edge count",
         default_value = "nodes",
-        possible_values = &["nodes", "edges", "bp"],
+        ignore_case = true,
+        value_parser = clap_enum_variants!(CountType),
     )]
-        count: String,
+        count: CountType,
 
         #[clap(
             name = "subset",
@@ -116,7 +136,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bps/nodes/edges will be exluded also in other paths not part of the given list",
             default_value = ""
         )]
         negative_list: String,
@@ -138,7 +158,7 @@ pub enum Params {
         threads: usize,
     },
 
-    #[clap(about = "Construct growth table from coverage histogram")]
+    #[clap(alias = "g", about = "Construct growth table from coverage histogram")]
     Growth {
         #[clap(
             index = 1,
@@ -173,6 +193,7 @@ pub enum Params {
     },
 
     #[clap(
+        alias = "o",
         about = "Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)"
     )]
     OrderedHistgrowth,
@@ -228,12 +249,18 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //
     // 1st step: loading data from group / subset / exclude files and indexing graph
     //
-    // 
+    //
     let (graph_marginals, abacus_data) = match &params {
-        Params::Histgrowth { gfa_file, count, .. } | Params::Hist { gfa_file, count, .. } => {
+        Params::Histgrowth {
+            gfa_file, count, ..
+        }
+        | Params::Hist {
+            gfa_file, count, ..
+        } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let graph_marginals = GraphData::from_gfa(&mut data, CountType::from_str(count) == CountType::Edge);
+            let graph_marginals =
+                GraphData::from_gfa(&mut data, count == &CountType::Edges);
             log::info!(
                 "..done; found {} paths/walks and {} nodes{}",
                 graph_marginals.path_segments.len(),
@@ -252,23 +279,23 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
 
             log::info!("loading data from group / subset / exclude files");
             let abacus_data = AbacusData::from_params(&params, &graph_marginals)?;
-            
-            (Some(graph_marginals), Some(abacus_data))
-        },
-        _ => (None, None)
-    };
 
+            (Some(graph_marginals), Some(abacus_data))
+        }
+        _ => (None, None),
+    };
 
     //
     // 2nd step: build abacus
     //
 
     let abacus = match &params {
-        Params::Histgrowth{ gfa_file, .. } | Params::Hist { gfa_file, .. } => {
+        Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. } => {
             // creating the abacus from the gfa
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus = Abacus::from_gfa(&mut data, abacus_data.unwrap(), graph_marginals.unwrap());
+            let abacus =
+                Abacus::from_gfa(&mut data, abacus_data.unwrap(), graph_marginals.unwrap());
             log::info!(
                 "abacus has {} path groups and {} countables",
                 abacus.groups.len(),
@@ -285,21 +312,19 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
 
     let hist: Hist = match &params {
         Params::Histgrowth { .. } | Params::Hist { .. } => {
-
             // constructing histogram
             log::info!("constructing histogram..");
             Hist::from_abacus(&abacus.unwrap())
-        },
+        }
         Params::Growth { hist_file, .. } => {
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
             Hist::from_tsv(&mut data)
-        },
+        }
         Params::OrderedHistgrowth => {
             // XXX
             Hist {
-                ary: Vec::new(),
-                groups: Vec::new(),
+                coverage: Vec::new(),
             }
         }
     };
@@ -318,8 +343,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 writeln!(out, "{}\t{}", i + 1, pang_m)?;
             }
         }
-        Params::Hist { .. } => {
-            hist.to_tsv(out)?;
+        Params::Hist { count, .. } => {
+            hist.to_tsv(&count, out)?;
         }
         Params::OrderedHistgrowth => {
             unreachable!();

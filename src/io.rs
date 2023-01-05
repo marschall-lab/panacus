@@ -77,7 +77,9 @@ pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     res
 }
 
-pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Vec<(PathSegment, String)> {
+pub fn parse_groups<R: Read>(
+    data: &mut BufReader<R>,
+) -> Result<Vec<(PathSegment, String)>, std::io::Error> {
     let mut res: Vec<(PathSegment, String)> = Vec::new();
 
     let mut visited: HashSet<PathSegment> = HashSet::default();
@@ -91,25 +93,27 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Vec<(PathSegment, Strin
         let path_seg =
             PathSegment::from_str(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
         if visited.contains(&path_seg) {
-            panic!(
+            let msg = format!(
                 "error in line {}: path segment {} has been already assigned to a group",
                 i, &path_seg
             );
+            log::error!("{}", &msg);
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
         }
         visited.insert(path_seg.clone());
-        if path_seg.coords().is_some() {
-            panic!(
-                "error in line {}: coordinates are not permitted in grouping paths",
-                i,
-            );
-        }
+        //        if path_seg.coords().is_some() {
+        //            let msg = format!("error in line {}: coordinates are not permitted in grouping paths",
+        //                i);
+        //            log::error!("{}", &msg);
+        //            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,  msg));
+        //        }
         res.push((
             path_seg,
             str::from_utf8(row_it.next().unwrap()).unwrap().to_string(),
         ));
     }
 
-    res
+    Ok(res)
 }
 
 pub fn parse_coverage_threshold_file<R: Read>(data: &mut BufReader<R>) -> Vec<(String, Threshold)> {
@@ -247,12 +251,22 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
 }
 
 pub fn parse_graph_marginals<R: Read>(
-    data: &mut BufReader<R>, index_edges: bool
-) -> (HashMap<Vec<u8>, u32>, Vec<u32>, Option<HashMap<Vec<u8>, u32>>, Vec<PathSegment>) {
+    data: &mut BufReader<R>,
+    index_edges: bool,
+) -> (
+    HashMap<Vec<u8>, u32>,
+    Vec<u32>,
+    Option<HashMap<Vec<u8>, u32>>,
+    Vec<PathSegment>,
+) {
     let mut node_count = 0;
     let mut edge_count = 0;
     let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
-    let mut edge2id: Option<HashMap<Vec<u8>, u32>> = if index_edges { Some(HashMap::default()) } else { None};
+    let mut edge2id: Option<HashMap<Vec<u8>, u32>> = if index_edges {
+        Some(HashMap::default())
+    } else {
+        None
+    };
     let mut path_segments: Vec<PathSegment> = Vec::new();
     let mut node_len: Vec<u32> = Vec::new();
 
@@ -274,19 +288,24 @@ pub fn parse_graph_marginals<R: Read>(
             let start = iter.position(|&x| x == b'\t').unwrap() + 1;
             let offset = iter.position(|&x| x == b'\t').unwrap();
             let sid1 = buf[start..start + offset].to_vec();
-            
+
             // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
             // need to advance in the buffer (and  therefore call iter.position(..))
             iter.position(|&x| x == b'\t');
             let o1 = if buf[offset + 1] == b'+' { b'>' } else { b'<' };
-            
+
             let start = start + 2;
             let offset = iter.position(|&x| x == b'\t').unwrap();
             let sid2 = buf[start..start + offset].to_vec();
-            
+
             let o2 = if buf[offset + 1] == b'+' { b'>' } else { b'<' };
-            
-            let lid : Vec<u8> = vec![o1].into_iter().chain(sid1.into_iter()).chain(vec![o2].into_iter()).chain(sid2.into_iter()).collect();
+
+            let lid: Vec<u8> = vec![o1]
+                .into_iter()
+                .chain(sid1.into_iter())
+                .chain(vec![o2].into_iter())
+                .chain(sid2.into_iter())
+                .collect();
             edge2id.as_mut().unwrap().entry(lid).or_insert(edge_count);
             edge_count += 1;
         } else if buf[0] == b'P' {
@@ -303,26 +322,30 @@ pub fn parse_graph_marginals<R: Read>(
     (node2id, node_len, edge2id, path_segments)
 }
 
-fn parse_path_seq(
+fn parse_path_seq<F, G>(
     data: &[u8],
-    node2id: &HashMap<Vec<u8>, u32>,
-    node_len: &Vec<u32>,
+    graph_marginals: &GraphData,
     offset: usize,
     subset_coords: &[(usize, usize)],
-    node_table: &mut ItemTable,
-    num_path: usize,
-) {
-
-// uncomment code for dynamic table construction in "1-pass" reading of GFA file when the total
-// number of paths is unknown
-//
-//    // ensure there's enough space in the ItemTable
-//    for i in 0..SIZE_T {
-//        let l = node_table.id_prefsum[i].len();
-//        if l < num_path + 1 {
-//            node_table.id_prefsum[i].extend(vec![0; num_path + 1 - l]);
-//        }
-//    }
+    exclude_coords: &[(usize, usize)],
+    mut match_f: F,
+    mut exlude_f: G,
+) where
+    // node id (sid), uncovered basepairs (nonzero only if subset coords start within the node)
+    F: FnMut(u32, usize),
+    // node id (sid), uncovered basepairs (nonzero only if exclusion coords start within the node)
+    G: FnMut(u32, usize),
+{
+    // uncomment code for dynamic table construction in "1-pass" reading of GFA file when the total
+    // number of paths is unknown
+    //
+    //    // ensure there's enough space in the ItemTable
+    //    for i in 0..SIZE_T {
+    //        let l = node_table.id_prefsum[i].len();
+    //        if l < num_path + 1 {
+    //            node_table.id_prefsum[i].extend(vec![0; num_path + 1 - l]);
+    //        }
+    //    }
 
     let mut it = data.iter();
     let end = it
@@ -331,17 +354,18 @@ fn parse_path_seq(
 
     log::debug!("parsing path sequences of size {}..", end);
 
-    let num_path = num_path as usize;
-
     let sids: Vec<u32> = data[..end]
         .par_split(|&x| x == b',')
         .map(|node| {
             // Parallel
             //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
-            let sid = *node2id.get(&node[0..node.len() - 1]).expect(&format!(
-                "unknown node {}",
-                &str::from_utf8(node).unwrap()[..]
-            ));
+            let sid = *graph_marginals
+                .node2id
+                .get(&node[0..node.len() - 1])
+                .expect(&format!(
+                    "unknown node {}",
+                    &str::from_utf8(node).unwrap()[..]
+                ));
             let o = node[node.len() - 1];
             assert!(
                 o == b'-' || o == b'+',
@@ -362,20 +386,27 @@ fn parse_path_seq(
             i += 1;
         }
 
-        let l = node_len[sid as usize] as usize;
+        let l = graph_marginals.node_len[sid as usize] as usize;
 
         // check if the current position fits within active segment
         if i < subset_coords.len() && subset_coords[i].0 <= p + l {
-            let idx = (sid as usize) % SIZE_T;
-            node_table.items[idx].push(sid);
-            node_table.id_prefsum[idx][num_path + 1] += 1;
+            match_f(
+                sid,
+                if subset_coords[i].0 > p {
+                    subset_coords[i].0 - p
+                } else {
+                    0
+                } + if subset_coords[i].1 < p + l {
+                    subset_coords[i].1 - p - l
+                } else {
+                    0
+                },
+            );
+        } else if i >= subset_coords.len() {
+            // terminate parse if all subset coords are processed
+            break;
         }
         p += l;
-    }
-
-    // Compute prefix sum
-    for i in 0..SIZE_T {
-        node_table.id_prefsum[i][num_path + 1] += node_table.id_prefsum[i][num_path];
     }
 
     log::debug!("..done");
@@ -403,10 +434,9 @@ fn build_subpath_map(subset_coords: &Vec<PathSegment>) -> HashMap<String, Vec<(u
 pub fn parse_gfa_nodecount<R: Read>(
     data: &mut BufReader<R>,
     abacus_data: &AbacusData,
-    graph_marginals: &GraphData, 
+    graph_marginals: &GraphData,
 ) -> ItemTable {
     let mut node_table = ItemTable::new(graph_marginals.path_segments.len());
-    let mut path_segs: Vec<PathSegment> = vec![];
 
     let subset_map = match &abacus_data.subset_coords {
         None => HashMap::default(),
@@ -423,8 +453,7 @@ pub fn parse_gfa_nodecount<R: Read>(
             log::debug!("updating count data structure..");
             parse_path_seq(
                 &buf_path_seg,
-                &graph_marginals.node2id,
-                &graph_marginals.node_len,
+                &graph_marginals,
                 path_seg.coords().get_or_insert((0, 0)).0,
                 if abacus_data.subset_coords.is_none() {
                     &complete[..]
@@ -435,12 +464,23 @@ pub fn parse_gfa_nodecount<R: Read>(
                         Some(coords) => &coords[..],
                     }
                 },
-                &mut node_table,
-                num_path,
+                &[],
+                |sid, uncovered| {
+                    // only count nodes that are completely contained in subset coords
+                    if uncovered == 0 {
+                        let idx = (sid as usize) % SIZE_T;
+                        node_table.items[idx].push(sid);
+                        node_table.id_prefsum[idx][num_path + 1] += 1;
+                    }
+                },
+                |_, _1| {},
             );
-            log::debug!("done");
-            path_segs.push(path_seg);
+            // Compute prefix sum
+            for i in 0..SIZE_T {
+                node_table.id_prefsum[i][num_path + 1] += node_table.id_prefsum[i][num_path];
+            }
             num_path += 1;
+            log::debug!("done");
         } else if buf[0] == b'W' {
             let (path_seg, buf_walk_seq) = parse_walk_identifier(&buf);
             log::debug!("updating count data structure..");
@@ -462,7 +502,6 @@ pub fn parse_gfa_nodecount<R: Read>(
                 num_path,
             );
             log::debug!("done");
-            path_segs.push(path_seg);
             num_path += 1;
         }
         buf.clear();

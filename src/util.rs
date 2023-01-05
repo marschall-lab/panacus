@@ -1,5 +1,8 @@
 /* standard use */
 use std::fmt;
+use strum_macros::{EnumString, EnumVariantNames}; 
+
+/* external crate */
 
 
 pub const SIZE_T: usize = 1024;
@@ -8,22 +11,38 @@ unsafe impl Sync for Wrap<Vec<u32>> {}
 unsafe impl Sync for Wrap<Vec<usize>> {}
 unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
+#[strum(serialize_all = "lowercase")]
 pub enum CountType {
-    Node,
-    BasePair,
-    Edge,
+    Nodes,
+    Bps,
+    Edges,
 }
 
 impl CountType {
-   pub fn from_str(count_type_str: &str) -> Self {
+    pub fn from_str(count_type_str: &str) -> Self {
         match count_type_str {
-            "nodes" => CountType::Node,
-            "edges" => CountType::Edge,
-            "bp" => CountType::BasePair,
+            "nodes" => CountType::Nodes,
+            "edges" => CountType::Edges,
+            "bps" => CountType::Bps,
             _ => unreachable!(),
         }
-   }
+    }
+}
+
+impl fmt::Display for CountType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "{}",
+            match self {
+                CountType::Nodes => "nodes",
+                CountType::Edges => "edges",
+                CountType::Bps => "bps",
+            }
+        )
+    }
 }
 
 pub struct ItemTable {
@@ -40,7 +59,6 @@ impl ItemTable {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Threshold {
     Relative(f64),
@@ -56,4 +74,3 @@ impl fmt::Display for Threshold {
         Ok(())
     }
 }
-

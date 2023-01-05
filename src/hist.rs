@@ -6,35 +6,32 @@ use std::io::Write;
 use crate::abacus::Abacus;
 use crate::cli;
 use crate::io;
-use crate::util::Threshold;
+use crate::util::{CountType, Threshold};
 
 #[derive(Debug, Clone)]
 pub struct Hist {
-    pub ary: Vec<u32>,
-    pub groups: Vec<String>,
+    pub coverage: Vec<u32>,
 }
 
 impl Hist {
     pub fn from_tsv<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Self {
         // XXX TODO
         Self {
-            ary: Vec::new(),
-            groups: Vec::new(),
+            coverage: Vec::new(),
         }
     }
 
     pub fn from_abacus(abacus: &Abacus<u32>) -> Self {
         Self {
-            ary: abacus.construct_hist(),
-            groups: abacus.groups.clone(),
+            coverage: abacus.construct_hist(),
         }
     }
 
     pub fn calc_growth(&self) -> Vec<u32> {
-        let n = self.ary.len() - 1; // hist array has length n+1: from 0..n (both included)
+        let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
         let mut pangrowth: Vec<u32> = Vec::with_capacity(n + 1);
         let mut n_fall_m = rug::Integer::from(1);
-        let tot = rug::Integer::from(self.ary.iter().sum::<u32>());
+        let tot = rug::Integer::from(self.coverage.iter().sum::<u32>());
 
         // perc_mult[i] contains the percentage of combinations that
         // have an item of multiplicity i
@@ -45,7 +42,7 @@ impl Hist {
             let mut y = rug::Integer::from(0);
             for i in 1..n - m + 1 {
                 perc_mult[i] *= n - m - i + 1;
-                y += self.ary[i] * &perc_mult[i];
+                y += self.coverage[i] * &perc_mult[i];
             }
             n_fall_m *= n - m + 1;
 
@@ -59,11 +56,12 @@ impl Hist {
 
     pub fn to_tsv<W: std::io::Write>(
         &self,
+        count: &CountType,
         out: &mut std::io::BufWriter<W>,
     ) -> Result<(), std::io::Error> {
-        writeln!(out, "\t{}", self.ary[0])?;
-        for i in 0..self.groups.len() {
-            writeln!(out, "{}\t{}", self.groups[i], self.ary[i + 1])?;
+        writeln!(out, "coverage\t{}", count)?;
+        for (i, c) in self.coverage.iter().enumerate() {
+            writeln!(out, "{}\t{}", i, c)?;
         }
 
         Ok(())

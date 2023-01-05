@@ -18,7 +18,10 @@ pub struct AbacusData {
 }
 
 impl AbacusData {
-    pub fn from_params(params: &Params, graph_marginals: &GraphData) -> Result<Self, std::io::Error> {
+    pub fn from_params(
+        params: &Params,
+        graph_marginals: &GraphData,
+    ) -> Result<Self, std::io::Error> {
         Ok(match params {
             Params::Histgrowth {
                 count,
@@ -34,10 +37,10 @@ impl AbacusData {
                 groupby,
                 ..
             } => AbacusData {
-                count: CountType::from_str(count), 
+                count: count.clone(), 
                 groups: AbacusData::load_groups(groupby, graph_marginals)?,
-                subset_coords: AbacusData::load_coord_list(positive_list)?, 
-                exclude_coords: AbacusData::load_coord_list(negative_list)?
+                subset_coords: AbacusData::load_coord_list(positive_list)?,
+                exclude_coords: AbacusData::load_coord_list(negative_list)?,
             },
             _ => unreachable!("cannot produce AbausData from other Param items"),
         })
@@ -55,10 +58,14 @@ impl AbacusData {
         })
     }
 
-    fn load_groups(file_name: &str, graph_marginals: &GraphData) -> Result<Vec<(PathSegment, String)>, std::io::Error> {
+    fn load_groups(
+        file_name: &str,
+        graph_marginals: &GraphData,
+    ) -> Result<Vec<(PathSegment, String)>, std::io::Error> {
         Ok(if file_name.is_empty() {
             log::info!("no explicit group file given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
-            graph_marginals.path_segments
+            graph_marginals
+                .path_segments
                 .iter()
                 .cloned()
                 .zip(graph_marginals.path_segments.iter().map(|x| x.id()))
@@ -66,9 +73,14 @@ impl AbacusData {
         } else {
             log::info!("loading groups from {}", file_name);
             let mut data = std::io::BufReader::new(fs::File::open(file_name)?);
-            let g = io::parse_groups(&mut data);
+            let g = io::parse_groups(&mut data)?;
             log::debug!("loaded {} group assignments", g.len());
-            g
+            let mut ps2group: HashMap<PathSegment, String> = g.into_iter().collect();
+            graph_marginals
+                .path_segments
+                .iter()
+                .map(|x| (x.clone(), ps2group.remove(x).unwrap_or(x.id())))
+                .collect()
         })
     }
 }
@@ -92,7 +104,9 @@ impl Abacus<u32> {
         let mut last: Vec<usize> = vec![usize::MAX; graph_marginals.node2id.len()];
 
         let mut groups = Vec::new();
-        for (path_id, group_id) in Abacus::get_path_order(&abacus_data, &graph_marginals.path_segments) {
+        for (path_id, group_id) in
+            Abacus::get_path_order(&abacus_data, &graph_marginals.path_segments)
+        {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
@@ -150,7 +164,10 @@ impl Abacus<u32> {
         hist
     }
 
-    fn get_path_order<'a>(abacus_data: &'a AbacusData, path_segments: &Vec<PathSegment>) -> Vec<(usize, &'a str)> {
+    fn get_path_order<'a>(
+        abacus_data: &'a AbacusData,
+        path_segments: &Vec<PathSegment>,
+    ) -> Vec<(usize, &'a str)> {
         // orders elements of path_segments by the order in abacus_data.groups; the returned vector
         // maps indices of path_segments to the group identifier
 
@@ -158,17 +175,14 @@ impl Abacus<u32> {
         let mut group_to_paths: HashMap<&str, Vec<&PathSegment>> = HashMap::default();
 
         let mut path_to_id: HashMap<&PathSegment, usize> = HashMap::default();
-            path_segments
-            .iter()
-            .enumerate()
-            .for_each(|(i, s)| {
-                path_to_id.insert(s, i);
-            });
+        path_segments.iter().enumerate().for_each(|(i, s)| {
+            path_to_id.insert(s, i);
+        });
 
         abacus_data.groups.iter().for_each(|(k, v)| {
             group_to_paths
-                .entry(&v[..])
-                .or_insert({
+                .entry(v)
+                .or_insert_with(|| {
                     group_order.push(&v[..]);
                     Vec::new()
                 })
