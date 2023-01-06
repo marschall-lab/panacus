@@ -26,9 +26,6 @@ macro_rules! clap_enum_variants {
     }};
 }
 
-
-
-
 #[derive(Parser, Debug)]
 #[clap(
     version = "0.2",
@@ -52,7 +49,7 @@ pub enum Params {
         gfa_file: String,
 
         #[clap(short, long,
-        help = "Count type: node, basepair (bp) or edge count",
+        help = "Graph quantity to be counted",
         default_value = "nodes",
         ignore_case = true,
         value_parser = clap_enum_variants!(CountType),
@@ -116,7 +113,7 @@ pub enum Params {
         gfa_file: String,
 
         #[clap(short, long,
-        help = "Count type: node, basepair (bp), or edge count",
+        help = "Graph quantity to be counted",
         default_value = "nodes",
         ignore_case = true,
         value_parser = clap_enum_variants!(CountType),
@@ -259,8 +256,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let graph_marginals =
-                GraphData::from_gfa(&mut data, count == &CountType::Edges);
+            let graph_marginals = GraphData::from_gfa(&mut data, count == &CountType::Edges);
             log::info!(
                 "..done; found {} paths/walks and {} nodes{}",
                 graph_marginals.path_segments.len(),

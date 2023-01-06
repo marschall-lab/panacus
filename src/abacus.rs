@@ -12,8 +12,8 @@ use crate::util::*;
 
 pub struct AbacusData {
     pub count: CountType,
-    pub groups: Vec<(PathSegment, String)>,
-    pub subset_coords: Option<Vec<PathSegment>>,
+    pub groups: HashMap<PathSegment, String>,
+    pub include_coords: Option<Vec<PathSegment>>,
     pub exclude_coords: Option<Vec<PathSegment>>,
 }
 
@@ -36,14 +36,69 @@ impl AbacusData {
                 negative_list,
                 groupby,
                 ..
-            } => AbacusData {
-                count: count.clone(), 
-                groups: AbacusData::load_groups(groupby, graph_marginals)?,
-                subset_coords: AbacusData::load_coord_list(positive_list)?,
-                exclude_coords: AbacusData::load_coord_list(negative_list)?,
-            },
+            } => {
+                let groups = AbacusData::load_groups(groupby, graph_marginals)?;
+                let include_coords = AbacusData::complement_with_group_assignments(
+                    AbacusData::load_coord_list(positive_list)?,
+                    &groups,
+                )?;
+                let exclude_coords = AbacusData::complement_with_group_assignments(
+                    AbacusData::load_coord_list(negative_list)?,
+                    &groups,
+                )?;
+
+                AbacusData {
+                    count: count.clone(),
+                    groups: groups,
+                    include_coords: include_coords,
+                    exclude_coords: exclude_coords,
+                }
+            }
             _ => unreachable!("cannot produce AbausData from other Param items"),
         })
+    }
+
+    fn complement_with_group_assignments(
+        coords: Option<Vec<PathSegment>>,
+        groups: &HashMap<PathSegment, String>,
+    ) -> Result<Option<Vec<PathSegment>>, std::io::Error> {
+        //
+        // We allow coords to be defined via groups; the following code
+        // 1. complements coords with path segments from group assignments
+        // 2. checks that group-based coordinates don't have start/stop information
+        //
+        let mut group2ps: HashMap<String, Vec<PathSegment>> = HashMap::default();
+        groups.iter().for_each(|(p, g)| {
+            group2ps
+                .entry(g.clone())
+                .or_insert(Vec::new())
+                .push(p.clone())
+        });
+        match coords {
+            None => Ok(None),
+            Some(v) => {
+                v.into_iter()
+                    .map(|p| {
+                        // check if path segment defined in subset coords associated with a
+                        // specific path segment (i.e., is not a group) by querying the
+                        // keys of the "groups" hashmap
+                        if groups.contains_key(&p) {
+                            Ok(vec![p])
+                        } else if group2ps.contains_key(&p.id()) {
+                            if p.coords().is_some() {
+                                Err(std::io::Error::new(
+                                        std::io::ErrorKind::InvalidData, format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p)))
+                            } else {
+                                Ok(group2ps.get(&p.id()).unwrap().clone())
+                            }
+                        } else {
+                            Ok(Vec::new())
+                        }
+                    })
+                    .collect::<Result<Vec<Vec<PathSegment>>, std::io::Error>>().map(|x| Some(x[..]
+                    .concat()))
+            }
+        }
     }
 
     fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, std::io::Error> {
@@ -61,7 +116,7 @@ impl AbacusData {
     fn load_groups(
         file_name: &str,
         graph_marginals: &GraphData,
-    ) -> Result<Vec<(PathSegment, String)>, std::io::Error> {
+    ) -> Result<HashMap<PathSegment, String>, std::io::Error> {
         Ok(if file_name.is_empty() {
             log::info!("no explicit group file given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
             graph_marginals
@@ -110,7 +165,7 @@ impl Abacus<u32> {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
-            Abacus::count_nodes(
+            Abacus::node_coverage(
                 &mut countable,
                 &mut last,
                 &node_table,
@@ -125,7 +180,7 @@ impl Abacus<u32> {
         }
     }
 
-    fn count_nodes(
+    fn node_coverage(
         countable: &mut Vec<u32>,
         last: &mut Vec<usize>,
         node_table: &ItemTable,
