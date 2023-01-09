@@ -86,13 +86,18 @@ impl AbacusData {
                             Ok(vec![p])
                         } else if group2ps.contains_key(&p.id()) {
                             if p.coords().is_some() {
-                                Err(std::io::Error::new(
-                                        std::io::ErrorKind::InvalidData, format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p)))
+                                let msg = format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p);
+                                log::error!("{}", &msg);
+                                Err(std::io::Error::new( std::io::ErrorKind::InvalidData, msg))
                             } else {
-                                Ok(group2ps.get(&p.id()).unwrap().clone())
+                                let paths = group2ps.get(&p.id()).unwrap().clone();
+                                log::debug!("complementing coordinate list with {} paths associted with group {}", paths.len(), p.id());
+                                Ok(paths)
                             }
                         } else {
-                            Ok(Vec::new())
+                            let msg = format!("unknown path/group {}", &p);
+                            log::error!("{}", &msg);
+                            Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
                         }
                     })
                     .collect::<Result<Vec<Vec<PathSegment>>, std::io::Error>>().map(|x| Some(x[..]
@@ -153,7 +158,8 @@ impl Abacus<u32> {
         graph_marginals: GraphData,
     ) -> Self {
         log::info!("parsing path + walk sequences");
-        let node_table = io::parse_gfa_nodecount(data, &abacus_data, &graph_marginals);
+        let (item_table, exclude_table) =
+            io::parse_gfa_itemcount(data, &abacus_data, &graph_marginals);
         log::info!("counting abacus entries..");
         let mut countable: Vec<u32> = vec![0; graph_marginals.node2id.len()];
         let mut last: Vec<usize> = vec![usize::MAX; graph_marginals.node2id.len()];
@@ -168,7 +174,8 @@ impl Abacus<u32> {
             Abacus::node_coverage(
                 &mut countable,
                 &mut last,
-                &node_table,
+                &item_table,
+                &exclude_table,
                 path_id,
                 groups.len() - 1,
             );
@@ -184,6 +191,7 @@ impl Abacus<u32> {
         countable: &mut Vec<u32>,
         last: &mut Vec<usize>,
         node_table: &ItemTable,
+        exclude_table: &Option<ActiveTable<u32>>,
         path_id: usize,
         group_id: usize,
     ) {
@@ -198,7 +206,9 @@ impl Abacus<u32> {
             for j in start..end {
                 let sid = node_table.items[i][j] as usize;
                 unsafe {
-                    if last[sid] != group_id {
+                    if (exclude_table.is_none() || !exclude_table.as_ref().unwrap().is_active(sid))
+                        && last[sid] != group_id
+                    {
                         (*countable_ptr.0)[sid] += 1;
                         (*last_ptr.0)[sid] = group_id;
                     }

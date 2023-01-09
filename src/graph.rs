@@ -150,7 +150,7 @@ impl PathSegment {
             2 => {
                 res.sample = segments[0].to_string();
                 let seq_coords = segments[1].split(':').collect::<Vec<&str>>();
-                res.seqid = Some(seq_coords[0].to_string());
+                res.haplotype = Some(seq_coords[0].to_string());
                 if seq_coords.len() == 2 {
                     let start_end = seq_coords[1].split('-').collect::<Vec<&str>>();
                     res.start = usize::from_str(start_end[0]).ok();

@@ -1,8 +1,9 @@
 /* standard use */
+use std::collections::HashMap;
 use std::fmt;
-use strum_macros::{EnumString, EnumVariantNames};
 
 /* external crate */
+use strum_macros::{EnumString, EnumVariantNames};
 
 pub const SIZE_T: usize = 1024;
 pub struct Wrap<T>(pub *mut T);
@@ -42,6 +43,61 @@ impl ItemTable {
         Self {
             items: [(); SIZE_T].map(|_| vec![]),
             id_prefsum: [(); SIZE_T].map(|_| vec![0; num_walks_paths + 1]),
+        }
+    }
+}
+
+pub struct ActiveTable<T> {
+    pub items: Vec<bool>,
+    pub annotation: Option<HashMap<usize, T>>,
+}
+
+impl<T> ActiveTable<T> {
+    pub fn new(size: usize, with_annot: bool) -> Self {
+        Self {
+            items: vec![false; size],
+            annotation: if with_annot {
+                Some(HashMap::default())
+            } else {
+                None
+            },
+        }
+    }
+
+    pub fn activate(&mut self, id: usize) {
+        self.items[id] |= true;
+    }
+
+    pub fn is_active(&self, id: usize) -> bool {
+        self.items[id]
+    }
+
+    pub fn active_n_annotate(
+        &mut self,
+        id: usize,
+        annot: T,
+    ) -> Result<Option<T>, ActiveTableError> {
+        match &mut self.annotation {
+            None => Err(ActiveTableError::NoAnnotation),
+            Some(m) => {
+                self.items[id] |= true;
+                Ok(m.insert(id, annot))
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ActiveTableError {
+    NoAnnotation,
+}
+
+impl std::error::Error for ActiveTableError {}
+
+impl fmt::Display for ActiveTableError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ActiveTableError::NoAnnotation => write!(f, "Active Table has no annotations"),
         }
     }
 }

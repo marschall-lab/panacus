@@ -342,17 +342,28 @@ fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(u
     }))
 }
 
-pub fn parse_gfa_nodecount<R: Read>(
+pub fn parse_gfa_itemcount<R: Read>(
     data: &mut BufReader<R>,
     abacus_data: &AbacusData,
     graph_marginals: &GraphData,
-) -> ItemTable {
-    let mut node_table = ItemTable::new(graph_marginals.path_segments.len());
+) -> (ItemTable, Option<ActiveTable<u32>>) {
+    let mut item_table = ItemTable::new(graph_marginals.path_segments.len());
 
-    //
+    let mut exclude_table = abacus_data.exclude_coords.as_ref().map(|_| {
+        ActiveTable::<u32>::new(
+            graph_marginals.node_len.len(),
+            abacus_data.count == CountType::Bps,
+        )
+    });
+
     // build "include" lookup table
-    //
     let include_map = match &abacus_data.include_coords {
+        None => HashMap::default(),
+        Some(coords) => build_subpath_map(coords),
+    };
+
+    // build "exclude" lookup table
+    let exclude_map = match &abacus_data.exclude_coords {
         None => HashMap::default(),
         Some(coords) => build_subpath_map(coords),
     };
@@ -367,8 +378,9 @@ pub fn parse_gfa_nodecount<R: Read>(
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
             let sids = parse_path_seq(&buf_path_seg, &graph_marginals);
 
-            update_item_table(
-                &mut node_table,
+            update_tables(
+                &mut item_table,
+                &mut exclude_table,
                 num_path,
                 &graph_marginals,
                 sids,
@@ -380,7 +392,14 @@ pub fn parse_gfa_nodecount<R: Read>(
                         Some(coords) => &coords[..],
                     }
                 },
-                &[],
+                if abacus_data.exclude_coords.is_none() {
+                    &[]
+                } else {
+                    match exclude_map.get(&path_seg.id()) {
+                        None => &[],
+                        Some(coords) => &coords[..],
+                    }
+                },
                 path_seg.coords().get_or_insert((0, 0)).0,
             );
             num_path += 1;
@@ -388,8 +407,9 @@ pub fn parse_gfa_nodecount<R: Read>(
             let (walk_seg, buf_walk_seq) = parse_walk_identifier(&buf);
             let sids = parse_walk_seq(&buf_walk_seq, &graph_marginals);
 
-            update_item_table(
-                &mut node_table,
+            update_tables(
+                &mut item_table,
+                &mut exclude_table,
                 num_path,
                 &graph_marginals,
                 sids,
@@ -402,18 +422,26 @@ pub fn parse_gfa_nodecount<R: Read>(
                         Some(coords) => &coords[..],
                     }
                 },
-                &[],
+                if abacus_data.exclude_coords.is_none() {
+                    &[]
+                } else {
+                    match exclude_map.get(&walk_seg.id()) {
+                        None => &[],
+                        Some(coords) => &coords[..],
+                    }
+                },
                 walk_seg.coords().get_or_insert((0, 0)).0,
             );
             num_path += 1;
         }
         buf.clear();
     }
-    node_table
+    (item_table, exclude_table)
 }
 
-fn update_item_table(
+fn update_tables(
     item_table: &mut ItemTable,
+    exclude_table: &mut Option<ActiveTable<u32>>,
     num_path: usize,
     graph_marginals: &GraphData,
     sids: Vec<u32>,
@@ -425,7 +453,7 @@ fn update_item_table(
     let mut j = 0;
     let mut p = offset;
 
-    log::debug!("checking inclusion/exclusion criteria on {} nodes, inserting successful candidates to count data structur..", sids.len());
+    log::debug!("checking inclusion/exclusion criteria on {} nodes, inserting successful candidates to corresponding data structures..", sids.len());
 
     for sid in sids {
         // update current pointer in include_coords list
@@ -458,7 +486,7 @@ fn update_item_table(
                 item_table.id_prefsum[idx][num_path + 1] += 1;
             }
         }
-        if j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
+        if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
             let uncovered = if exclude_coords[j].0 > p {
                 exclude_coords[j].0 - p
             } else {
@@ -468,6 +496,9 @@ fn update_item_table(
             } else {
                 0
             };
+            if uncovered == 0 {
+                exclude_table.as_mut().unwrap().activate(sid as usize);
+            }
         } else if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
             break;
