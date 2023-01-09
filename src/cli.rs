@@ -247,7 +247,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // 1st step: loading data from group / subset / exclude files and indexing graph
     //
     //
-    let (graph_marginals, abacus_data) = match &params {
+    let (graph_aux, abacus_aux) = match &params {
         Params::Histgrowth {
             gfa_file, count, ..
         }
@@ -256,27 +256,27 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let graph_marginals = GraphData::from_gfa(&mut data, count == &CountType::Edges);
+            let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edges);
             log::info!(
                 "..done; found {} paths/walks and {} nodes{}",
-                graph_marginals.path_segments.len(),
-                graph_marginals.node2id.len(),
-                if let Some(edge2id) = &graph_marginals.edge2id {
+                graph_aux.path_segments.len(),
+                graph_aux.node2id.len(),
+                if let Some(edge2id) = &graph_aux.edge2id {
                     format!(" edges {}", edge2id.len())
                 } else {
                     String::new()
                 }
             );
 
-            if graph_marginals.path_segments.len() == 0 {
+            if graph_aux.path_segments.len() == 0 {
                 log::error!("there's nothing to do--graph does not contain any annotated paths (P/W lines), exiting");
                 return Ok(());
             }
 
             log::info!("loading data from group / subset / exclude files");
-            let abacus_data = AbacusData::from_params(&params, &graph_marginals)?;
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
 
-            (Some(graph_marginals), Some(abacus_data))
+            (Some(graph_aux), Some(abacus_aux))
         }
         _ => (None, None),
     };
@@ -291,7 +291,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
             let abacus =
-                Abacus::from_gfa(&mut data, abacus_data.unwrap(), graph_marginals.unwrap());
+                Abacus::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
             log::info!(
                 "abacus has {} path groups and {} countables",
                 abacus.groups.len(),
@@ -331,7 +331,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     match params {
         Params::Histgrowth { .. } | Params::Growth { .. } => {
             // XXX
-            let hist_data = HistData::from_params(&params);
+            let hist_aux = HistAuxilliary::from_params(&params);
 
             let growth = hist.calc_growth();
 

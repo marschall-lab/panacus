@@ -10,17 +10,17 @@ use crate::graph::*;
 use crate::io;
 use crate::util::*;
 
-pub struct AbacusData {
+pub struct AbacusAuxilliary {
     pub count: CountType,
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
     pub exclude_coords: Option<Vec<PathSegment>>,
 }
 
-impl AbacusData {
+impl AbacusAuxilliary {
     pub fn from_params(
         params: &Params,
-        graph_marginals: &GraphData,
+        graph_aux: &GraphAuxilliary,
     ) -> Result<Self, std::io::Error> {
         Ok(match params {
             Params::Histgrowth {
@@ -37,17 +37,17 @@ impl AbacusData {
                 groupby,
                 ..
             } => {
-                let groups = AbacusData::load_groups(groupby, graph_marginals)?;
-                let include_coords = AbacusData::complement_with_group_assignments(
-                    AbacusData::load_coord_list(positive_list)?,
+                let groups = AbacusAuxilliary::load_groups(groupby, graph_aux)?;
+                let include_coords = AbacusAuxilliary::complement_with_group_assignments(
+                    AbacusAuxilliary::load_coord_list(positive_list)?,
                     &groups,
                 )?;
-                let exclude_coords = AbacusData::complement_with_group_assignments(
-                    AbacusData::load_coord_list(negative_list)?,
+                let exclude_coords = AbacusAuxilliary::complement_with_group_assignments(
+                    AbacusAuxilliary::load_coord_list(negative_list)?,
                     &groups,
                 )?;
 
-                AbacusData {
+                AbacusAuxilliary {
                     count: count.clone(),
                     groups: groups,
                     include_coords: include_coords,
@@ -120,15 +120,15 @@ impl AbacusData {
 
     fn load_groups(
         file_name: &str,
-        graph_marginals: &GraphData,
+        graph_aux: &GraphAuxilliary,
     ) -> Result<HashMap<PathSegment, String>, std::io::Error> {
         Ok(if file_name.is_empty() {
             log::info!("no explicit group file given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
-            graph_marginals
+            graph_aux
                 .path_segments
                 .iter()
                 .cloned()
-                .zip(graph_marginals.path_segments.iter().map(|x| x.id()))
+                .zip(graph_aux.path_segments.iter().map(|x| x.id()))
                 .collect()
         } else {
             log::info!("loading groups from {}", file_name);
@@ -136,7 +136,7 @@ impl AbacusData {
             let g = io::parse_groups(&mut data)?;
             log::debug!("loaded {} group assignments", g.len());
             let mut ps2group: HashMap<PathSegment, String> = g.into_iter().collect();
-            graph_marginals
+            graph_aux
                 .path_segments
                 .iter()
                 .map(|x| (x.clone(), ps2group.remove(x).unwrap_or(x.id())))
@@ -154,19 +154,19 @@ pub struct Abacus<T> {
 impl Abacus<u32> {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
-        abacus_data: AbacusData,
-        graph_marginals: GraphData,
+        abacus_aux: AbacusAuxilliary,
+        graph_aux: GraphAuxilliary,
     ) -> Self {
         log::info!("parsing path + walk sequences");
         let (item_table, exclude_table) =
-            io::parse_gfa_itemcount(data, &abacus_data, &graph_marginals);
+            io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
         log::info!("counting abacus entries..");
-        let mut countable: Vec<u32> = vec![0; graph_marginals.node2id.len()];
-        let mut last: Vec<usize> = vec![usize::MAX; graph_marginals.node2id.len()];
+        let mut countable: Vec<u32> = vec![0; graph_aux.node2id.len()];
+        let mut last: Vec<usize> = vec![usize::MAX; graph_aux.node2id.len()];
 
         let mut groups = Vec::new();
         for (path_id, group_id) in
-            Abacus::get_path_order(&abacus_data, &graph_marginals.path_segments)
+            Abacus::get_path_order(&abacus_aux, &graph_aux.path_segments)
         {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
@@ -230,10 +230,10 @@ impl Abacus<u32> {
     }
 
     fn get_path_order<'a>(
-        abacus_data: &'a AbacusData,
+        abacus_aux: &'a AbacusAuxilliary,
         path_segments: &Vec<PathSegment>,
     ) -> Vec<(usize, &'a str)> {
-        // orders elements of path_segments by the order in abacus_data.groups; the returned vector
+        // orders elements of path_segments by the order in abacus_aux.groups; the returned vector
         // maps indices of path_segments to the group identifier
 
         let mut group_order = Vec::new();
@@ -244,7 +244,7 @@ impl Abacus<u32> {
             path_to_id.insert(s, i);
         });
 
-        abacus_data.groups.iter().for_each(|(k, v)| {
+        abacus_aux.groups.iter().for_each(|(k, v)| {
             group_to_paths
                 .entry(v)
                 .or_insert_with(|| {

@@ -68,12 +68,12 @@ impl Hist {
     }
 }
 
-pub struct HistData {
+pub struct HistAuxilliary {
     pub intersection: Option<Vec<(String, Threshold)>>,
     pub coverage: Option<Vec<(String, Threshold)>>,
 }
 
-impl HistData {
+impl HistAuxilliary {
     pub fn from_params(params: &cli::Params) -> Result<Self, std::io::Error> {
         match params {
             cli::Params::Histgrowth {

@@ -189,7 +189,7 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
     )
 }
 
-fn parse_walk_seq(data: &[u8], graph_marginals: &GraphData) -> Vec<u32> {
+fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<u32> {
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -201,7 +201,7 @@ fn parse_walk_seq(data: &[u8], graph_marginals: &GraphData) -> Vec<u32> {
     let sids: Vec<u32> = data[1..end]
         .par_split(|&x| x == b'<' || x == b'>')
         .map(|node| {
-            *graph_marginals.node2id.get(&node[..]).expect(
+            *graph_aux.node2id.get(&node[..]).expect(
                 &format!(
                     "walk contains unknown node {} ",
                     str::from_utf8(&node[..]).unwrap()
@@ -215,7 +215,7 @@ fn parse_walk_seq(data: &[u8], graph_marginals: &GraphData) -> Vec<u32> {
     sids
 }
 
-fn parse_path_seq(data: &[u8], graph_marginals: &GraphData) -> Vec<u32> {
+fn parse_path_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<u32> {
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -228,7 +228,7 @@ fn parse_path_seq(data: &[u8], graph_marginals: &GraphData) -> Vec<u32> {
         .map(|node| {
             // Parallel
             //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
-            let sid = *graph_marginals
+            let sid = *graph_aux
                 .node2id
                 .get(&node[0..node.len() - 1])
                 .expect(&format!(
@@ -251,7 +251,7 @@ fn parse_path_seq(data: &[u8], graph_marginals: &GraphData) -> Vec<u32> {
     sids
 }
 
-pub fn parse_graph_marginals<R: Read>(
+pub fn parse_graph_aux<R: Read>(
     data: &mut BufReader<R>,
     index_edges: bool,
 ) -> (
@@ -344,26 +344,26 @@ fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(u
 
 pub fn parse_gfa_itemcount<R: Read>(
     data: &mut BufReader<R>,
-    abacus_data: &AbacusData,
-    graph_marginals: &GraphData,
+    abacus_aux: &AbacusAuxilliary,
+    graph_aux: &GraphAuxilliary,
 ) -> (ItemTable, Option<ActiveTable<u32>>) {
-    let mut item_table = ItemTable::new(graph_marginals.path_segments.len());
+    let mut item_table = ItemTable::new(graph_aux.path_segments.len());
 
-    let mut exclude_table = abacus_data.exclude_coords.as_ref().map(|_| {
+    let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
         ActiveTable::<u32>::new(
-            graph_marginals.node_len.len(),
-            abacus_data.count == CountType::Bps,
+            graph_aux.node_len.len(),
+            abacus_aux.count == CountType::Bps,
         )
     });
 
     // build "include" lookup table
-    let include_map = match &abacus_data.include_coords {
+    let include_map = match &abacus_aux.include_coords {
         None => HashMap::default(),
         Some(coords) => build_subpath_map(coords),
     };
 
     // build "exclude" lookup table
-    let exclude_map = match &abacus_data.exclude_coords {
+    let exclude_map = match &abacus_aux.exclude_coords {
         None => HashMap::default(),
         Some(coords) => build_subpath_map(coords),
     };
@@ -376,15 +376,15 @@ pub fn parse_gfa_itemcount<R: Read>(
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' {
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
-            let sids = parse_path_seq(&buf_path_seg, &graph_marginals);
+            let sids = parse_path_seq(&buf_path_seg, &graph_aux);
 
             update_tables(
                 &mut item_table,
                 &mut exclude_table,
                 num_path,
-                &graph_marginals,
+                &graph_aux,
                 sids,
-                if abacus_data.include_coords.is_none() {
+                if abacus_aux.include_coords.is_none() {
                     &complete[..]
                 } else {
                     match include_map.get(&path_seg.id()) {
@@ -392,7 +392,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                         Some(coords) => &coords[..],
                     }
                 },
-                if abacus_data.exclude_coords.is_none() {
+                if abacus_aux.exclude_coords.is_none() {
                     &[]
                 } else {
                     match exclude_map.get(&path_seg.id()) {
@@ -405,15 +405,15 @@ pub fn parse_gfa_itemcount<R: Read>(
             num_path += 1;
         } else if buf[0] == b'W' {
             let (walk_seg, buf_walk_seq) = parse_walk_identifier(&buf);
-            let sids = parse_walk_seq(&buf_walk_seq, &graph_marginals);
+            let sids = parse_walk_seq(&buf_walk_seq, &graph_aux);
 
             update_tables(
                 &mut item_table,
                 &mut exclude_table,
                 num_path,
-                &graph_marginals,
+                &graph_aux,
                 sids,
-                if abacus_data.include_coords.is_none() {
+                if abacus_aux.include_coords.is_none() {
                     &complete[..]
                 } else {
                     match include_map.get(&walk_seg.id()) {
@@ -422,7 +422,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                         Some(coords) => &coords[..],
                     }
                 },
-                if abacus_data.exclude_coords.is_none() {
+                if abacus_aux.exclude_coords.is_none() {
                     &[]
                 } else {
                     match exclude_map.get(&walk_seg.id()) {
@@ -443,7 +443,7 @@ fn update_tables(
     item_table: &mut ItemTable,
     exclude_table: &mut Option<ActiveTable<u32>>,
     num_path: usize,
-    graph_marginals: &GraphData,
+    graph_aux: &GraphAuxilliary,
     sids: Vec<u32>,
     include_coords: &[(usize, usize)],
     exclude_coords: &[(usize, usize)],
@@ -466,7 +466,7 @@ fn update_tables(
             j += 1;
         }
 
-        let l = graph_marginals.node_len[sid as usize] as usize;
+        let l = graph_aux.node_len[sid as usize] as usize;
 
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 <= p + l {

@@ -20,14 +20,14 @@ use crate::io;
 //    v_is_reverse: bool,
 //}
 
-pub struct GraphData {
+pub struct GraphAuxilliary {
     pub node2id: HashMap<Vec<u8>, u32>,
     pub node_len: Vec<u32>,
     pub edge2id: Option<HashMap<Vec<u8>, u32>>,
     pub path_segments: Vec<PathSegment>,
 }
 
-impl GraphData {
+impl GraphAuxilliary {
     pub fn new(
         node2id: HashMap<Vec<u8>, u32>,
         node_len: Vec<u32>,
@@ -44,7 +44,7 @@ impl GraphData {
 
     pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
         let (node2id, node_len, edge2id, path_segments) =
-            io::parse_graph_marginals(data, index_edges);
+            io::parse_graph_aux(data, index_edges);
         Self::new(node2id, node_len, edge2id, path_segments)
     }
 }
