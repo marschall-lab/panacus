@@ -8,8 +8,6 @@ rust-version= "1.60"
 
 [dependencies]
 clap        = { version = "4.0", features = [ "derive" ] }
-gfa         = "0.10.0"
-handlegraph = "0.7.0-alpha.9"
 itertools   = "0.10.3"
 quick-csv   = "0.1"
 rand        = "0.8.4"
