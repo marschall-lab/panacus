@@ -290,8 +290,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             // creating the abacus from the gfa
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus =
-                Abacus::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
+            let abacus = Abacus::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
             log::info!(
                 "abacus has {} path groups and {} countables",
                 abacus.groups.len(),

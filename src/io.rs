@@ -3,10 +3,11 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::iter::FromIterator;
 use std::str::{self, FromStr};
+
 /* external crate */
 use quick_csv::Csv;
 use rayon::prelude::*;
-//use std::sync::{Arc, Mutex};
+
 /* private use */
 use crate::abacus::*;
 use crate::graph::*;
@@ -189,7 +190,7 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
     )
 }
 
-fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<u32> {
+fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId,Orientation)> {
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -198,24 +199,47 @@ fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<u32> {
     log::debug!("parsing path sequences of size {}..", end);
 
     // ignore first > | < so that no empty is created for 1st node
-    let sids: Vec<u32> = data[1..end]
-        .par_split(|&x| x == b'<' || x == b'>')
-        .map(|node| {
-            *graph_aux.node2id.get(&node[..]).expect(
-                &format!(
-                    "walk contains unknown node {} ",
-                    str::from_utf8(&node[..]).unwrap()
-                )[..],
-            )
-        })
-        .collect();
-
+    let sids: Vec<(ItemId, Orientation)> = data[..end]
+        .par_split(|x| &b'>' == x)
+        .map(|x| {
+            if x.len() == 0 {
+                // not nice... but Rust expects struct `std::iter::Once<(u32, util::Orientation)>`
+                //
+                // this case shouldn't occur too often, so should be fine in terms for runtime
+                vec![]
+            } else {
+                let i = x.iter().position(|z| &b'<' == z).unwrap_or_else(|| x.len());
+                let v = Node::new(&x[..i]);
+                let sid  = (
+                        *graph_aux.node2id.get(&v).expect(
+                                &format!("walk contains unknown node {} ", &v)),
+                                Orientation::Forward);
+                if i > x.len() {
+                    // not nice... but Rust expects struct `std::iter::Once<(u32, util::Orientation)>`
+                    //
+                    // this case can happen more frequently... hopefully it doesn't blow up the
+                    // runtime
+                    [sid].into_par_iter().chain(x.par_split(|y| &b'<' == y).map(|y| {
+                        if y.len() == 0 {
+                            vec![] 
+                        } else {
+                            let v = Node::new(&y[..]);
+                            vec![(
+                                    *graph_aux.node2id.get(&v).expect(
+                                            &format!("walk contains unknown node {} ", &v)),
+                                            Orientation::Forward)]
+                        }
+                    }).flatten()).collect()
+                } else {
+                    vec![sid]
+                }
+            }
+        }).flatten().collect();
     log::debug!("..done");
-
     sids
 }
 
-fn parse_path_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<u32> {
+fn parse_path_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId,Orientation)> {
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -223,26 +247,13 @@ fn parse_path_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<u32> {
 
     log::debug!("parsing path sequences of size {}..", end);
 
-    let sids: Vec<u32> = data[..end]
+    let sids: Vec<(ItemId,Orientation)> = data[..end]
         .par_split(|&x| x == b',')
         .map(|node| {
             // Parallel
-            //path_data.split(|&x| x == b',').for_each( |node| {  // Sequential
-            let sid = *graph_aux
-                .node2id
-                .get(&node[0..node.len() - 1])
-                .expect(&format!(
-                    "unknown node {}",
-                    &str::from_utf8(node).unwrap()[..]
-                ));
-            let o = node[node.len() - 1];
-            assert!(
-                o == b'-' || o == b'+',
-                "unknown orientation of segment {}",
-                str::from_utf8(&node).unwrap()
-            );
-
-            sid
+            let v = Node::new(&node[..node.len()-1]);
+            let sid = *graph_aux.node2id.get(&v).expect(&format!("unknown node {}", &v));
+            (sid, Orientation::from_pm(node[node.len()-1]))
         })
         .collect();
 
@@ -255,15 +266,15 @@ pub fn parse_graph_aux<R: Read>(
     data: &mut BufReader<R>,
     index_edges: bool,
 ) -> (
-    HashMap<Vec<u8>, u32>,
+    HashMap<Node, ItemId>,
     Vec<u32>,
-    Option<HashMap<Vec<u8>, u32>>,
+    Option<HashMap<Edge, ItemId>>,
     Vec<PathSegment>,
 ) {
     let mut node_count = 0;
     let mut edge_count = 0;
-    let mut node2id: HashMap<Vec<u8>, u32> = HashMap::default();
-    let mut edge2id: Option<HashMap<Vec<u8>, u32>> = if index_edges {
+    let mut node2id: HashMap<Node, ItemId> = HashMap::default();
+    let mut edge2id: Option<HashMap<Edge, ItemId>> = if index_edges {
         Some(HashMap::default())
     } else {
         None
@@ -277,37 +288,15 @@ pub fn parse_graph_aux<R: Read>(
             let mut iter = buf.iter();
             let start = iter.position(|&x| x == b'\t').unwrap() + 1;
             let offset = iter.position(|&x| x == b'\t').unwrap();
-            let sid = buf[start..start + offset].to_vec();
+            let v = Node::new(&buf[start..start + offset]);
             let offset = iter
                 .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
                 .unwrap();
             node_len.push(offset as u32);
-            node2id.entry(sid).or_insert(node_count);
+            node2id.entry(v).or_insert(ItemId(node_count));
             node_count += 1;
         } else if index_edges && buf[0] == b'L' {
-            let mut iter = buf.iter();
-            let start = iter.position(|&x| x == b'\t').unwrap() + 1;
-            let offset = iter.position(|&x| x == b'\t').unwrap();
-            let sid1 = buf[start..start + offset].to_vec();
-
-            // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
-            // need to advance in the buffer (and  therefore call iter.position(..))
-            iter.position(|&x| x == b'\t');
-            let o1 = if buf[offset + 1] == b'+' { b'>' } else { b'<' };
-
-            let start = start + 2;
-            let offset = iter.position(|&x| x == b'\t').unwrap();
-            let sid2 = buf[start..start + offset].to_vec();
-
-            let o2 = if buf[offset + 1] == b'+' { b'>' } else { b'<' };
-
-            let lid: Vec<u8> = vec![o1]
-                .into_iter()
-                .chain(sid1.into_iter())
-                .chain(vec![o2].into_iter())
-                .chain(sid2.into_iter())
-                .collect();
-            edge2id.as_mut().unwrap().entry(lid).or_insert(edge_count);
+            edge2id.as_mut().unwrap().entry(Edge::from_L(&buf)).or_insert(ItemId(edge_count));
             edge_count += 1;
         } else if buf[0] == b'P' {
             let (path_seg, _) = parse_path_identifier(&buf);
@@ -350,10 +339,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
 
     let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
-        ActiveTable::<u32>::new(
-            graph_aux.node_len.len(),
-            abacus_aux.count == CountType::Bps,
-        )
+        ActiveTable::<u32>::new(graph_aux.number_of_nodes(), abacus_aux.count == CountType::Bps)
     });
 
     // build "include" lookup table
@@ -368,15 +354,26 @@ pub fn parse_gfa_itemcount<R: Read>(
         Some(coords) => build_subpath_map(coords),
     };
 
-    // Reading GFA file searching for (P)aths and (W)alks
+    // reading GFA file searching for (P)aths and (W)alks
     let mut buf = vec![];
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
 
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-        if buf[0] == b'P' {
-            let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
-            let sids = parse_path_seq(&buf_path_seg, &graph_aux);
+        if buf[0] == b'P' || buf[0]  ==  b'W' {
+            let (path_seg, sids) = match buf[0] {
+                b'P' => {
+                    let (path_seg, buf_path_seg) =  parse_path_identifier(&buf);
+                    let sids = parse_path_seq(&buf_path_seg, &graph_aux);
+                    (path_seg, sids)
+                },
+                b'W' => {
+                    let (path_seg, buf_walk_seq) = parse_walk_identifier(&buf);
+                    let sids = parse_walk_seq(&buf_walk_seq, &graph_aux);
+                    (path_seg, sids)
+                },
+                _ => unreachable!()
+            };
 
             update_tables(
                 &mut item_table,
@@ -403,36 +400,6 @@ pub fn parse_gfa_itemcount<R: Read>(
                 path_seg.coords().get_or_insert((0, 0)).0,
             );
             num_path += 1;
-        } else if buf[0] == b'W' {
-            let (walk_seg, buf_walk_seq) = parse_walk_identifier(&buf);
-            let sids = parse_walk_seq(&buf_walk_seq, &graph_aux);
-
-            update_tables(
-                &mut item_table,
-                &mut exclude_table,
-                num_path,
-                &graph_aux,
-                sids,
-                if abacus_aux.include_coords.is_none() {
-                    &complete[..]
-                } else {
-                    match include_map.get(&walk_seg.id()) {
-                        // empty slice
-                        None => &[],
-                        Some(coords) => &coords[..],
-                    }
-                },
-                if abacus_aux.exclude_coords.is_none() {
-                    &[]
-                } else {
-                    match exclude_map.get(&walk_seg.id()) {
-                        None => &[],
-                        Some(coords) => &coords[..],
-                    }
-                },
-                walk_seg.coords().get_or_insert((0, 0)).0,
-            );
-            num_path += 1;
         }
         buf.clear();
     }
@@ -444,7 +411,7 @@ fn update_tables(
     exclude_table: &mut Option<ActiveTable<u32>>,
     num_path: usize,
     graph_aux: &GraphAuxilliary,
-    sids: Vec<u32>,
+    path: Vec<(ItemId,Orientation)>,
     include_coords: &[(usize, usize)],
     exclude_coords: &[(usize, usize)],
     offset: usize,
@@ -453,9 +420,9 @@ fn update_tables(
     let mut j = 0;
     let mut p = offset;
 
-    log::debug!("checking inclusion/exclusion criteria on {} nodes, inserting successful candidates to corresponding data structures..", sids.len());
+    log::debug!("checking inclusion/exclusion criteria on {} nodes, inserting successful candidates to corresponding data structures..", path.len());
 
-    for sid in sids {
+    for (sid, o) in path {
         // update current pointer in include_coords list
         while i < include_coords.len() && include_coords[i].1 <= p {
             i += 1;
@@ -466,7 +433,7 @@ fn update_tables(
             j += 1;
         }
 
-        let l = graph_aux.node_len[sid as usize] as usize;
+        let l = graph_aux.node_len(&sid)  as usize;
 
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 <= p + l {
@@ -481,8 +448,8 @@ fn update_tables(
             };
             // only count nodes that are completely contained in "include" coords
             if uncovered == 0 {
-                let idx = (sid as usize) % SIZE_T;
-                item_table.items[idx].push(sid);
+                let idx = (sid.0 as usize) % SIZE_T;
+                item_table.items[idx].push(sid.0);
                 item_table.id_prefsum[idx][num_path + 1] += 1;
             }
         }
@@ -497,7 +464,7 @@ fn update_tables(
                 0
             };
             if uncovered == 0 {
-                exclude_table.as_mut().unwrap().activate(sid as usize);
+                exclude_table.as_mut().unwrap().activate(sid.0 as usize);
             }
         } else if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
@@ -511,3 +478,70 @@ fn update_tables(
     }
     log::debug!("..done");
 }
+
+//fn update_tables_edgecount(
+//    item_table: &mut ItemTable,
+//    exclude_table: &mut Option<ActiveTable<u32>>,
+//    num_path: usize,
+//    graph_aux: &GraphAuxilliary,
+//    path: Vec<(u32,Orientation)>,
+//    include_coords: &[(usize, usize)],
+//    exclude_coords: &[(usize, usize)],
+//    offset: usize,
+//) {
+//    let mut i = 0;
+//    let mut j = 0;
+//    let mut p = offset;
+//
+//    // edges are positioned between nodes, offset by the first node
+//    if path.len() > 0 {
+//        p += graph_aux.node_len[path[0].0];
+//    }
+//
+//    log::debug!("checking inclusion/exclusion criteria on {} nodes, inserting successful candidates to corresponding data structures..", path.len());
+//
+//    for ((sid1, o1),(sid2, o2)) in path.into_iter().tuple_windows() {
+//        // update current pointer in include_coords list
+//        while i < include_coords.len() && include_coords[i].1 <= p {
+//            i += 1;
+//        }
+//
+//        // update current pointer in exclude_coords list
+//        while j < exclude_coords.len() && exclude_coords[j].1 <= p {
+//            j += 1;
+//        }
+//
+//        let l = graph_aux.node_len[sid2 as usize] as usize;
+//
+//        // check if the current position fits within active segment
+//        if i < include_coords.len() && include_coords[i].0 <= p + l {
+//            let idx = (sid as usize) % SIZE_T;
+//            item_table.items[idx].push(sid);
+//            item_table.id_prefsum[idx][num_path + 1] += 1;
+//        }
+//        if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
+//            let uncovered = if exclude_coords[j].0 > p {
+//                exclude_coords[j].0 - p
+//            } else {
+//                0
+//            } + if exclude_coords[j].1 < p + l {
+//                exclude_coords[j].1 - p - l
+//            } else {
+//                0
+//            };
+//            if uncovered == 0 {
+//                exclude_table.as_mut().unwrap().activate(sid as usize);
+//            }
+//        } else if i >= include_coords.len() && j >= exclude_coords.len() {
+//            // terminate parse if all "include" and "exclude" coords are processed
+//            break;
+//        }
+//        p += l;
+//    }
+//    // Compute prefix sum
+//    for i in 0..SIZE_T {
+//        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+//    }
+//    log::debug!("..done");
+//}
+

@@ -158,16 +158,13 @@ impl Abacus<u32> {
         graph_aux: GraphAuxilliary,
     ) -> Self {
         log::info!("parsing path + walk sequences");
-        let (item_table, exclude_table) =
-            io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
+        let (item_table, exclude_table) = io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
         log::info!("counting abacus entries..");
         let mut countable: Vec<u32> = vec![0; graph_aux.node2id.len()];
         let mut last: Vec<usize> = vec![usize::MAX; graph_aux.node2id.len()];
 
         let mut groups = Vec::new();
-        for (path_id, group_id) in
-            Abacus::get_path_order(&abacus_aux, &graph_aux.path_segments)
-        {
+        for (path_id, group_id) in Abacus::get_path_order(&abacus_aux, &graph_aux.path_segments) {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }

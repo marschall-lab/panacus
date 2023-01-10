@@ -6,46 +6,122 @@ use std::str::{self, FromStr};
 /* private use */
 use crate::io;
 
-//#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-//pub struct Node {
-//    id: String,
-//    len: u32,
-//}
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ItemId(pub u32);
 
-//#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Eq, Ord)]
-//pub struct Edge {
-//    uid: usize,
-//    u_is_reverse: bool,
-//    vid: usize,
-//    v_is_reverse: bool,
-//}
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Node(pub Vec<u8>);
+
+impl Node {
+    pub fn new(data: &[u8]) -> Self {
+        Self (data.to_vec() )
+    }
+}
+
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", str::from_utf8(&self.0[..]).unwrap())
+    }
+}
+
+
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Edge(pub Node, pub Orientation, pub Node, pub Orientation);
+
+impl Edge {
+    pub fn from_L(data: &[u8]) -> Self {
+        let (mut start, mut iter) = match data[0] {
+            b'L' => (2, data[2..].iter()),
+            _ => (0, data.iter())
+        };
+
+        let offset = iter.position(|&x| x == b'\t').unwrap();
+        let u= Node::new(&data[start..start+offset]);
+
+        // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
+        // need to advance in the buffer (and  therefore call iter.position(..))
+        iter.position(|&x| x == b'\t');
+        let o1 = Orientation::from_pm(data[offset + 1]);
+        
+        let start = offset + 2;
+        let offset = iter.position(|&x| x == b'\t').unwrap();
+        
+        let v = Node::new(&data[start..start + offset]);
+        let o2 = Orientation::from_pm(data[offset + 1]);
+        
+        Edge(u, o1, v, o2)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Orientation {
+    Forward,
+    Backward
+}
+
+impl Default for Orientation {
+    fn default() -> Self {
+        Orientation::Forward
+    }
+}
+
+impl fmt::Display for Orientation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Orientation::Forward => write!(f, ">"),
+            Orientation::Backward => write!(f, ">"),
+        }
+    }
+}
+
+impl Orientation {
+    pub fn from_pm(c: u8) -> Self {
+        match c {
+            b'+' => Orientation::Forward,
+            b'-' => Orientation::Backward,
+            _ => unreachable!("expected '+' or '-'"),
+        }
+    }
+
+    pub fn from_lg(c: u8) -> Self {
+        match c {
+            b'>' => Orientation::Forward,
+            b'<' => Orientation::Backward,
+            _ => unreachable!("expected '>' or '<'"),
+        }
+    }
+}
+
 
 pub struct GraphAuxilliary {
-    pub node2id: HashMap<Vec<u8>, u32>,
-    pub node_len: Vec<u32>,
-    pub edge2id: Option<HashMap<Vec<u8>, u32>>,
+    pub node2id: HashMap<Node, ItemId>,
+    node_len_ary: Vec<u32>,
+    pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
 }
 
 impl GraphAuxilliary {
     pub fn new(
-        node2id: HashMap<Vec<u8>, u32>,
-        node_len: Vec<u32>,
-        edge2id: Option<HashMap<Vec<u8>, u32>>,
+        node2id: HashMap<Node, ItemId>,
+        node_len_ary: Vec<u32>,
+        edge2id: Option<HashMap<Edge, ItemId>>,
         path_segments: Vec<PathSegment>,
     ) -> Self {
-        Self {
-            node2id,
-            node_len,
-            edge2id,
-            path_segments,
-        }
+        Self { node2id, node_len_ary, edge2id, path_segments }
     }
 
     pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
-        let (node2id, node_len, edge2id, path_segments) =
-            io::parse_graph_aux(data, index_edges);
-        Self::new(node2id, node_len, edge2id, path_segments)
+        let (node2id, node_len_ary, edge2id, path_segments) = io::parse_graph_aux(data, index_edges);
+        Self::new(node2id, node_len_ary, edge2id, path_segments)
+    }
+    
+    pub fn node_len(&self, v: &ItemId) -> u32 {
+        self.node_len_ary[v.0 as usize]
+    }
+
+    pub fn number_of_nodes(&self) -> usize {
+        self.node_len_ary.len()
     }
 }
 
