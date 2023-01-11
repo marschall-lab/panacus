@@ -1,6 +1,7 @@
 /* standard use */
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::str::{self, FromStr};
 
 /* private use */
@@ -9,60 +10,101 @@ use crate::io;
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemId(pub u32);
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Node(pub Vec<u8>);
-
-impl Node {
-    pub fn new(data: &[u8]) -> Self {
-        Self (data.to_vec() )
-    }
-}
-
-impl fmt::Display for Node {
+impl fmt::Display for ItemId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", str::from_utf8(&self.0[..]).unwrap())
+        write!(f, "{}", self.0)
     }
 }
 
-
-
-#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Edge(pub Node, pub Orientation, pub Node, pub Orientation);
+#[derive(Default, Debug, Clone, PartialOrd, Ord)]
+pub struct Edge(pub ItemId, pub Orientation, pub ItemId, pub Orientation);
 
 impl Edge {
-    pub fn from_L(data: &[u8]) -> Self {
+    pub fn from_link(data: &[u8], node2id: &HashMap<Vec<u8>, ItemId>) -> Self {
         let (mut start, mut iter) = match data[0] {
             b'L' => (2, data[2..].iter()),
-            _ => (0, data.iter())
+            _ => (0, data.iter()),
         };
 
-        let offset = iter.position(|&x| x == b'\t').unwrap();
-        let u= Node::new(&data[start..start+offset]);
+        let end = start + iter.position(|&x| x == b'\t').unwrap();
+        let u = node2id.get(&data[start..end]).expect(&format!(
+            "unknown node {}",
+            str::from_utf8(&data[start..end]).unwrap()
+        ));
 
         // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
         // need to advance in the buffer (and  therefore call iter.position(..))
         iter.position(|&x| x == b'\t');
-        let o1 = Orientation::from_pm(data[offset + 1]);
-        
-        let start = offset + 2;
-        let offset = iter.position(|&x| x == b'\t').unwrap();
-        
-        let v = Node::new(&data[start..start + offset]);
-        let o2 = Orientation::from_pm(data[offset + 1]);
-        
-        Edge(u, o1, v, o2)
+        let o1 = Orientation::from_pm(data[end + 1]);
+
+        let start = end + 3;
+        let end = start + iter.position(|&x| x == b'\t').unwrap();
+
+        let v = node2id.get(&data[start..end]).expect(&format!(
+            "unknown node {}",
+            str::from_utf8(&data[start..end]).unwrap()
+        ));
+        let o2 = Orientation::from_pm(data[end + 1]);
+
+        Self(*u, o1, *v, o2)
+    }
+
+    pub fn normalize(&self) -> Self {
+        if self.3 == Orientation::Backward && (self.1 == Orientation::Backward || self.0 > self.2) {
+            self.flip()
+        } else {
+            self.clone()
+        }
+    }
+
+    pub fn flip(&self) -> Self {
+        Self(self.2, self.3.flip(), self.0, self.1.flip())
+    }
+
+    fn eq_individual(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1 && self.2 == other.2 && self.3 == other.3
     }
 }
+
+impl fmt::Display for Edge {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}{}{}", self.1, self.0, self.3, self.2)
+    }
+}
+
+impl Hash for Edge {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        format!("{}", self.normalize()).hash(state);
+    }
+}
+
+impl PartialEq for Edge {
+    fn eq(&self, other: &Self) -> bool {
+        self.eq_individual(other) || ((self.0 != self.2 || self.1 == self.3) && self.flip().eq_individual(other))
+    }
+
+}
+
+impl Eq for Edge {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Orientation {
     Forward,
-    Backward
+    Backward,
 }
 
 impl Default for Orientation {
     fn default() -> Self {
         Orientation::Forward
+    }
+}
+
+impl Orientation {
+    pub fn flip(&self) -> Self {
+        match &self {
+            Orientation::Forward => Orientation::Backward,
+            Orientation::Backward => Orientation::Forward,
+        }
     }
 }
 
@@ -80,7 +122,7 @@ impl Orientation {
         match c {
             b'+' => Orientation::Forward,
             b'-' => Orientation::Backward,
-            _ => unreachable!("expected '+' or '-'"),
+            _ => unreachable!("expected '+' or '-', but got {}", c as char),
         }
     }
 
@@ -93,9 +135,8 @@ impl Orientation {
     }
 }
 
-
 pub struct GraphAuxilliary {
-    pub node2id: HashMap<Node, ItemId>,
+    pub node2id: HashMap<Vec<u8>, ItemId>,
     node_len_ary: Vec<u32>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
@@ -103,25 +144,43 @@ pub struct GraphAuxilliary {
 
 impl GraphAuxilliary {
     pub fn new(
-        node2id: HashMap<Node, ItemId>,
+        node2id: HashMap<Vec<u8>, ItemId>,
         node_len_ary: Vec<u32>,
         edge2id: Option<HashMap<Edge, ItemId>>,
         path_segments: Vec<PathSegment>,
     ) -> Self {
-        Self { node2id, node_len_ary, edge2id, path_segments }
+        Self {
+            node2id,
+            node_len_ary,
+            edge2id,
+            path_segments,
+        }
     }
 
     pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
-        let (node2id, node_len_ary, edge2id, path_segments) = io::parse_graph_aux(data, index_edges);
+        let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges);
+        let edge2id = Self::construct_edgemap(edges, &node2id);
         Self::new(node2id, node_len_ary, edge2id, path_segments)
     }
-    
+
     pub fn node_len(&self, v: &ItemId) -> u32 {
         self.node_len_ary[v.0 as usize]
     }
 
     pub fn number_of_nodes(&self) -> usize {
         self.node_len_ary.len()
+    }
+
+    pub fn construct_edgemap(
+        edges: Option<Vec<Vec<u8>>>,
+        node2id: &HashMap<Vec<u8>, ItemId>,
+    ) -> Option<HashMap<Edge, ItemId>> {
+        edges.map(|es| {
+            es.into_iter()
+                .enumerate()
+                .map(|(i, e)| (Edge::from_link(&e[..], node2id), ItemId(i as u32 + 1)))
+                .collect()
+        })
     }
 }
 
@@ -133,50 +192,6 @@ pub struct PathSegment {
     pub start: Option<usize>,
     pub end: Option<usize>,
 }
-
-//impl Edge {
-//    #[inline]
-//    pub fn new(id1: usize, is_reverse1: bool, id2: usize, is_reverse2: bool) -> Self {
-//        let (uid, u_is_reverse, vid, v_is_reverse) =
-//            Edge::canonize(id1, is_reverse1, id2, is_reverse2);
-//        Self {
-//            uid,
-//            u_is_reverse,
-//            vid,
-//            v_is_reverse,
-//        }
-//    }
-//
-//    #[inline]
-//    fn canonize(
-//        id1: usize,
-//        is_reverse1: bool,
-//        id2: usize,
-//        is_reverse2: bool,
-//    ) -> (usize, bool, usize, bool) {
-//        if (is_reverse1 && is_reverse2) || (is_reverse1 != is_reverse2 && id1 > id2) {
-//            (id2, !is_reverse2, id1, !is_reverse1)
-//        } else {
-//            (id1, is_reverse1, id2, is_reverse2)
-//        }
-//    }
-//
-//    pub fn uid(self) -> usize {
-//        self.uid
-//    }
-//
-//    pub fn u_is_reverse(self) -> bool {
-//        self.u_is_reverse
-//    }
-//
-//    pub fn vid(self) -> usize {
-//        self.vid
-//    }
-//
-//    pub fn v_is_reverse(self) -> bool {
-//        self.v_is_reverse
-//    }
-//}
 
 impl PathSegment {
     pub fn new(
