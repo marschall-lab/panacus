@@ -5,10 +5,10 @@ use std::str::{self, FromStr};
 
 /* private use */
 use crate::io;
-use crate::util::CountType;
+use crate::util::{CountType, ItemIdSize};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ItemId(pub u32);
+pub struct ItemId(pub ItemIdSize);
 
 impl fmt::Display for ItemId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -129,7 +129,7 @@ impl Orientation {
 #[derive(Debug, Clone)]
 pub struct GraphAuxilliary {
     pub node2id: HashMap<Vec<u8>, ItemId>,
-    pub node_len_ary: Vec<u32>,
+    pub node_len_ary: Vec<ItemIdSize>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
     pub node_count: usize,
@@ -139,7 +139,7 @@ pub struct GraphAuxilliary {
 impl GraphAuxilliary {
     pub fn new(
         node2id: HashMap<Vec<u8>, ItemId>,
-        node_len_ary: Vec<u32>,
+        node_len_ary: Vec<ItemIdSize>,
         edge2id: Option<HashMap<Edge, ItemId>>,
         path_segments: Vec<PathSegment>,
         node_count: usize,
@@ -172,7 +172,7 @@ impl GraphAuxilliary {
         ))
     }
 
-    pub fn node_len(&self, v: &ItemId) -> u32 {
+    pub fn node_len(&self, v: &ItemId) -> ItemIdSize {
         self.node_len_ary[v.0 as usize]
     }
 
@@ -206,7 +206,12 @@ impl GraphAuxilliary {
             edges.map(|es| {
                 es.into_iter()
                     .enumerate()
-                    .map(|(i, e)| (Edge::from_link(&e[..], node2id, true), ItemId(i as u32)))
+                    .map(|(i, e)| {
+                        (
+                            Edge::from_link(&e[..], node2id, true),
+                            ItemId(i as ItemIdSize),
+                        )
+                    })
                     .collect()
             }),
             ec,

@@ -207,7 +207,7 @@ fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orie
         .par_split(|x| &b'>' == x)
         .map(|x| {
             if x.len() == 0 {
-                // not nice... but Rust expects struct `std::iter::Once<(u32, util::Orientation)>`
+                // not nice... but Rust expects struct `std::iter::Once<(ItemIdSize, util::Orientation)>`
                 //
                 // this case shouldn't occur too often, so should be fine in terms for runtime
                 vec![]
@@ -221,7 +221,7 @@ fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orie
                     Orientation::Forward,
                 );
                 if i > x.len() {
-                    // not nice... but Rust expects struct `std::iter::Once<(u32, util::Orientation)>`
+                    // not nice... but Rust expects struct `std::iter::Once<(ItemIdSize, util::Orientation)>`
                     //
                     // this case can happen more frequently... hopefully it doesn't blow up the
                     // runtime
@@ -290,7 +290,7 @@ pub fn parse_graph_aux<R: Read>(
 ) -> Result<
     (
         HashMap<Vec<u8>, ItemId>,
-        Vec<u32>,
+        Vec<ItemIdSize>,
         Option<Vec<Vec<u8>>>,
         Vec<PathSegment>,
     ),
@@ -301,7 +301,7 @@ pub fn parse_graph_aux<R: Read>(
     let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
     let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
     let mut path_segments: Vec<PathSegment> = Vec::new();
-    let mut node_len: Vec<u32> = Vec::new();
+    let mut node_len: Vec<ItemIdSize> = Vec::new();
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -324,7 +324,7 @@ pub fn parse_graph_aux<R: Read>(
             let offset = iter
                 .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
                 .unwrap();
-            node_len.push(offset as u32);
+            node_len.push(offset as ItemIdSize);
         } else if index_edges && buf[0] == b'L' {
             edges.as_mut().unwrap().push(buf.to_vec());
         } else if buf[0] == b'P' {

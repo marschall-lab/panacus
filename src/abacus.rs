@@ -148,8 +148,8 @@ impl AbacusAuxilliary {
 #[derive(Debug, Clone)]
 pub struct Abacus {
     pub count: CountType,
-    pub countable: Vec<u32>,
-    pub uncovered_bps: HashMap<u32, usize>,
+    pub countable: Vec<CountSize>,
+    pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
     graph_aux: GraphAuxilliary,
 }
@@ -164,8 +164,9 @@ impl Abacus {
         let (item_table, exclude_table, subset_covered_bps) =
             io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
         log::info!("counting abacus entries..");
-        let mut countable: Vec<u32> = vec![0; graph_aux.number_of_items(&abacus_aux.count)];
-        let mut last: Vec<u32> = vec![u32::MAX; graph_aux.number_of_items(&abacus_aux.count)];
+        let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&abacus_aux.count)];
+        let mut last: Vec<ItemIdSize> =
+            vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count)];
 
         let mut groups = Vec::new();
         for (path_id, group_id) in Abacus::get_path_order(&abacus_aux, &graph_aux.path_segments) {
@@ -178,7 +179,7 @@ impl Abacus {
                 &item_table,
                 &exclude_table,
                 path_id,
-                groups.len() as u32 - 1,
+                groups.len() as ItemIdSize - 1,
             );
         }
 
@@ -196,12 +197,12 @@ impl Abacus {
     }
 
     fn coverage(
-        countable: &mut Vec<u32>,
-        last: &mut Vec<u32>,
+        countable: &mut Vec<CountSize>,
+        last: &mut Vec<ItemIdSize>,
         node_table: &ItemTable,
         exclude_table: &Option<ActiveTable>,
-        path_id: u32,
-        group_id: u32,
+        path_id: ItemIdSize,
+        group_id: ItemIdSize,
     ) {
         let countable_ptr = Wrap(countable);
         let last_ptr = Wrap(last);
@@ -229,7 +230,7 @@ impl Abacus {
         exclude_table: &Option<ActiveTable>,
         subset_covered_bps: &Option<IntervalContainer>,
         graph_aux: &GraphAuxilliary,
-    ) -> HashMap<u32, usize> {
+    ) -> HashMap<ItemIdSize, usize> {
         //
         // 1. if subset is specified, then the node-based coverage calculated by the coverage()
         //    function overestimates the total coverage, because even nodes that are only partially
@@ -297,16 +298,16 @@ impl Abacus {
     fn get_path_order<'a>(
         abacus_aux: &'a AbacusAuxilliary,
         path_segments: &Vec<PathSegment>,
-    ) -> Vec<(u32, &'a str)> {
+    ) -> Vec<(ItemIdSize, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.groups; the returned vector
         // maps indices of path_segments to the group identifier
 
         let mut group_order = Vec::new();
         let mut group_to_paths: HashMap<&str, Vec<&PathSegment>> = HashMap::default();
 
-        let mut path_to_id: HashMap<&PathSegment, u32> = HashMap::default();
+        let mut path_to_id: HashMap<&PathSegment, ItemIdSize> = HashMap::default();
         path_segments.iter().enumerate().for_each(|(i, s)| {
-            path_to_id.insert(s, i as u32);
+            path_to_id.insert(s, i as ItemIdSize);
         });
 
         abacus_aux.groups.iter().for_each(|(k, v)| {

@@ -8,11 +8,17 @@ use strum_macros::{EnumString, EnumVariantNames};
 /* internal use */
 use crate::graph::ItemId;
 
+//
+// storage space for item IDs
+//
+pub type ItemIdSize = u32;
+pub type CountSize = u32;
+
 pub const SIZE_T: usize = 1024;
 pub struct Wrap<T>(pub *mut T);
-unsafe impl Sync for Wrap<Vec<u32>> {}
+unsafe impl Sync for Wrap<Vec<ItemIdSize>> {}
 unsafe impl Sync for Wrap<Vec<usize>> {}
-unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
+unsafe impl Sync for Wrap<[Vec<ItemIdSize>; SIZE_T]> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
 #[strum(serialize_all = "lowercase")]
@@ -37,8 +43,8 @@ impl fmt::Display for CountType {
 }
 
 pub struct ItemTable {
-    pub items: [Vec<u32>; SIZE_T],
-    pub id_prefsum: [Vec<u32>; SIZE_T],
+    pub items: [Vec<ItemIdSize>; SIZE_T],
+    pub id_prefsum: [Vec<ItemIdSize>; SIZE_T],
 }
 
 impl ItemTable {
