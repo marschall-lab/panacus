@@ -195,17 +195,19 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
 }
 
 fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orientation)> {
-
     // later codes assumes that data is non-empty...
     if data.is_empty() {
-        return Vec::new()
+        return Vec::new();
     }
-
 
     // whatever the orientation of the first node is, will be used to split the sequence first;
     // this ensures that the first split results in an empty sequence at the beginning
     let s1 = data[0];
-    let s2 = match s1 { b'<' => b'>', b'>' => b'<', _ => unreachable!() };
+    let s2 = match s1 {
+        b'<' => b'>',
+        b'>' => b'<',
+        _ => unreachable!(),
+    };
 
     let mut it = data.iter();
     let end = it
@@ -587,7 +589,7 @@ fn update_tables(
 
         if j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
             let mut a = if exclude_coords[j].0 > p {
-                include_coords[j].0 - p
+                exclude_coords[j].0 - p
             } else {
                 0
             };
