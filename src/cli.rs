@@ -256,13 +256,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edges);
+            let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edges)?;
             log::info!(
                 "..done; found {} paths/walks and {} nodes{}",
                 graph_aux.path_segments.len(),
                 graph_aux.node2id.len(),
                 if let Some(edge2id) = &graph_aux.edge2id {
-                    format!(" edges {}", edge2id.len())
+                    format!(" {} edges", edge2id.len())
                 } else {
                     String::new()
                 }

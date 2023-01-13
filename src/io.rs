@@ -103,10 +103,13 @@ pub fn parse_groups<R: Read>(
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
         }
         visited.insert(path_seg.clone());
-        res.push((
-            path_seg,
-            str::from_utf8(row_it.next().unwrap()).unwrap().to_string(),
-        ));
+        if let Some(group_id) = row_it.next() {
+            res.push((path_seg, str::from_utf8(group_id).unwrap().to_string()));
+        } else {
+            let msg = format!("error in line {}: table must have two columns", i);
+            log::error!("{}", &msg);
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+        }
     }
 
     Ok(res)
@@ -284,12 +287,16 @@ fn parse_path_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orie
 pub fn parse_graph_aux<R: Read>(
     data: &mut BufReader<R>,
     index_edges: bool,
-) -> (
-    HashMap<Vec<u8>, ItemId>,
-    Vec<u32>,
-    Option<Vec<Vec<u8>>>,
-    Vec<PathSegment>,
-) {
+) -> Result<
+    (
+        HashMap<Vec<u8>, ItemId>,
+        Vec<u32>,
+        Option<Vec<Vec<u8>>>,
+        Vec<PathSegment>,
+    ),
+    std::io::Error,
+> {
+    // let's start
     let mut node_count = 0;
     let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
     let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
@@ -301,9 +308,18 @@ pub fn parse_graph_aux<R: Read>(
         if buf[0] == b'S' {
             let mut iter = buf[2..].iter();
             let offset = iter.position(|&x| x == b'\t').unwrap();
-            node2id
-                .entry(buf[2..offset + 2].to_vec())
-                .or_insert(ItemId(node_count));
+            if node2id
+                .insert(buf[2..offset + 2].to_vec(), ItemId(node_count))
+                .is_some()
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "segment with ID {} occurs multiple times in GFA",
+                        str::from_utf8(&buf[2..offset + 2]).unwrap()
+                    ),
+                ));
+            }
             node_count += 1;
             let offset = iter
                 .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
@@ -322,7 +338,7 @@ pub fn parse_graph_aux<R: Read>(
         buf.clear();
     }
 
-    (node2id, node_len, edges, path_segments)
+    Ok((node2id, node_len, edges, path_segments))
 }
 
 fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(usize, usize)>> {
@@ -340,6 +356,16 @@ fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(u
     HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
         let mut v: Vec<(usize, usize)> = coords.into_iter().collect();
         v.sort();
+        let mut i = 1;
+        // remove overlaps
+        while i < v.len() {
+            if v[i - 1].1 >= v[i].0 {
+                let x = v.remove(i);
+                v[i - 1].1 = x.1;
+            } else {
+                i += 1
+            }
+        }
         (pid, v)
     }))
 }
@@ -348,12 +374,28 @@ pub fn parse_gfa_itemcount<R: Read>(
     data: &mut BufReader<R>,
     abacus_aux: &AbacusAuxilliary,
     graph_aux: &GraphAuxilliary,
-) -> (ItemTable, Option<ActiveTable<u32>>) {
+) -> (ItemTable, Option<ActiveTable>, Option<IntervalContainer>) {
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
 
+    //
+    // *only relevant for bps count in combination with subset option*
+    //
+    // this table stores the number of bps of nodes that are *partially* uncovered by subset
+    // coodinates
+    //
+    let mut subset_covered_bps: Option<IntervalContainer> =
+        if abacus_aux.count == CountType::Bps && abacus_aux.include_coords.is_some() {
+            Some(IntervalContainer::new())
+        } else {
+            None
+        };
+
+    //
+    // this table stores information about excluded nodes *if* the exclude setting is used
+    //
     let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
-        ActiveTable::<u32>::new(
-            graph_aux.number_of_nodes(),
+        ActiveTable::new(
+            graph_aux.number_of_items(&abacus_aux.count),
             abacus_aux.count == CountType::Bps,
         )
     });
@@ -410,6 +452,7 @@ pub fn parse_gfa_itemcount<R: Read>(
             match abacus_aux.count {
                 CountType::Nodes | CountType::Bps => update_tables(
                     &mut item_table,
+                    &mut subset_covered_bps,
                     &mut exclude_table,
                     num_path,
                     &graph_aux,
@@ -433,12 +476,13 @@ pub fn parse_gfa_itemcount<R: Read>(
         }
         buf.clear();
     }
-    (item_table, exclude_table)
+    (item_table, exclude_table, subset_covered_bps)
 }
 
 fn update_tables(
     item_table: &mut ItemTable,
-    exclude_table: &mut Option<ActiveTable<u32>>,
+    subset_covered_bps: &mut Option<IntervalContainer>,
+    exclude_table: &mut Option<ActiveTable>,
     num_path: usize,
     graph_aux: &GraphAuxilliary,
     path: Vec<(ItemId, Orientation)>,
@@ -465,38 +509,97 @@ fn update_tables(
 
         let l = graph_aux.node_len(&sid) as usize;
 
+        // this implementation of include coords for bps is *not exact* as illustrated by the
+        // following scenario:
+        //
+        //   subset intervals:           ____________________________
+        //                ______________|_____________________________
+        //               |
+        //      ___________________________________________     ____
+        //     |                some node                  |---|
+        //      -------------------------------------------     ----
+        //
+        //
+        //   what the following code does:
+        //                ___________________________________________
+        //               |
+        //               |             coverage count
+        //      ___________________________________________     ____
+        //     |                some node                  |---|
+        //      -------------------------------------------     ----
+        //
+        //
+        // in other words, the calculated bps coverage is an upper bound on the actual coverage,
+        // for the sake of speed (and implementation effort)
+        //
+        //
+        //
+        // node count handling: node is only counted if *completely* covered by subset
+        //
+        //
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 <= p + l {
-            let uncovered = if include_coords[i].0 > p {
+            let mut a = if include_coords[i].0 > p {
                 include_coords[i].0 - p
             } else {
                 0
-            } + if include_coords[i].1 < p + l {
-                include_coords[i].1 - p - l
-            } else {
-                0
             };
+            let mut b = if include_coords[i].1 < p + l {
+                l - include_coords[i].1 + p
+            } else {
+                l
+            };
+
+            // reverse coverage interval in case of backward orientation
+            if o == Orientation::Backward {
+                (a, b) = (l - b, l - a);
+            }
+
             // only count nodes that are completely contained in "include" coords
-            if uncovered == 0 {
+            if subset_covered_bps.is_some() || b - a == l {
                 let idx = (sid.0 as usize) % SIZE_T;
                 item_table.items[idx].push(sid.0);
                 item_table.id_prefsum[idx][num_path + 1] += 1;
+                if let Some(int) = subset_covered_bps {
+                    // if fully covered, we do not need to store anything in the map
+                    if b - a == l {
+                        if int.contains(&sid) {
+                            int.remove(&sid);
+                        }
+                    } else {
+                        int.add(sid, a, b);
+                    }
+                }
             }
         }
-        if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
-            let uncovered = if exclude_coords[j].0 > p {
-                exclude_coords[j].0 - p
-            } else {
-                0
-            } + if exclude_coords[j].1 < p + l {
-                exclude_coords[j].1 - p - l
+
+        if j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
+            let mut a = if exclude_coords[j].0 > p {
+                include_coords[j].0 - p
             } else {
                 0
             };
-            if uncovered == 0 {
-                exclude_table.as_mut().unwrap().activate(sid.0 as usize);
+            let mut b = if exclude_coords[j].1 < p + l {
+                l - exclude_coords[j].1 + p
+            } else {
+                l
+            };
+
+            // reverse coverage interval in case of backward orientation
+            if o == Orientation::Backward {
+                (a, b) = (l - b, l - a);
             }
-        } else if i >= include_coords.len() && j >= exclude_coords.len() {
+
+            if let Some(map) = exclude_table {
+                if map.with_annotation() {
+                    map.activate_n_annotate(sid, l, a, b)
+                        .expect("this error should never occur");
+                } else if b - a == l {
+                    map.activate(&sid);
+                }
+            }
+        }
+        if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
             break;
         }
@@ -511,7 +614,7 @@ fn update_tables(
 
 fn update_tables_edgecount(
     item_table: &mut ItemTable,
-    exclude_table: &mut Option<ActiveTable<u32>>,
+    exclude_table: &mut Option<ActiveTable>,
     num_path: usize,
     graph_aux: &GraphAuxilliary,
     path: Vec<(ItemId, Orientation)>,
@@ -543,13 +646,21 @@ fn update_tables_edgecount(
 
         let l = graph_aux.node_len(&sid2) as usize;
 
-        let e = Edge(sid1, o1, sid2, o2);
+        let e = Edge::canonical(sid1, o1, sid2, o2);
         let eid = graph_aux
             .edge2id
             .as_ref()
             .expect("update_tables_edgecount requires edge2id map in GraphAuxilliary")
             .get(&e)
-            .expect(&format!("unknown edge {}. Is flipped edge known? {}", &e, if graph_aux.edge2id.as_ref().unwrap().contains_key(&e.flip()) {  "Yes" } else { "No"} ));
+            .expect(&format!(
+                "unknown edge {}. Is flipped edge known? {}",
+                &e,
+                if graph_aux.edge2id.as_ref().unwrap().contains_key(&e.flip()) {
+                    "Yes"
+                } else {
+                    "No"
+                }
+            ));
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 <= p + l {
             let idx = (eid.0 as usize) % SIZE_T;
@@ -557,7 +668,7 @@ fn update_tables_edgecount(
             item_table.id_prefsum[idx][num_path + 1] += 1;
         }
         if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
-            exclude_table.as_mut().unwrap().activate(eid.0 as usize);
+            exclude_table.as_mut().unwrap().activate(eid);
         } else if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
             break;

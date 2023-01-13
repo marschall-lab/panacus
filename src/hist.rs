@@ -10,7 +10,7 @@ use crate::util::{CountType, Threshold};
 
 #[derive(Debug, Clone)]
 pub struct Hist {
-    pub coverage: Vec<u32>,
+    pub coverage: Vec<usize>,
 }
 
 impl Hist {
@@ -21,17 +21,20 @@ impl Hist {
         }
     }
 
-    pub fn from_abacus(abacus: &Abacus<u32>) -> Self {
+    pub fn from_abacus(abacus: &Abacus) -> Self {
         Self {
-            coverage: abacus.construct_hist(),
+            coverage: match abacus.count {
+                CountType::Nodes | CountType::Edges => abacus.construct_hist(),
+                CountType::Bps => abacus.construct_hist_bps(),
+            },
         }
     }
 
-    pub fn calc_growth(&self) -> Vec<u32> {
+    pub fn calc_growth(&self) -> Vec<usize> {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
-        let mut pangrowth: Vec<u32> = Vec::with_capacity(n + 1);
+        let mut pangrowth: Vec<usize> = Vec::with_capacity(n + 1);
         let mut n_fall_m = rug::Integer::from(1);
-        let tot = rug::Integer::from(self.coverage.iter().sum::<u32>());
+        let tot = rug::Integer::from(self.coverage.iter().sum::<usize>());
 
         // perc_mult[i] contains the percentage of combinations that
         // have an item of multiplicity i
@@ -49,7 +52,7 @@ impl Hist {
             let dividend: rug::Integer = rug::Integer::from(&n_fall_m * &tot - &y);
             let divisor: rug::Integer = rug::Integer::from(&n_fall_m);
             let (pang_m, _) = dividend.div_rem(rug::Integer::from(divisor));
-            pangrowth.push(pang_m.to_u32().unwrap());
+            pangrowth.push(pang_m.to_usize().unwrap());
         }
         pangrowth
     }

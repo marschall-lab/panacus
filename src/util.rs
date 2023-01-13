@@ -2,8 +2,11 @@
 use std::collections::HashMap;
 use std::fmt;
 
-/* external crate */
+/* external use */
 use strum_macros::{EnumString, EnumVariantNames};
+
+/* internal use */
+use crate::graph::ItemId;
 
 pub const SIZE_T: usize = 1024;
 pub struct Wrap<T>(pub *mut T);
@@ -47,47 +50,171 @@ impl ItemTable {
     }
 }
 
-pub struct ActiveTable<T> {
+pub struct ActiveTable {
     pub items: Vec<bool>,
-    pub annotation: Option<HashMap<usize, T>>,
+    // intervall container + item length vector
+    annotation: Option<IntervalContainer>,
 }
 
-impl<T> ActiveTable<T> {
-    pub fn new(size: usize, with_annot: bool) -> Self {
+impl ActiveTable {
+    // if you provide item_length, then it an active table with annotation
+    pub fn new(size: usize, with_annotation: bool) -> Self {
         Self {
             items: vec![false; size],
-            annotation: if with_annot {
-                Some(HashMap::default())
+            annotation: if with_annotation {
+                Some(IntervalContainer::new())
             } else {
                 None
             },
         }
     }
 
-    pub fn activate(&mut self, id: usize) {
-        self.items[id] |= true;
+    pub fn activate(&mut self, id: &ItemId) {
+        self.items[id.0 as usize] |= true;
     }
 
-    pub fn is_active(&self, id: usize) -> bool {
-        self.items[id]
+    #[allow(dead_code)]
+    pub fn is_active(&self, id: &ItemId) -> bool {
+        self.items[id.0 as usize]
     }
 
-    pub fn active_n_annotate(
+    pub fn activate_n_annotate(
         &mut self,
-        id: usize,
-        annot: T,
-    ) -> Result<Option<T>, ActiveTableError> {
+        id: ItemId,
+        item_len: usize,
+        start: usize,
+        end: usize,
+    ) -> Result<(), ActiveTableError> {
         match &mut self.annotation {
             None => Err(ActiveTableError::NoAnnotation),
             Some(m) => {
-                self.items[id] |= true;
-                Ok(m.insert(id, annot))
+                // if interval completely covers item, remove it from map
+                if end - start == item_len {
+                    self.items[id.0 as usize] |= true;
+                    m.remove(&id);
+                } else {
+                    m.add(id, start, end);
+                    if m.get(&id).unwrap()[0] == (0, item_len) {
+                        m.remove(&id);
+                        self.items[id.0 as usize] |= true;
+                    }
+                }
+                Ok(())
             }
         }
     }
+
+    pub fn get_active_intervals(&self, id: &ItemId, item_len: usize) -> Vec<(usize, usize)> {
+        if self.items[id.0 as usize] {
+            vec![(0, item_len)]
+        } else if let Some(container) = &self.annotation {
+            match container.get(id) {
+                None => Vec::new(),
+                Some(v) => v.to_vec(),
+            }
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn with_annotation(&self) -> bool {
+        self.annotation.is_some()
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub struct IntervalContainer {
+    map: HashMap<ItemId, Vec<(usize, usize)>>,
+}
+
+impl IntervalContainer {
+    pub fn new() -> Self {
+        IntervalContainer {
+            map: HashMap::default(),
+        }
+    }
+
+    pub fn add(&mut self, id: ItemId, start: usize, end: usize) {
+        // produce union of intervals
+        self.map
+            .entry(id)
+            .and_modify(|x| {
+                let i = x
+                    .binary_search_by_key(&start, |&(y, _)| y)
+                    .unwrap_or_else(|z| z);
+                if i > 0 && x[i - 1].1 >= start && x[i - 1].1 < end {
+                    x[i - 1].1 = end;
+                } else if i < x.len() && x[i].1 > start && x[i].1 < end {
+                    x[i].1 = end;
+                } else if i < x.len() && x[i].0 < end {
+                    x[i].0 = start;
+                } else {
+                    x.insert(i, (start, end));
+                }
+            })
+            .or_insert(vec![(start, end)]);
+    }
+
+    pub fn get(&self, id: &ItemId) -> Option<&[(usize, usize)]> {
+        self.map.get(id).map(|x| &x[..])
+    }
+
+    pub fn contains(&self, id: &ItemId) -> bool {
+        self.map.contains_key(id)
+    }
+
+    pub fn remove(&mut self, id: &ItemId) -> Option<Vec<(usize, usize)>> {
+        self.map.remove(id)
+    }
+
+    pub fn total_coverage(&self, id: &ItemId, exclude: &Option<Vec<(usize, usize)>>) -> usize {
+        self.map
+            .get(id)
+            .as_ref()
+            .map(|v| match exclude {
+                None => v.iter().fold(0, |x, (a, b)| x + b - a),
+                Some(ex) => {
+                    let mut res = 0;
+                    let mut i = 0;
+                    for (start, end) in v.iter() {
+                        // intervals have exclusive right bound, so "<=" is the right choice here
+                        while i < ex.len() && &ex[i].1 <= start {
+                            i += 1;
+                        }
+                        if i < ex.len() && &ex[i].0 < end {
+                            // interval that starts with node start and ends with exclude start or
+                            // node end, whichever comes first
+                            //
+                            // mind the (include, exclude] character of intervals!
+                            res += usize::min(ex[i].0 - 1, *end) - start;
+
+                            // interval that starts with exclude end and ends with node end
+                            //
+                            // mind the (include, exclude] character of intervals!
+                            if &ex[i].1 < end {
+                                res += end - ex[i].1 + 1;
+                            }
+                        } else {
+                            res += end - start;
+                        }
+                    }
+                    res
+                }
+            })
+            .unwrap_or(0)
+    }
+
+    #[allow(dead_code)]
+    pub fn iter(&self) -> impl Iterator<Item = (&ItemId, &Vec<(usize, usize)>)> + '_ {
+        self.map.iter()
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &ItemId> + '_ {
+        self.map.keys()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ActiveTableError {
     NoAnnotation,
 }

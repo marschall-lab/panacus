@@ -1,11 +1,11 @@
 /* standard use */
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::str::{self, FromStr};
 
 /* private use */
 use crate::io;
+use crate::util::CountType;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemId(pub u32);
@@ -16,12 +16,12 @@ impl fmt::Display for ItemId {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialOrd, Ord)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Edge(pub ItemId, pub Orientation, pub ItemId, pub Orientation);
 
 impl Edge {
-    pub fn from_link(data: &[u8], node2id: &HashMap<Vec<u8>, ItemId>) -> Self {
-        let (mut start, mut iter) = match data[0] {
+    pub fn from_link(data: &[u8], node2id: &HashMap<Vec<u8>, ItemId>, canonical: bool) -> Self {
+        let (start, mut iter) = match data[0] {
             b'L' => (2, data[2..].iter()),
             _ => (0, data.iter()),
         };
@@ -46,23 +46,28 @@ impl Edge {
         ));
         let o2 = Orientation::from_pm(data[end + 1]);
 
-        Self(*u, o1, *v, o2)
+        if canonical {
+            Self::canonical(*u, o1, *v, o2)
+        } else {
+            Self(*u, o1, *v, o2)
+        }
     }
 
+    #[allow(dead_code)]
     pub fn normalize(&self) -> Self {
-        if self.3 == Orientation::Backward && (self.1 == Orientation::Backward || self.0 > self.2) {
-            self.flip()
+        Self::canonical(self.0, self.1, self.2, self.3)
+    }
+
+    pub fn canonical(v: ItemId, o1: Orientation, u: ItemId, o2: Orientation) -> Self {
+        if u.0 > v.0 {
+            Self(v, o2.flip(), u, o1.flip())
         } else {
-            self.clone()
+            Self(u, o1, v, o2)
         }
     }
 
     pub fn flip(&self) -> Self {
         Self(self.2, self.3.flip(), self.0, self.1.flip())
-    }
-
-    fn eq_individual(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1 && self.2 == other.2 && self.3 == other.3
     }
 }
 
@@ -71,21 +76,6 @@ impl fmt::Display for Edge {
         write!(f, "{}{}{}{}", self.1, self.0, self.3, self.2)
     }
 }
-
-impl Hash for Edge {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        format!("{}", self.normalize()).hash(state);
-    }
-}
-
-impl PartialEq for Edge {
-    fn eq(&self, other: &Self) -> bool {
-        self.eq_individual(other) || ((self.0 != self.2 || self.1 == self.3) && self.flip().eq_individual(other))
-    }
-
-}
-
-impl Eq for Edge {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Orientation {
@@ -112,7 +102,7 @@ impl fmt::Display for Orientation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Orientation::Forward => write!(f, ">"),
-            Orientation::Backward => write!(f, ">"),
+            Orientation::Backward => write!(f, "<"),
         }
     }
 }
@@ -135,11 +125,14 @@ impl Orientation {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct GraphAuxilliary {
     pub node2id: HashMap<Vec<u8>, ItemId>,
-    node_len_ary: Vec<u32>,
+    pub node_len_ary: Vec<u32>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
+    pub node_count: usize,
+    pub edge_count: usize,
 }
 
 impl GraphAuxilliary {
@@ -148,39 +141,75 @@ impl GraphAuxilliary {
         node_len_ary: Vec<u32>,
         edge2id: Option<HashMap<Edge, ItemId>>,
         path_segments: Vec<PathSegment>,
+        node_count: usize,
+        edge_count: usize,
     ) -> Self {
         Self {
             node2id,
             node_len_ary,
             edge2id,
             path_segments,
+            node_count,
+            edge_count,
         }
     }
 
-    pub fn from_gfa<R: std::io::Read>(data: &mut std::io::BufReader<R>, index_edges: bool) -> Self {
-        let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges);
-        let edge2id = Self::construct_edgemap(edges, &node2id);
-        Self::new(node2id, node_len_ary, edge2id, path_segments)
+    pub fn from_gfa<R: std::io::Read>(
+        data: &mut std::io::BufReader<R>,
+        index_edges: bool,
+    ) -> Result<Self, std::io::Error> {
+        let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges)?;
+        let nc = node_len_ary.len();
+        let (edge2id, ec) = Self::construct_edgemap(edges, &node2id);
+        Ok(Self::new(
+            node2id,
+            node_len_ary,
+            edge2id,
+            path_segments,
+            nc,
+            ec,
+        ))
     }
 
     pub fn node_len(&self, v: &ItemId) -> u32 {
         self.node_len_ary[v.0 as usize]
     }
 
+    #[allow(dead_code)]
     pub fn number_of_nodes(&self) -> usize {
-        self.node_len_ary.len()
+        self.node_count
+    }
+
+    #[allow(dead_code)]
+    pub fn number_of_edges(&self) -> usize {
+        self.edge_count
+    }
+
+    pub fn number_of_items(&self, c: &CountType) -> usize {
+        match c {
+            &CountType::Nodes | &CountType::Bps => self.node_count,
+            &CountType::Edges => self.edge_count,
+        }
     }
 
     pub fn construct_edgemap(
         edges: Option<Vec<Vec<u8>>>,
         node2id: &HashMap<Vec<u8>, ItemId>,
-    ) -> Option<HashMap<Edge, ItemId>> {
-        edges.map(|es| {
-            es.into_iter()
-                .enumerate()
-                .map(|(i, e)| (Edge::from_link(&e[..], node2id), ItemId(i as u32 + 1)))
-                .collect()
-        })
+    ) -> (Option<HashMap<Edge, ItemId>>, usize) {
+        let ec = if edges.is_none() {
+            0
+        } else {
+            edges.as_ref().unwrap().len()
+        };
+        (
+            edges.map(|es| {
+                es.into_iter()
+                    .enumerate()
+                    .map(|(i, e)| (Edge::from_link(&e[..], node2id, true), ItemId(i as u32)))
+                    .collect()
+            }),
+            ec,
+        )
     }
 }
 
@@ -305,6 +334,7 @@ impl PathSegment {
         }
     }
 
+    #[allow(dead_code)]
     pub fn covers(&self, other: &PathSegment) -> bool {
         self.sample == other.sample
             && (self.haplotype == other.haplotype

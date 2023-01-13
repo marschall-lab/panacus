@@ -146,51 +146,62 @@ impl AbacusAuxilliary {
 }
 
 #[derive(Debug, Clone)]
-pub struct Abacus<T> {
-    pub countable: Vec<T>,
+pub struct Abacus {
+    pub count: CountType,
+    pub countable: Vec<u32>,
+    pub uncovered_bps: HashMap<u32, usize>,
     pub groups: Vec<String>,
+    graph_aux: GraphAuxilliary,
 }
 
-impl Abacus<u32> {
+impl Abacus {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
         abacus_aux: AbacusAuxilliary,
         graph_aux: GraphAuxilliary,
     ) -> Self {
         log::info!("parsing path + walk sequences");
-        let (item_table, exclude_table) = io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
+        let (item_table, exclude_table, subset_covered_bps) =
+            io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
         log::info!("counting abacus entries..");
-        let mut countable: Vec<u32> = vec![0; graph_aux.node2id.len()];
-        let mut last: Vec<usize> = vec![usize::MAX; graph_aux.node2id.len()];
+        let mut countable: Vec<u32> = vec![0; graph_aux.number_of_items(&abacus_aux.count)];
+        let mut last: Vec<u32> = vec![u32::MAX; graph_aux.number_of_items(&abacus_aux.count)];
 
         let mut groups = Vec::new();
         for (path_id, group_id) in Abacus::get_path_order(&abacus_aux, &graph_aux.path_segments) {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
-            Abacus::node_coverage(
+            Abacus::coverage(
                 &mut countable,
                 &mut last,
                 &item_table,
                 &exclude_table,
                 path_id,
-                groups.len() - 1,
+                groups.len() as u32 - 1,
             );
         }
 
         Self {
+            count: abacus_aux.count,
             countable: countable,
+            uncovered_bps: Self::quantify_uncovered_bps(
+                &exclude_table,
+                &subset_covered_bps,
+                &graph_aux,
+            ),
             groups: groups,
+            graph_aux: graph_aux,
         }
     }
 
-    fn node_coverage(
+    fn coverage(
         countable: &mut Vec<u32>,
-        last: &mut Vec<usize>,
+        last: &mut Vec<u32>,
         node_table: &ItemTable,
-        exclude_table: &Option<ActiveTable<u32>>,
-        path_id: usize,
-        group_id: usize,
+        exclude_table: &Option<ActiveTable>,
+        path_id: u32,
+        group_id: u32,
     ) {
         let countable_ptr = Wrap(countable);
         let last_ptr = Wrap(last);
@@ -198,12 +209,12 @@ impl Abacus<u32> {
         // Parallel node counting
         (0..SIZE_T).into_par_iter().for_each(|i| {
             //Abacus::add_count(i, path_id, &mut countable, &mut last, &node_table);
-            let start = node_table.id_prefsum[i][path_id] as usize;
-            let end = node_table.id_prefsum[i][path_id + 1] as usize;
+            let start = node_table.id_prefsum[i][path_id as usize] as usize;
+            let end = node_table.id_prefsum[i][path_id as usize + 1] as usize;
             for j in start..end {
                 let sid = node_table.items[i][j] as usize;
                 unsafe {
-                    if (exclude_table.is_none() || !exclude_table.as_ref().unwrap().is_active(sid))
+                    if (exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid])
                         && last[sid] != group_id
                     {
                         (*countable_ptr.0)[sid] += 1;
@@ -214,14 +225,71 @@ impl Abacus<u32> {
         });
     }
 
+    fn quantify_uncovered_bps(
+        exclude_table: &Option<ActiveTable>,
+        subset_covered_bps: &Option<IntervalContainer>,
+        graph_aux: &GraphAuxilliary,
+    ) -> HashMap<u32, usize> {
+        //
+        // 1. if subset is specified, then the node-based coverage calculated by the coverage()
+        //    function overestimates the total coverage, because even nodes that are only partially
+        //    covered are counted, thus the coverage needs to be reduced by the amount of uncovered
+        //    bps from partially covered nodes
+        // 2. if exclude is specified, then the coverage is overestimated by the coverage()
+        //    function because partially excluded nodes are not excluded in the coverage
+        //    calculation, thus the bps coverage needs to be reduced by the amount of excluded bps
+        //    from partially excluded nodes
+        // 3. if subset AND exclude are specified, nodes that are COMPLETELY excluded have not been
+        //    counted in coverage, so they should not be considered here; all other nodes that are
+        //    partially excluded / subset have contributed to the overestimation of coverage, so
+        //    the bps coverage needs to be reduced by the amount of excluded or not coverered by
+        //    any subset interval
+        let mut res = HashMap::default();
+
+        if let Some(subset_map) = subset_covered_bps {
+            for sid in subset_map.keys() {
+                // ignore COMPETELY excluded nodes
+                if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid.0 as usize]
+                {
+                    let l = graph_aux.node_len(sid) as usize;
+                    let covered = subset_map.total_coverage(
+                        sid,
+                        &exclude_table
+                            .as_ref()
+                            .map(|ex| ex.get_active_intervals(sid, l)),
+                    );
+                    // report uncovered bps
+                    res.insert(sid.0, l - covered);
+                }
+            }
+        }
+        res
+    }
+
     //Why &self and not self? we could destroy abacus at this point.
-    pub fn construct_hist(&self) -> Vec<u32> {
+    pub fn construct_hist(&self) -> Vec<usize> {
         // hist must be of size = num_groups + 1; having an index that starts from 1, instead of 0,
         // makes easier the calculation in hist2pangrowth.
-        //(Index 0 is ignored, i.e. no item is present in 0 groups)
-        let mut hist: Vec<u32> = vec![0; self.groups.len() + 1];
-        for iter in self.countable.iter() {
-            hist[*iter as usize] += 1;
+        let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
+        for cov in self.countable.iter() {
+            hist[*cov as usize] += 1;
+        }
+        hist
+    }
+
+    pub fn construct_hist_bps(&self) -> Vec<usize> {
+        // hist must be of size = num_groups + 1; having an index that starts from 1, instead of 0,
+        // makes easier the calculation in hist2pangrowth.
+        let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
+        for (id, cov) in self.countable.iter().enumerate() {
+            hist[*cov as usize] += self.graph_aux.node_len_ary[id] as usize;
+        }
+
+        // subtract uncovered bps
+        for (id, uncov) in self.uncovered_bps.iter() {
+            hist[self.countable[*id as usize] as usize] -= uncov;
+            // add uncovered bps to 0-coverage count
+            hist[0] += uncov;
         }
         hist
     }
@@ -229,16 +297,16 @@ impl Abacus<u32> {
     fn get_path_order<'a>(
         abacus_aux: &'a AbacusAuxilliary,
         path_segments: &Vec<PathSegment>,
-    ) -> Vec<(usize, &'a str)> {
+    ) -> Vec<(u32, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.groups; the returned vector
         // maps indices of path_segments to the group identifier
 
         let mut group_order = Vec::new();
         let mut group_to_paths: HashMap<&str, Vec<&PathSegment>> = HashMap::default();
 
-        let mut path_to_id: HashMap<&PathSegment, usize> = HashMap::default();
+        let mut path_to_id: HashMap<&PathSegment, u32> = HashMap::default();
         path_segments.iter().enumerate().for_each(|(i, s)| {
-            path_to_id.insert(s, i);
+            path_to_id.insert(s, i as u32);
         });
 
         abacus_aux.groups.iter().for_each(|(k, v)| {
