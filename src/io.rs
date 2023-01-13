@@ -215,7 +215,7 @@ fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orie
                 let i = x.iter().position(|z| &b'<' == z).unwrap_or_else(|| x.len());
                 let sid = (
                     *graph_aux.node2id.get(&x[..i]).expect(&format!(
-                        "walk contains unknown node {} ",
+                        "walk contains unknown node '{}'",
                         str::from_utf8(&x[..i]).unwrap()
                     )),
                     Orientation::Forward,

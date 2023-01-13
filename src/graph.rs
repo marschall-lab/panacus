@@ -116,6 +116,7 @@ impl Orientation {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_lg(c: u8) -> Self {
         match c {
             b'>' => Orientation::Forward,
