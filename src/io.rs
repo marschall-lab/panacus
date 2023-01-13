@@ -195,6 +195,18 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
 }
 
 fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orientation)> {
+
+    // later codes assumes that data is non-empty...
+    if data.is_empty() {
+        return Vec::new()
+    }
+
+
+    // whatever the orientation of the first node is, will be used to split the sequence first;
+    // this ensures that the first split results in an empty sequence at the beginning
+    let s1 = data[0];
+    let s2 = match s1 { b'<' => b'>', b'>' => b'<', _ => unreachable!() };
+
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -204,23 +216,23 @@ fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orie
 
     // ignore first > | < so that no empty is created for 1st node
     let sids: Vec<(ItemId, Orientation)> = data[..end]
-        .par_split(|x| &b'>' == x)
+        .par_split(|x| &s1 == x)
         .map(|x| {
-            if x.len() == 0 {
+            if x.is_empty() {
                 // not nice... but Rust expects struct `std::iter::Once<(ItemIdSize, util::Orientation)>`
                 //
                 // this case shouldn't occur too often, so should be fine in terms for runtime
                 vec![]
             } else {
-                let i = x.iter().position(|z| &b'<' == z).unwrap_or_else(|| x.len());
+                let i = x.iter().position(|z| &s2 == z).unwrap_or_else(|| x.len());
                 let sid = (
                     *graph_aux.node2id.get(&x[..i]).expect(&format!(
-                        "walk contains unknown node '{}'",
+                        "walk contains unknown node {{{}}}'",
                         str::from_utf8(&x[..i]).unwrap()
                     )),
                     Orientation::Forward,
                 );
-                if i > x.len() {
+                if i < x.len() {
                     // not nice... but Rust expects struct `std::iter::Once<(ItemIdSize, util::Orientation)>`
                     //
                     // this case can happen more frequently... hopefully it doesn't blow up the
@@ -228,14 +240,14 @@ fn parse_walk_seq(data: &[u8], graph_aux: &GraphAuxilliary) -> Vec<(ItemId, Orie
                     [sid]
                         .into_par_iter()
                         .chain(
-                            x.par_split(|y| &b'<' == y)
+                            x.par_split(|y| &s2 == y)
                                 .map(|y| {
                                     if y.len() == 0 {
                                         vec![]
                                     } else {
                                         vec![(
                                             *graph_aux.node2id.get(&y[..]).expect(&format!(
-                                                "walk contains unknown node {} ",
+                                                "walk contains unknown node {{{}}}",
                                                 str::from_utf8(&y[..]).unwrap()
                                             )),
                                             Orientation::Forward,
