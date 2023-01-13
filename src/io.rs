@@ -115,6 +115,83 @@ pub fn parse_groups<R: Read>(
     Ok(res)
 }
 
+pub fn parse_hist<R: Read>(data: &mut BufReader<R>) -> Result<Vec<usize>, std::io::Error> {
+    let mut table: HashMap<usize, usize> = HashMap::default();
+
+    let reader = Csv::from_reader(data)
+        .delimiter(b'\t')
+        .flexible(true)
+        .has_header(false);
+    for (i, row) in reader.enumerate() {
+        let row = row.unwrap();
+        let mut row_it = row.bytes_columns();
+        let cov;
+        let count;
+        if let Some(cov_str) = row_it.next() {
+            if let Ok(val) = usize::from_str(&str::from_utf8(&cov_str).unwrap()) {
+                cov = val;
+            } else if i == 0 {
+                log::info!(
+                    "values in line {} are not integer, assuming this being a header line",
+                    i
+                );
+                continue;
+            } else {
+                let msg = format!(
+                    "error in line {}: value must be integer, but is '{}'",
+                    i,
+                    &str::from_utf8(&cov_str).unwrap()
+                );
+                log::error!("{}", &msg);
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+            }
+        } else {
+            let msg = format!("error in line {}: table must have two columns", i);
+            log::error!("{}", &msg);
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+        }
+        if let Some(count_str) = row_it.next() {
+            if let Ok(val) = usize::from_str(&str::from_utf8(&count_str).unwrap()) {
+                count = val;
+            } else if i == 0 {
+                log::info!(
+                    "values in line {} are not integer, assuming this being a header line",
+                    i
+                );
+                continue;
+            } else {
+                let msg = format!(
+                    "error in line {}: value must be integer, but is '{}'",
+                    i,
+                    &str::from_utf8(&count_str).unwrap()
+                );
+                log::error!("{}", &msg);
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+            }
+        } else {
+            let msg = format!("error in line {}: table must have two columns", i);
+            log::error!("{}", &msg);
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+        }
+
+        if table.insert(cov, count).is_some() {
+            let msg = format!(
+                "error in line {}: table has duplicate entries for coverage {}",
+                i, cov
+            );
+            log::error!("{}", &msg);
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+        }
+    }
+
+    let max_cov = table.keys().max().unwrap();
+    log::info!("read counts for up to {}x coverage", &max_cov);
+    let mut res = vec![0; max_cov + 1];
+    table.into_iter().for_each(|(cov, count)| res[cov] = count);
+
+    Ok(res)
+}
+
 pub fn parse_coverage_threshold_file<R: Read>(data: &mut BufReader<R>) -> Vec<(String, Threshold)> {
     let mut res = Vec::new();
 

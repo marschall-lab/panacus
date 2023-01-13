@@ -14,11 +14,11 @@ pub struct Hist {
 }
 
 impl Hist {
-    pub fn from_tsv<R: std::io::Read>(data: &mut std::io::BufReader<R>) -> Self {
-        // XXX TODO
-        Self {
-            coverage: Vec::new(),
-        }
+    pub fn from_tsv<R: std::io::Read>(
+        data: &mut std::io::BufReader<R>,
+    ) -> Result<Self, std::io::Error> {
+        let coverage = io::parse_hist(data)?;
+        Ok(Self { coverage })
     }
 
     pub fn from_abacus(abacus: &Abacus) -> Self {

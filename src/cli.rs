@@ -314,7 +314,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Growth { hist_file, .. } => {
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
-            Hist::from_tsv(&mut data)
+            Hist::from_tsv(&mut data)?
         }
         Params::OrderedHistgrowth => {
             // XXX
