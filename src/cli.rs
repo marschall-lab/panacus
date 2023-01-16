@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 /* external crate */
 use clap::{Parser, Subcommand};
-use regex::Regex;
+use rayon::prelude::*;
 use strum::VariantNames;
 
 /* private use */
@@ -167,16 +167,16 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
-            default_value = "cumulative_count=1"
+            help = "List of intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels (one per line); a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value (must contain a \".\") representing a percentage of paths/groups. The list must have the same length as the intersection list, or contain only a single entry (which is then used in for all coverage settings).",
+            default_value = "1"
         )]
         intersection: String,
 
         #[clap(
             short = 'l',
             long,
-            help = "List of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
-            default_value = "cumulative_count=1"
+            help = "List of coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float (must contain a \".\") value representing a percentage of paths/groups. The list must have the same length as the coverage list, or contain only a single entry (which is then used in for all intersection settings).",
+            default_value = "1"
         )]
         coverage: String,
 
@@ -196,33 +196,26 @@ pub enum Params {
     OrderedHistgrowth,
 }
 
-pub fn parse_coverage_threshold_cli(threshold_str: &str) -> Vec<(String, Threshold)> {
-    let mut coverage_thresholds = Vec::new();
+pub fn parse_threshold_cli(threshold_str: &str) -> Result<Vec<Threshold>, std::io::Error> {
+    let mut thresholds = Vec::new();
 
-    let re = Regex::new(r"^\s?([!-<,>-~]+)\s?=\s?([!-<,>-~]+)\s*$").unwrap();
-    for el in threshold_str.split(',') {
+    for (i, el) in threshold_str.split(',').enumerate() {
         if let Some(t) = usize::from_str(el.trim()).ok() {
-            coverage_thresholds.push((el.trim().to_string(), Threshold::Absolute(t)));
+            thresholds.push(Threshold::Absolute(t));
         } else if let Some(t) = f64::from_str(el.trim()).ok() {
-            coverage_thresholds.push((el.trim().to_string(), Threshold::Relative(t)));
-        } else if let Some(caps) = re.captures(&el) {
-            let name = caps.get(1).unwrap().as_str().trim().to_string();
-            let threshold_str = caps.get(2).unwrap().as_str();
-            let threshold = if let Some(t) = usize::from_str(threshold_str).ok() {
-                Threshold::Absolute(t)
-            } else {
-                Threshold::Relative(f64::from_str(threshold_str).unwrap())
-            };
-            coverage_thresholds.push((name, threshold));
+            thresholds.push(Threshold::Relative(t));
         } else {
-            panic!(
-                "coverage threshold \"{}\" string is not well-formed",
-                &threshold_str
-            );
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                &format!(
+                    "threshold \"{}\" ({}. element in list) is neither an integer nor a float",
+                    &threshold_str,
+                    i + 1
+                )[..],
+            ));
         }
     }
-
-    coverage_thresholds
+    Ok(thresholds)
 }
 
 pub fn read_params() -> Params {
@@ -329,13 +322,41 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //
     match params {
         Params::Histgrowth { .. } | Params::Growth { .. } => {
-            // XXX
-            let hist_aux = HistAuxilliary::from_params(&params);
+            let hist_aux = HistAuxilliary::from_params(&params)?;
 
-            let growth = hist.calc_growth();
+            let growths: Vec<Vec<usize>> = hist_aux
+                .coverage
+                .par_iter()
+                .zip(&hist_aux.intersection)
+                .map(|(c, i)| hist.calc_growth(&c, &i))
+                .collect();
 
-            for (i, pang_m) in growth.into_iter().enumerate() {
-                writeln!(out, "{}\t{}", i + 1, pang_m)?;
+            writeln!(
+                out,
+                "coverage\t{}",
+                hist_aux
+                    .coverage
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join("\t")
+            )?;
+            writeln!(
+                out,
+                "intersection\t{}",
+                hist_aux
+                    .intersection
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join("\t")
+            )?;
+            for i in 0..hist.coverage.len() - 1 {
+                write!(out, "{}", i + 1)?;
+                for j in 0..hist_aux.intersection.len() {
+                    write!(out, "\t{}", growths[j][i])?;
+                }
+                writeln!(out, "")?;
             }
         }
         Params::Hist { count, .. } => {

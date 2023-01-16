@@ -250,3 +250,19 @@ impl fmt::Display for Threshold {
         Ok(())
     }
 }
+
+impl Threshold {
+    pub fn to_string(&self) -> String {
+        match self {
+            Threshold::Relative(c) => format!("{}", c),
+            Threshold::Absolute(c) => format!("{}", c),
+        }
+    }
+
+    pub fn to_absolute(&self, n: usize) -> usize {
+        match self {
+            Threshold::Absolute(c) => *c,
+            Threshold::Relative(c) => (n as f64 * c).round() as usize,
+        }
+    }
+}

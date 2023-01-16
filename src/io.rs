@@ -192,38 +192,38 @@ pub fn parse_hist<R: Read>(data: &mut BufReader<R>) -> Result<Vec<usize>, std::i
     Ok(res)
 }
 
-pub fn parse_coverage_threshold_file<R: Read>(data: &mut BufReader<R>) -> Vec<(String, Threshold)> {
+pub fn parse_threshold_file<R: Read>(
+    data: &mut BufReader<R>,
+) -> Result<Vec<Threshold>, std::io::Error> {
     let mut res = Vec::new();
 
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
         .has_header(false);
-    for row in reader {
+    for (i, row) in reader.enumerate() {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
-        let name = str::from_utf8(row_it.next().unwrap())
-            .unwrap()
-            .trim()
-            .to_string();
-        let threshold = if let Some(col) = row_it.next() {
+        if let Some(col) = row_it.next() {
             let threshold_str = str::from_utf8(col).unwrap();
-            if let Some(t) = usize::from_str(threshold_str).ok() {
-                Threshold::Absolute(t)
+            if let Ok(t) = usize::from_str(threshold_str) {
+                res.push(Threshold::Absolute(t));
+            } else if let Ok(t) = f64::from_str(threshold_str) {
+                res.push(Threshold::Relative(t));
             } else {
-                Threshold::Relative(f64::from_str(threshold_str).unwrap())
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    &format!(
+                        "threshold \"{}\" (line {}) is neither an integer nor a float",
+                        &threshold_str,
+                        i + 1
+                    )[..],
+                ));
             }
-        } else {
-            if let Some(t) = usize::from_str(&name[..]).ok() {
-                Threshold::Absolute(t)
-            } else {
-                Threshold::Relative(f64::from_str(&name[..]).unwrap())
-            }
-        };
-        res.push((name, threshold));
+        }
     }
 
-    res
+    Ok(res)
 }
 
 pub fn parse_walk_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
