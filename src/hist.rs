@@ -61,7 +61,7 @@ impl Hist {
         }
 
         for x in n..self.coverage.len()-1{
-            log::info!("value {} copied from previous", x+1);
+            log::debug!("value {} copied from previous", x+1);
             pangrowth[x] = pangrowth[x-1];
         }
 
