@@ -31,7 +31,12 @@ impl Hist {
     }
 
     pub fn calc_growth(&self, t_coverage: &Threshold, t_intersection: &Threshold) -> Vec<usize> {
-        let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
+        let mut n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
+
+        while self.coverage[n] == 0 {
+            n -= 1;
+        }
+
         let mut pangrowth: Vec<usize> = vec![0; self.coverage.len() - 1];
         let mut n_fall_m = rug::Integer::from(1);
         let tot = rug::Integer::from(self.coverage.iter().sum::<usize>());
@@ -54,6 +59,12 @@ impl Hist {
             let (pang_m, _) = dividend.div_rem(rug::Integer::from(divisor));
             pangrowth[m - 1] = pang_m.to_usize().unwrap();
         }
+
+        for x in n..self.coverage.len()-1{
+            log::info!("value {} copied from previous", x+1);
+            pangrowth[x] = pangrowth[x-1];
+        }
+
         pangrowth
     }
 
