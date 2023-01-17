@@ -37,7 +37,12 @@ impl Hist {
             n -= 1;
         }
 
-        n = usize::min(n, self.coverage.len() - 1 - c);
+        //
+        // Coverage threshold setting can be used to cut computation time, because the c-1 last
+        // values do not change and thus can be copied from the previous value. We have
+        // self.coverage.len() - 1 - (c - 1) =  self.coverage.len() - c
+        //
+        n = usize::min(n, self.coverage.len() - c);
 
         let mut pangrowth: Vec<usize> = vec![0; self.coverage.len() - 1];
         let mut n_fall_m = rug::Integer::from(1);
