@@ -1,9 +1,10 @@
 /* standard use */
 use std::fs;
+use std::iter::FromIterator;
 
 /* external crate*/
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 /* private use */
 use crate::cli::Params;
 use crate::graph::*;
@@ -59,7 +60,7 @@ impl AbacusAuxilliary {
     }
 
     fn complement_with_group_assignments(
-        coords: Option<Vec<PathSegment>>,
+        coords: Option<HashSet<PathSegment>>,
         groups: &HashMap<PathSegment, String>,
     ) -> Result<Option<Vec<PathSegment>>, std::io::Error> {
         //
@@ -106,13 +107,13 @@ impl AbacusAuxilliary {
         }
     }
 
-    fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, std::io::Error> {
+    fn load_coord_list(file_name: &str) -> Result<Option<HashSet<PathSegment>>, std::io::Error> {
         Ok(if file_name.is_empty() {
             None
         } else {
             log::info!("loading coordinates from {}", file_name);
             let mut data = std::io::BufReader::new(fs::File::open(file_name)?);
-            let coords = io::parse_bed(&mut data);
+            let coords = HashSet::from_iter(io::parse_bed(&mut data).into_iter());
             log::debug!("loaded {} coordinates", coords.len());
             Some(coords)
         })

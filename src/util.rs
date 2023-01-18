@@ -1,4 +1,5 @@
 /* standard use */
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -265,4 +266,38 @@ impl Threshold {
             Threshold::Relative(c) => (n as f64 * c).round() as usize,
         }
     }
+}
+
+//
+// helper functions
+//
+
+pub fn intersects(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
+    // this code assumes that intervals of v are (i) sorted (ii) non-overlapping
+
+    v.binary_search_by(|(s, e)| {
+        if s <= &el.1 && e >= &el.0 {
+            Ordering::Equal
+        } else if e < &el.0 {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    })
+    .is_ok()
+}
+
+pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
+    // this code assumes that intervals of v are (i) sorted (ii) non-overlapping
+
+    v.binary_search_by(|(s, e)| {
+        if s <= &el.0 && e >= &el.1 {
+            Ordering::Equal
+        } else if e <= &el.1 {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    })
+    .is_ok()
 }

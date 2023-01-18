@@ -89,15 +89,6 @@ impl Default for Orientation {
     }
 }
 
-impl Orientation {
-    pub fn flip(&self) -> Self {
-        match &self {
-            Orientation::Forward => Orientation::Backward,
-            Orientation::Backward => Orientation::Forward,
-        }
-    }
-}
-
 impl fmt::Display for Orientation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -122,6 +113,31 @@ impl Orientation {
             b'>' => Orientation::Forward,
             b'<' => Orientation::Backward,
             _ => unreachable!("expected '>' or '<'"),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn to_lg(&self) -> u8 {
+        match self {
+            &Orientation::Forward => b'>',
+            &Orientation::Backward => b'<',
+        }
+    }
+
+    pub fn flip(&self) -> Self {
+        match self {
+            &Orientation::Forward => Orientation::Backward,
+            &Orientation::Backward => Orientation::Forward,
+        }
+    }
+}
+
+impl PartialEq<u8> for Orientation {
+    fn eq(&self, other: &u8) -> bool {
+        match other {
+            &b'>' | &b'+' => self == &Orientation::Forward,
+            &b'<' | &b'-' => self == &Orientation::Backward,
+            _ => false,
         }
     }
 }

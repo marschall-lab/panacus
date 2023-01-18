@@ -38,7 +38,7 @@ impl Hist {
         }
 
         //
-        // Coverage threshold setting can be used to cut computation time, because the c-1 last
+        // coverage threshold setting can be used to cut computation time, because the c-1 last
         // values do not change and thus can be copied from the previous value. We have
         // self.coverage.len() - 1 - (c - 1) =  self.coverage.len() - c
         //
