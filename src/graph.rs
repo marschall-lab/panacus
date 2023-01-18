@@ -59,7 +59,7 @@ impl Edge {
     }
 
     pub fn canonical(v: ItemId, o1: Orientation, u: ItemId, o2: Orientation) -> Self {
-        if u.0 > v.0 {
+        if u.0 > v.0 || (u.0 == v.0 && o1 == Orientation::Backward) {
             Self(v, o2.flip(), u, o1.flip())
         } else {
             Self(u, o1, v, o2)
