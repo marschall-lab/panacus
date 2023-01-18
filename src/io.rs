@@ -405,6 +405,11 @@ fn parse_walk_seq_update_tables(
             }
         }
     }
+
+    // compute prefix sum
+    for i in 0..SIZE_T {
+        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+    }
     log::debug!("..done");
 }
 
