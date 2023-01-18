@@ -675,7 +675,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                 && !intersects(include_coords, &(start, end))
                 && !intersects(exclude_coords, &(start, end))
             {
-                log::info!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", &path_seg, &include_coords, &exclude_coords);
+                log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", &path_seg, &include_coords, &exclude_coords);
 
                 // update prefix sum
                 for i in 0..SIZE_T {
