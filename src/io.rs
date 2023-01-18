@@ -319,7 +319,7 @@ fn parse_walk_seq_to_item_vec(
                     [sid]
                         .into_par_iter()
                         .chain(
-                            x.par_split(|y| &s2 == y)
+                            x[i+1..].par_split(|y| &s2 == y)
                                 .map(|y| {
                                     if y.len() == 0 {
                                         vec![]
