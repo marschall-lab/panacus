@@ -302,7 +302,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     let uncovered_items = abacus.uncovered_items();
                     for id in uncovered_items.iter() {
                         let edge = id2edge[abacus.countable[*id] as usize];
-                        log::debug!("{}{}{}{}", 
+                        log::debug!("{}: {}{}{}{}", 
+                            id,
                             edge.1,
                             std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(), 
                             edge.3, 
