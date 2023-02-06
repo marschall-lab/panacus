@@ -289,6 +289,28 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 abacus.groups.len(),
                 abacus.countable.len()
             );
+
+            if abacus.count == CountType::Edges {
+                if let Some(ref edge2id) = abacus.graph_aux.edge2id {
+                    let dummy = Vec::new();
+                    let dummy_edge = Edge( ItemId(0), Orientation::default(), ItemId(0), Orientation::default());
+                    let mut id2node : Vec<&Vec<u8>> = vec![&dummy; abacus.graph_aux.node2id.len()];
+                    let mut id2edge : Vec<&Edge> = vec![&dummy_edge; edge2id.len()];
+                    abacus.graph_aux.node2id.iter().for_each(|(node, id)| id2node[id.0 as usize] = node);
+                    edge2id.iter().for_each(|(edge, id)| id2edge[id.0 as usize] = edge);
+                    log::debug!("uncovered edges:");
+                    let uncovered_items = abacus.uncovered_items();
+                    for id in uncovered_items.iter() {
+                        let edge = id2edge[abacus.countable[*id] as usize];
+                        log::debug!("{}{}{}{}", 
+                            edge.1,
+                            std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(), 
+                            edge.3, 
+                            std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
+                            );
+                    }
+                }
+            }
             Some(abacus)
         }
         _ => None,

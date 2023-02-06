@@ -152,7 +152,7 @@ pub struct Abacus {
     pub countable: Vec<CountSize>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
-    graph_aux: GraphAuxilliary,
+    pub graph_aux: GraphAuxilliary,
 }
 
 impl Abacus {
@@ -277,6 +277,15 @@ impl Abacus {
             hist[*cov as usize] += 1;
         }
         hist
+    }
+
+    pub fn uncovered_items(&self) -> Vec<usize> {
+        self.countable.iter().enumerate().filter_map(|(i, c)| {
+            match c {
+                0 => Some(i),
+                _ => None
+            }
+        }).collect()
     }
 
     pub fn construct_hist_bps(&self) -> Vec<usize> {
