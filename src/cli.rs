@@ -310,18 +310,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             }
             if abacus.count == CountType::Edges {
                 if let Some(ref edge2id) = abacus.graph_aux.edge2id {
-                    log::debug!(
-                        "id of 8+,212875+: {}",
-                        edge2id
-                            .get(&Edge(
-                                ItemId(8),
-                                Orientation::Forward,
-                                ItemId(212875),
-                                Orientation::Forward
-                            ))
-                            .unwrap()
-                    );
-
                     let dummy = Vec::new();
                     let dummy_edge = Edge(
                         ItemId(0),
@@ -351,14 +339,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     let uncovered_items = abacus.uncovered_items();
                     for id in uncovered_items.iter() {
                         let edge = id2edge[*id];
-                        log::debug!("{}: {}", id, edge);
-                        //                        log::debug!("{}: {}{}{}{}",
-                        //                            id,
-                        //                            edge.1,
-                        //                            std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(),
-                        //                            edge.3,
-                        //                            std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
-                        //                            );
+                        log::debug!("{}: {}{}{}{}",
+                            id,
+                            edge.1,
+                            std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(),
+                            edge.3,
+                            std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
+                            );
                     }
                 }
             }
