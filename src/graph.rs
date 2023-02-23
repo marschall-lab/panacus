@@ -58,7 +58,7 @@ impl Edge {
         Self::canonical(self.0, self.1, self.2, self.3)
     }
 
-    pub fn canonical(v: ItemId, o1: Orientation, u: ItemId, o2: Orientation) -> Self {
+    pub fn canonical(u: ItemId, o1: Orientation, v: ItemId, o2: Orientation) -> Self {
         if u.0 > v.0 || (u.0 == v.0 && o1 == Orientation::Backward) {
             Self(v, o2.flip(), u, o1.flip())
         } else {
@@ -176,7 +176,8 @@ impl GraphAuxilliary {
         index_edges: bool,
     ) -> Result<Self, std::io::Error> {
         let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges)?;
-        let nc = node_len_ary.len();
+        // don't count "0" ID
+        let nc = node_len_ary.len() - 1;
         let (edge2id, ec) = Self::construct_edgemap(edges, &node2id);
         Ok(Self::new(
             node2id,
@@ -225,7 +226,7 @@ impl GraphAuxilliary {
                     .map(|(i, e)| {
                         (
                             Edge::from_link(&e[..], node2id, true),
-                            ItemId(i as ItemIdSize),
+                            ItemId(i as ItemIdSize + 1),
                         )
                     })
                     .collect()

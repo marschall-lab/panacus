@@ -319,7 +319,8 @@ fn parse_walk_seq_to_item_vec(
                     [sid]
                         .into_par_iter()
                         .chain(
-                            x[i+1..].par_split(|y| &s2 == y)
+                            x[i + 1..]
+                                .par_split(|y| &s2 == y)
                                 .map(|y| {
                                     if y.len() == 0 {
                                         vec![]
@@ -526,11 +527,14 @@ pub fn parse_graph_aux<R: Read>(
     std::io::Error,
 > {
     // let's start
-    let mut node_count = 0;
+    // IMPORTANT: id must be > 0, otherwise counting procedure will produce errors
+    let mut node_id = 1;
     let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
     let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
     let mut path_segments: Vec<PathSegment> = Vec::new();
     let mut node_len: Vec<ItemIdSize> = Vec::new();
+    // add empty element to node_len to make it in sync with node_id
+    node_len.push(ItemIdSize::MAX);
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -538,7 +542,7 @@ pub fn parse_graph_aux<R: Read>(
             let mut iter = buf[2..].iter();
             let offset = iter.position(|&x| x == b'\t').unwrap();
             if node2id
-                .insert(buf[2..offset + 2].to_vec(), ItemId(node_count))
+                .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
                 .is_some()
             {
                 return Err(std::io::Error::new(
@@ -549,7 +553,7 @@ pub fn parse_graph_aux<R: Read>(
                     ),
                 ));
             }
-            node_count += 1;
+            node_id += 1;
             let offset = iter
                 .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
                 .unwrap();

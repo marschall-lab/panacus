@@ -290,25 +290,75 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 abacus.countable.len()
             );
 
+            if abacus.count == CountType::Nodes {
+                log::debug!("uncovered nodes:");
+                let uncovered_items = abacus.uncovered_items();
+                let dummy = Vec::new();
+                let mut id2node: Vec<&Vec<u8>> = vec![&dummy; abacus.graph_aux.node2id.len() + 1];
+                abacus
+                    .graph_aux
+                    .node2id
+                    .iter()
+                    .for_each(|(node, id)| id2node[id.0 as usize] = node);
+                for id in uncovered_items.iter() {
+                    log::debug!(
+                        "{}: {}",
+                        id,
+                        std::str::from_utf8(id2node[abacus.countable[*id] as usize]).unwrap()
+                    );
+                }
+            }
             if abacus.count == CountType::Edges {
                 if let Some(ref edge2id) = abacus.graph_aux.edge2id {
+                    log::debug!(
+                        "id of 8+,212875+: {}",
+                        edge2id
+                            .get(&Edge(
+                                ItemId(8),
+                                Orientation::Forward,
+                                ItemId(212875),
+                                Orientation::Forward
+                            ))
+                            .unwrap()
+                    );
+
                     let dummy = Vec::new();
-                    let dummy_edge = Edge( ItemId(0), Orientation::default(), ItemId(0), Orientation::default());
-                    let mut id2node : Vec<&Vec<u8>> = vec![&dummy; abacus.graph_aux.node2id.len()];
-                    let mut id2edge : Vec<&Edge> = vec![&dummy_edge; edge2id.len()];
-                    abacus.graph_aux.node2id.iter().for_each(|(node, id)| id2node[id.0 as usize] = node);
-                    edge2id.iter().for_each(|(edge, id)| id2edge[id.0 as usize] = edge);
+                    let dummy_edge = Edge(
+                        ItemId(0),
+                        Orientation::default(),
+                        ItemId(0),
+                        Orientation::default(),
+                    );
+                    let mut id2node: Vec<&Vec<u8>> =
+                        vec![&dummy; abacus.graph_aux.node2id.len() + 1];
+                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; edge2id.len() + 1];
+                    abacus
+                        .graph_aux
+                        .node2id
+                        .iter()
+                        .for_each(|(node, id)| id2node[id.0 as usize] = node);
+                    for (edge, id) in edge2id.iter() {
+                        id2edge[id.0 as usize] = edge;
+                    }
+                    let mut c = 0;
+                    id2edge.iter().for_each(|edge| {
+                        if *edge == &dummy_edge {
+                            c += 1
+                        }
+                    });
+                    log::debug!("{} dummy edges in id2edge", c);
                     log::debug!("uncovered edges:");
                     let uncovered_items = abacus.uncovered_items();
                     for id in uncovered_items.iter() {
-                        let edge = id2edge[abacus.countable[*id] as usize];
-                        log::debug!("{}: {}{}{}{}", 
-                            id,
-                            edge.1,
-                            std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(), 
-                            edge.3, 
-                            std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
-                            );
+                        let edge = id2edge[*id];
+                        log::debug!("{}: {}", id, edge);
+                        //                        log::debug!("{}: {}{}{}{}",
+                        //                            id,
+                        //                            edge.1,
+                        //                            std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(),
+                        //                            edge.3,
+                        //                            std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
+                        //                            );
                     }
                 }
             }

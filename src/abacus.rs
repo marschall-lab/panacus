@@ -165,9 +165,14 @@ impl Abacus {
         let (item_table, exclude_table, subset_covered_bps) =
             io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
         log::info!("counting abacus entries..");
-        let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&abacus_aux.count)];
+        // first element in countable and last is the "zero" element--which should be ignored in
+        // counting
+        let mut countable: Vec<CountSize> =
+            vec![0; graph_aux.number_of_items(&abacus_aux.count) + 1];
+        // countable with ID "0" is special and should not be considered in coverage histogram
+        countable[0] = ItemIdSize::MAX;
         let mut last: Vec<ItemIdSize> =
-            vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count)];
+            vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count) + 1];
 
         let mut groups = Vec::new();
         for (path_id, group_id) in Abacus::get_path_order(&abacus_aux, &graph_aux.path_segments) {
@@ -200,7 +205,7 @@ impl Abacus {
     fn coverage(
         countable: &mut Vec<CountSize>,
         last: &mut Vec<ItemIdSize>,
-        node_table: &ItemTable,
+        item_table: &ItemTable,
         exclude_table: &Option<ActiveTable>,
         path_id: ItemIdSize,
         group_id: ItemIdSize,
@@ -210,11 +215,11 @@ impl Abacus {
 
         // Parallel node counting
         (0..SIZE_T).into_par_iter().for_each(|i| {
-            //Abacus::add_count(i, path_id, &mut countable, &mut last, &node_table);
-            let start = node_table.id_prefsum[i][path_id as usize] as usize;
-            let end = node_table.id_prefsum[i][path_id as usize + 1] as usize;
+            //Abacus::add_count(i, path_id, &mut countable, &mut last, &item_table);
+            let start = item_table.id_prefsum[i][path_id as usize] as usize;
+            let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
             for j in start..end {
-                let sid = node_table.items[i][j] as usize;
+                let sid = item_table.items[i][j] as usize;
                 unsafe {
                     if (exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid])
                         && last[sid] != group_id
@@ -273,19 +278,26 @@ impl Abacus {
         // hist must be of size = num_groups + 1; having an index that starts from 1, instead of 0,
         // makes easier the calculation in hist2pangrowth.
         let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
-        for cov in self.countable.iter() {
-            hist[*cov as usize] += 1;
+
+        for (i, cov) in self.countable.iter().enumerate() {
+            if *cov as usize >= hist.len() {
+                log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
+            } else {
+                hist[*cov as usize] += 1;
+            }
         }
         hist
     }
 
     pub fn uncovered_items(&self) -> Vec<usize> {
-        self.countable.iter().enumerate().filter_map(|(i, c)| {
-            match c {
+        self.countable
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| match c {
                 0 => Some(i),
-                _ => None
-            }
-        }).collect()
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn construct_hist_bps(&self) -> Vec<usize> {
@@ -293,7 +305,11 @@ impl Abacus {
         // makes easier the calculation in hist2pangrowth.
         let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
         for (id, cov) in self.countable.iter().enumerate() {
-            hist[*cov as usize] += self.graph_aux.node_len_ary[id] as usize;
+            if *cov as usize >= hist.len() {
+                log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, id, self.groups.len());
+            } else {
+                hist[*cov as usize] += self.graph_aux.node_len_ary[id] as usize;
+            }
         }
 
         // subtract uncovered bps
