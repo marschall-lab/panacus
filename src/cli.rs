@@ -106,7 +106,6 @@ pub enum Params {
         )]
         threads: usize,
     },
-
     #[clap(alias = "h", about = "Calculate coverage histogram from GFA file")]
     Hist {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
@@ -194,6 +193,56 @@ pub enum Params {
         about = "Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)"
     )]
     OrderedHistgrowth,
+
+    #[clap(
+        about = "Produce absence/presence matrix"
+    )]
+    Coverage {
+        #[clap(index = 1, help = "graph in GFA1 format", required = true)]
+        gfa_file: String,
+
+        #[clap(short, long,
+            help = "Graph quantity to be counted",
+            default_value = "nodes",
+            ignore_case = true,
+            value_parser = clap_enum_variants!(CountType),
+        )]
+        count: CountType,
+
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            default_value = ""
+        )]
+        negative_list: String,
+
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads",
+            default_value = "1"
+        )]
+        threads: usize,
+    },
 }
 
 pub fn parse_threshold_cli(threshold_str: &str) -> Result<Vec<Threshold>, std::io::Error> {
@@ -223,8 +272,17 @@ pub fn read_params() -> Params {
 }
 
 pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
+
+    // check if in case of coverage, count is not bp
+    if let Params::Coverage { count, ..} = params {
+        if count == CountType::Bps {
+            log::error!("count type \"bps\" is not available for coverage command");
+            return Ok(());
+        }
+    }
+
     // set the number of threads used in parallel computation
-    if let Params::Histgrowth { threads, .. } | Params::Hist { threads, .. } = params {
+    if let Params::Histgrowth { threads, .. } | Params::Hist { threads, .. } | Params::Coverage { threads, .. } = params {
         if threads > 0 {
             log::info!("running pangenome-growth on {} threads", &threads);
             rayon::ThreadPoolBuilder::new()
@@ -246,7 +304,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         }
         | Params::Hist {
             gfa_file, count, ..
-        } => {
+        }
+        | Params::Coverage {
+            gfa_file, count, ..
+        }
+        => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
             let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edges)?;
@@ -275,11 +337,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     };
 
     //
-    // 2nd step: build abacus
+    // 2nd step: build abacus or calculate coverage table
     //
 
     let abacus = match &params {
-        Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. } => {
+        Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. }  => {
             // creating the abacus from the gfa
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
@@ -289,91 +351,102 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 abacus.groups.len(),
                 abacus.countable.len()
             );
+            Some(abacus)
+        }
+        Params::Coverage { gfa_file, count, .. } => {
+            let graph_aux = graph_aux.as_ref().unwrap();
+            let abacus_aux = abacus_aux.as_ref().unwrap();
 
-            if abacus.count == CountType::Nodes {
-                log::debug!("uncovered nodes:");
-                let uncovered_items = abacus.uncovered_items();
-                let dummy = Vec::new();
-                let mut id2node: Vec<&Vec<u8>> = vec![&dummy; abacus.graph_aux.node2id.len() + 1];
-                abacus
-                    .graph_aux
-                    .node2id
-                    .iter()
-                    .for_each(|(node, id)| id2node[id.0 as usize] = node);
-                for id in uncovered_items.iter() {
-                    log::debug!(
-                        "{}: {}",
-                        id,
-                        std::str::from_utf8(id2node[abacus.countable[*id] as usize]).unwrap()
-                    );
+            log::info!("parsing path + walk sequences");
+            let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+            let (table, groups) = Abacus::get_coverage_table(&mut data, abacus_aux, graph_aux);
+
+            log::info!("reporting coverage table");
+            // create mapping from numerical node ids to original node identifiers
+            let dummy = Vec::new();
+            let mut id2node: Vec<&Vec<u8>> = vec![&dummy; graph_aux.node2id.len() + 1];
+            graph_aux
+                .node2id
+                .iter()
+                .for_each(|(node, id)| id2node[id.0 as usize] = node);
+            
+            if count == &CountType::Nodes {
+                write!(out, "node")?;
+                for group in &groups {
+                    write!(out, "\t{}", group)?;
+                }
+                writeln!(out, "")?;
+
+                for (i, node) in id2node[1..].iter().enumerate() {
+                    write!(out, "{}", std::str::from_utf8(node).unwrap())?;
+                    for j in 0..groups.len() {
+                        write!(out, "\t{}", table[i+1][j])?;
+                    }
+                    writeln!(out, "")?;
                 }
             }
-            if abacus.count == CountType::Edges {
-                if let Some(ref edge2id) = abacus.graph_aux.edge2id {
-                    let dummy = Vec::new();
+            if count == &CountType::Edges {
+                if let Some(ref edge2id) = graph_aux.edge2id {
                     let dummy_edge = Edge(
                         ItemId(0),
                         Orientation::default(),
                         ItemId(0),
                         Orientation::default(),
                     );
-                    let mut id2node: Vec<&Vec<u8>> =
-                        vec![&dummy; abacus.graph_aux.node2id.len() + 1];
                     let mut id2edge: Vec<&Edge> = vec![&dummy_edge; edge2id.len() + 1];
-                    abacus
-                        .graph_aux
-                        .node2id
-                        .iter()
-                        .for_each(|(node, id)| id2node[id.0 as usize] = node);
                     for (edge, id) in edge2id.iter() {
                         id2edge[id.0 as usize] = edge;
                     }
-                    let mut c = 0;
-                    id2edge.iter().for_each(|edge| {
-                        if *edge == &dummy_edge {
-                            c += 1
-                        }
-                    });
-                    log::debug!("{} dummy edges in id2edge", c);
-                    log::debug!("uncovered edges:");
-                    let uncovered_items = abacus.uncovered_items();
-                    for id in uncovered_items.iter() {
-                        let edge = id2edge[*id];
-                        log::debug!("{}: {}{}{}{}",
-                            id,
+
+                    write!(out, "edge")?;
+                    for group in &groups {
+                        write!(out, "\t{}", group)?;
+                    }
+                    writeln!(out, "")?;
+
+                    for (i, edge) in id2edge[1..].iter().enumerate() {
+                        write!(out, "{}{}{}{}",
                             edge.1,
                             std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(),
                             edge.3,
                             std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
-                            );
+                            )?;
+                        for j in 0..groups.len() {
+                            write!(out, "\t{}", table[i+1][j])?;
+                        }
+                        writeln!(out, "")?;
                     }
                 }
             }
-            Some(abacus)
+            None
         }
         _ => None,
     };
 
     //
-    // 3rd step: build histograam
+    // 3rd step: build histograam 
     //
 
-    let hist: Hist = match &params {
+    let hist: Option<Hist> = match &params {
         Params::Histgrowth { .. } | Params::Hist { .. } => {
             // constructing histogram
             log::info!("constructing histogram..");
-            Hist::from_abacus(&abacus.unwrap())
+            Some(Hist::from_abacus(abacus.as_ref().unwrap()))
         }
         Params::Growth { hist_file, .. } => {
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
-            Hist::from_tsv(&mut data)?
+            Some(Hist::from_tsv(&mut data)?)
         }
         Params::OrderedHistgrowth => {
             // XXX
-            Hist {
+            Some(Hist {
                 coverage: Vec::new(),
-            }
+            })
+        }
+        Params::Coverage { .. } => {
+            // do nothing
+            None
         }
     };
 
@@ -382,6 +455,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //
     match params {
         Params::Histgrowth { .. } | Params::Growth { .. } => {
+            // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
+            let hist = hist.unwrap();
             let hist_aux = HistAuxilliary::from_params(&params)?;
 
             let growths: Vec<Vec<usize>> = hist_aux
@@ -420,10 +495,14 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             }
         }
         Params::Hist { count, .. } => {
-            hist.to_tsv(&count, out)?;
+            hist.unwrap().to_tsv(&count, out)?;
         }
         Params::OrderedHistgrowth => {
             unreachable!();
+        }
+        Params::Coverage { .. } => {
+            // do nothing
+            ()
         }
     };
 

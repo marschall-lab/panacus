@@ -165,7 +165,7 @@ impl Abacus {
         let (item_table, exclude_table, subset_covered_bps) =
             io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
         log::info!("counting abacus entries..");
-        // first element in countable and last is the "zero" element--which should be ignored in
+        // first element in countable is the "zero" element--which should be ignored in
         // counting
         let mut countable: Vec<CountSize> =
             vec![0; graph_aux.number_of_items(&abacus_aux.count) + 1];
@@ -215,7 +215,6 @@ impl Abacus {
 
         // Parallel node counting
         (0..SIZE_T).into_par_iter().for_each(|i| {
-            //Abacus::add_count(i, path_id, &mut countable, &mut last, &item_table);
             let start = item_table.id_prefsum[i][path_id as usize] as usize;
             let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
             for j in start..end {
@@ -225,6 +224,34 @@ impl Abacus {
                         && last[sid] != group_id
                     {
                         (*countable_ptr.0)[sid] += 1;
+                        (*last_ptr.0)[sid] = group_id;
+                    }
+                }
+            }
+        });
+    }
+
+    fn coverage_by_group_id(
+        countable: &mut Vec<Vec<CountSize>>,
+        last: &mut Vec<ItemIdSize>,
+        item_table: &ItemTable,
+        exclude_table: &Option<ActiveTable>,
+        path_id: ItemIdSize,
+        group_id: ItemIdSize,
+    ) {
+        let countable_ptr = Wrap(countable);
+        let last_ptr = Wrap(last);
+
+        // Parallel node counting
+        (0..SIZE_T).into_par_iter().for_each(|i| {
+            let start = item_table.id_prefsum[i][path_id as usize] as usize;
+            let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
+            for j in start..end {
+                let sid = item_table.items[i][j] as usize;
+                unsafe {
+                    if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid]
+                    {
+                        (*countable_ptr.0)[group_id as usize][sid] += 1;
                         (*last_ptr.0)[sid] = group_id;
                     }
                 }
@@ -359,5 +386,45 @@ impl Abacus {
         }
 
         res
+    }
+
+    pub fn get_coverage_table<R: std::io::Read>(
+        data: &mut std::io::BufReader<R>,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &GraphAuxilliary,
+    ) -> (Vec<Vec<CountSize>>, Vec<String>) {
+        log::info!("parsing path + walk sequences");
+        let (item_table, exclude_table, subset_covered_bps) =
+            io::parse_gfa_itemcount(data, abacus_aux, graph_aux);
+
+        log::info!("allocating storage for coverage table");
+        // counting number of groups
+        let mut groups = HashSet::new();
+        abacus_aux.groups.values().for_each(|x| {groups.insert(x); });
+        let mut countable = vec![vec![0; groups.len() ]; graph_aux.number_of_items(&abacus_aux.count) + 1];
+        // first element in coverage table is the "zero" element--which should be ignored in
+        // counting
+        countable[0].iter_mut().for_each(|x| {*x = CountSize::MAX });
+
+        let mut last: Vec<ItemIdSize> =
+            vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count) + 1];
+
+        log::info!("producing absence / presence vector for each group");
+        let mut groups = Vec::new();
+        for (path_id, group_id) in Abacus::get_path_order(abacus_aux, &graph_aux.path_segments) {
+            if groups.is_empty() || groups.last().unwrap() != group_id {
+                groups.push(group_id.to_string());
+            }
+
+            Abacus::coverage_by_group_id(
+                &mut countable,
+                &mut last,
+                &item_table,
+                &exclude_table,
+                path_id,
+                groups.len() as ItemIdSize - 1,
+            );
+        }
+        (countable, groups)
     }
 }

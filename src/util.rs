@@ -20,6 +20,7 @@ pub struct Wrap<T>(pub *mut T);
 unsafe impl Sync for Wrap<Vec<ItemIdSize>> {}
 unsafe impl Sync for Wrap<Vec<usize>> {}
 unsafe impl Sync for Wrap<[Vec<ItemIdSize>; SIZE_T]> {}
+unsafe impl Sync for Wrap<Vec<Vec<ItemIdSize>>> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
 #[strum(serialize_all = "lowercase")]
