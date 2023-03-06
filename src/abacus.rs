@@ -37,6 +37,13 @@ impl AbacusAuxilliary {
                 negative_list,
                 groupby,
                 ..
+            }
+            | Params::Coverage {
+                count,
+                positive_list,
+                negative_list,
+                groupby,
+                ..
             } => {
                 let groups = AbacusAuxilliary::load_groups(groupby, graph_aux)?;
                 let include_coords = AbacusAuxilliary::complement_with_group_assignments(
@@ -249,9 +256,8 @@ impl Abacus {
             for j in start..end {
                 let sid = item_table.items[i][j] as usize;
                 unsafe {
-                    if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid]
-                    {
-                        (*countable_ptr.0)[group_id as usize][sid] += 1;
+                    if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid] {
+                        (*countable_ptr.0)[sid][group_id as usize] += 1;
                         (*last_ptr.0)[sid] = group_id;
                     }
                 }
@@ -400,11 +406,14 @@ impl Abacus {
         log::info!("allocating storage for coverage table");
         // counting number of groups
         let mut groups = HashSet::new();
-        abacus_aux.groups.values().for_each(|x| {groups.insert(x); });
-        let mut countable = vec![vec![0; groups.len() ]; graph_aux.number_of_items(&abacus_aux.count) + 1];
+        abacus_aux.groups.values().for_each(|x| {
+            groups.insert(x);
+        });
+        let mut countable =
+            vec![vec![0; groups.len()]; graph_aux.number_of_items(&abacus_aux.count) + 1];
         // first element in coverage table is the "zero" element--which should be ignored in
         // counting
-        countable[0].iter_mut().for_each(|x| {*x = CountSize::MAX });
+        countable[0].iter_mut().for_each(|x| *x = CountSize::MAX);
 
         let mut last: Vec<ItemIdSize> =
             vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count) + 1];

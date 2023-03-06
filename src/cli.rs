@@ -194,9 +194,7 @@ pub enum Params {
     )]
     OrderedHistgrowth,
 
-    #[clap(
-        about = "Produce absence/presence matrix"
-    )]
+    #[clap(about = "Comute coverage table over all count items")]
     Coverage {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
@@ -208,6 +206,14 @@ pub enum Params {
             value_parser = clap_enum_variants!(CountType),
         )]
         count: CountType,
+
+        #[clap(
+            name = "total",
+            short,
+            long,
+            help = "Summarize by totaling presence/absence over all groups"
+        )]
+        total: bool,
 
         #[clap(
             name = "subset",
@@ -272,9 +278,8 @@ pub fn read_params() -> Params {
 }
 
 pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
-
     // check if in case of coverage, count is not bp
-    if let Params::Coverage { count, ..} = params {
+    if let Params::Coverage { count, .. } = params {
         if count == CountType::Bps {
             log::error!("count type \"bps\" is not available for coverage command");
             return Ok(());
@@ -282,7 +287,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     }
 
     // set the number of threads used in parallel computation
-    if let Params::Histgrowth { threads, .. } | Params::Hist { threads, .. } | Params::Coverage { threads, .. } = params {
+    if let Params::Histgrowth { threads, .. }
+    | Params::Hist { threads, .. }
+    | Params::Coverage { threads, .. } = params
+    {
         if threads > 0 {
             log::info!("running pangenome-growth on {} threads", &threads);
             rayon::ThreadPoolBuilder::new()
@@ -307,8 +315,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         }
         | Params::Coverage {
             gfa_file, count, ..
-        }
-        => {
+        } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
             let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edges)?;
@@ -341,7 +348,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //
 
     let abacus = match &params {
-        Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. }  => {
+        Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. } => {
             // creating the abacus from the gfa
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
@@ -353,7 +360,12 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             );
             Some(abacus)
         }
-        Params::Coverage { gfa_file, count, .. } => {
+        Params::Coverage {
+            gfa_file,
+            count,
+            total,
+            ..
+        } => {
             let graph_aux = graph_aux.as_ref().unwrap();
             let abacus_aux = abacus_aux.as_ref().unwrap();
 
@@ -369,20 +381,34 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 .node2id
                 .iter()
                 .for_each(|(node, id)| id2node[id.0 as usize] = node);
-            
+
             if count == &CountType::Nodes {
                 write!(out, "node")?;
-                for group in &groups {
-                    write!(out, "\t{}", group)?;
+                if *total {
+                    write!(out, "\ttotal")?;
+                } else {
+                    for group in &groups {
+                        write!(out, "\t{}", group)?;
+                    }
                 }
                 writeln!(out, "")?;
 
                 for (i, node) in id2node[1..].iter().enumerate() {
                     write!(out, "{}", std::str::from_utf8(node).unwrap())?;
-                    for j in 0..groups.len() {
-                        write!(out, "\t{}", table[i+1][j])?;
+                    let mut c = 0;
+                    if *total {
+                        table[i + 1].iter().for_each(|x| {
+                            if x > &0 {
+                                c += 1
+                            }
+                        });
+                        writeln!(out, "\t{}", c)?;
+                    } else {
+                        for j in 0..groups.len() {
+                            write!(out, "\t{}", table[i + 1][j])?;
+                        }
+                        writeln!(out, "")?;
                     }
-                    writeln!(out, "")?;
                 }
             }
             if count == &CountType::Edges {
@@ -399,22 +425,38 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     }
 
                     write!(out, "edge")?;
-                    for group in &groups {
-                        write!(out, "\t{}", group)?;
+                    if *total {
+                        write!(out, "\ttotal")?;
+                    } else {
+                        for group in &groups {
+                            write!(out, "\t{}", group)?;
+                        }
                     }
                     writeln!(out, "")?;
 
                     for (i, edge) in id2edge[1..].iter().enumerate() {
-                        write!(out, "{}{}{}{}",
+                        write!(
+                            out,
+                            "{}{}{}{}",
                             edge.1,
-                            std::str::from_utf8(id2node[edge.0.0 as usize]).unwrap(),
+                            std::str::from_utf8(id2node[edge.0 .0 as usize]).unwrap(),
                             edge.3,
-                            std::str::from_utf8(id2node[edge.2.0 as usize]).unwrap(),
-                            )?;
-                        for j in 0..groups.len() {
-                            write!(out, "\t{}", table[i+1][j])?;
+                            std::str::from_utf8(id2node[edge.2 .0 as usize]).unwrap(),
+                        )?;
+                        let mut c = 0;
+                        if *total {
+                            table[i + 1].iter().for_each(|x| {
+                                if x > &0 {
+                                    c += 1
+                                }
+                            });
+                            writeln!(out, "\t{}", c)?;
+                        } else {
+                            for j in 0..groups.len() {
+                                write!(out, "\t{}", table[i + 1][j])?;
+                            }
+                            writeln!(out, "")?;
                         }
-                        writeln!(out, "")?;
                     }
                 }
             }
@@ -424,7 +466,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     };
 
     //
-    // 3rd step: build histograam 
+    // 3rd step: build histograam
     //
 
     let hist: Option<Hist> = match &params {
