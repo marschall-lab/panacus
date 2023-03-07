@@ -194,7 +194,7 @@ pub enum Params {
     )]
     OrderedHistgrowth,
 
-    #[clap(about = "Comute coverage table over all count items")]
+    #[clap(about = "Compute coverage table for count items")]
     Coverage {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
@@ -209,7 +209,7 @@ pub enum Params {
 
         #[clap(
             name = "total",
-            short,
+            short = 'a',
             long,
             help = "Summarize by totaling presence/absence over all groups"
         )]
