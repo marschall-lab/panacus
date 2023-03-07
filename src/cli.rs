@@ -195,7 +195,7 @@ pub enum Params {
     OrderedHistgrowth,
 
     #[clap(about = "Compute coverage table for count items")]
-    Coverage {
+    Table {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
 
@@ -279,7 +279,7 @@ pub fn read_params() -> Params {
 
 pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
     // check if in case of coverage, count is not bp
-    if let Params::Coverage { count, .. } = params {
+    if let Params::Table { count, .. } = params {
         if count == CountType::Bps {
             log::error!("count type \"bps\" is not available for coverage command");
             return Ok(());
@@ -289,7 +289,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // set the number of threads used in parallel computation
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
-    | Params::Coverage { threads, .. } = params
+    | Params::Table { threads, .. } = params
     {
         if threads > 0 {
             log::info!("running pangenome-growth on {} threads", &threads);
@@ -313,7 +313,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         | Params::Hist {
             gfa_file, count, ..
         }
-        | Params::Coverage {
+        | Params::Table {
             gfa_file, count, ..
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
@@ -360,7 +360,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             );
             Some(abacus)
         }
-        Params::Coverage {
+        Params::Table {
             gfa_file,
             count,
             total,
@@ -486,7 +486,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 coverage: Vec::new(),
             })
         }
-        Params::Coverage { .. } => {
+        Params::Table { .. } => {
             // do nothing
             None
         }
@@ -542,7 +542,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::OrderedHistgrowth => {
             unreachable!();
         }
-        Params::Coverage { .. } => {
+        Params::Table { .. } => {
             // do nothing
             ()
         }

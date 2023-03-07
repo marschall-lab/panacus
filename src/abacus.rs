@@ -38,7 +38,7 @@ impl AbacusAuxilliary {
                 groupby,
                 ..
             }
-            | Params::Coverage {
+            | Params::Table {
                 count,
                 positive_list,
                 negative_list,
