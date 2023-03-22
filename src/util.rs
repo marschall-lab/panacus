@@ -312,6 +312,6 @@ pub fn log2_add(a: f64, b: f64) -> f64 {
         d = a;
     }
 
-    c + (1.0 + (d - c).pow(2)).log2()
+    c + (1.0 + (d - c).exp2()).log2()
 }
 
