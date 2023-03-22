@@ -302,3 +302,16 @@ pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
     })
     .is_ok()
 }
+
+pub fn log2_add(a: f64, b: f64) -> f64 {
+    // we assume both a and b are log2'd
+    let mut c = a;
+    let mut d = b;
+    if a > b {
+        c = b;
+        d = a;
+    }
+
+    c + (1.0 + (d - c).pow(2)).log2()
+}
+
