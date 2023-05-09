@@ -31,7 +31,9 @@ def plot(df, fname, out):
 
     # let's do it!
     plt.figure(figsize=(15, 8))
-    xticks = list(map(lambda x: '%s-%s' %x, df.index))
+    xticks = list(map(str, df.index))
+    
+    import pdb; pdb.set_trace() 
     plt.bar(x=xticks, height=df.cumulative)
     plt.bar(x=xticks, height=df.consensus, hatch='\\\\', edgecolor='black')
     plt.bar(x=xticks, height=df.common, hatch='////', edgecolor='black')
@@ -61,7 +63,7 @@ if __name__ == '__main__':
             help='Growth table computed by panacus')
 
     args = parser.parse_args()
-    df = pd.read_csv(args.growth_stats, sep='\t', header=[0], index_col=[0, 1])
+    df = pd.read_csv(args.growth_stats, sep='\t', header=[1,2], index_col=[0])
     with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
         plot(df, path.basename(args.growth_stats.name), out)
 
