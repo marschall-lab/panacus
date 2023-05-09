@@ -233,7 +233,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
             default_value = "1"
         )]
         intersection: String,
@@ -241,7 +241,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
             default_value = "1"
         )]
         coverage: String,
@@ -461,6 +461,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //
     // 4th step: calculation & output of growth curve / output of histogram
     //
+    //
+    writeln!(out, "# {}", std::env::args().collect::<Vec<String>>().join(" "))?;
     match params {
         Params::Histgrowth { .. } | Params::Growth { .. } | Params::OrderedHistgrowth { .. } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
@@ -486,6 +488,9 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 })
                 .collect();
 
+            // number of groups
+            let n = growths[0].len();
+
             writeln!(
                 out,
                 "coverage\t{}",
@@ -506,7 +511,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     .collect::<Vec<String>>()
                     .join("\t")
             )?;
-            for i in 0..growths[0].len() {
+            for i in 0..n {
                 if let Abacus::Group(abacus_group) = &abacus {
                     write!(out, "{}", &abacus_group.groups[i][..])?;
                 } else {

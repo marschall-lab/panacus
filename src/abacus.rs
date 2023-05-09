@@ -413,14 +413,13 @@ impl AbacusByGroup {
 
     //Why &self and not self? we could destroy abacus at this point.
     pub fn calc_growth(&self, t_coverage: &Threshold, t_intersection: &Threshold) -> Vec<usize> {
-        let mut res = vec![vec![0; SIZE_T]; self.groups.len()];
+        let mut res = vec![0; self.groups.len()];
 
         let cov = usize::max(1, t_coverage.to_absolute(self.groups.len()));
         let int = usize::max(1, t_intersection.to_absolute(self.groups.len()));
 
-        let mutex_vec: Vec<_> = (0..SIZE_T).map(|x| Arc::new(Mutex::new(x))).collect();
-
-        (0..self.countable.len()).into_iter().for_each(|i| {
+        // start with 1, countable 0 is a forbidden element
+        (1..self.countable.len()).into_iter().for_each(|i| {
             if self.countable[i].iter().filter(|x| x > &&0).count() >= cov {
                 (0..self.groups.len()).into_iter().for_each(|j| {
                     if self.countable[i][..j + 1]
@@ -429,14 +428,11 @@ impl AbacusByGroup {
                         .count()
                         >= int
                     {
-                        let idx = i % SIZE_T;
-                        if let Ok(_) = mutex_vec[idx].lock() {
-                            match self.count {
-                                CountType::Nodes | CountType::Edges => res[j][idx] += 1,
-                                CountType::Bps => {
-                                    res[j][idx] += self.graph_aux.node_len_ary[i] as usize
-                                        - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
-                                }
+                        match self.count {
+                            CountType::Nodes | CountType::Edges => res[j] += 1,
+                            CountType::Bps => {
+                                res[j] += self.graph_aux.node_len_ary[i] as usize
+                                    - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
                             }
                         }
                     }
@@ -444,7 +440,7 @@ impl AbacusByGroup {
             }
         });
 
-        res.into_iter().map(|x| x.into_iter().sum()).collect()
+        res
     }
 
     //    pub fn uncovered_items(&self) -> Vec<usize> {
