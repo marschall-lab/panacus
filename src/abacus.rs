@@ -423,7 +423,7 @@ impl AbacusByGroup {
         (0..self.countable.len()).into_iter().for_each(|i| {
             if self.countable[i].iter().filter(|x| x > &&0).count() >= cov {
                 (0..self.groups.len()).into_iter().for_each(|j| {
-                    if self.countable[i][..j]
+                    if self.countable[i][..j + 1]
                         .into_iter()
                         .filter(|x| x > &&0)
                         .count()

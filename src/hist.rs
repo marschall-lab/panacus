@@ -106,6 +106,11 @@ impl HistAuxilliary {
                 intersection,
                 coverage,
                 ..
+            }
+            | cli::Params::OrderedHistgrowth {
+                intersection,
+                coverage,
+                ..
             } => Self::load(intersection, coverage),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,

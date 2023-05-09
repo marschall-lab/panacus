@@ -507,7 +507,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     .join("\t")
             )?;
             for i in 0..growths[0].len() {
-                write!(out, "{}", i + 1)?;
+                if let Abacus::Group(abacus_group) = &abacus {
+                    write!(out, "{}", &abacus_group.groups[i][..])?;
+                } else {
+                    write!(out, "{}", i + 1)?;
+                }
                 for j in 0..hist_aux.intersection.len() {
                     write!(out, "\t{}", growths[j][i])?;
                 }
