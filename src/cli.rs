@@ -339,14 +339,6 @@ pub fn read_params() -> Params {
 }
 
 pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
-    // check if in case of coverage, count is not bp
-    if let Params::Table { count, .. } = params {
-        if count == CountType::Bps {
-            log::error!("count type \"bps\" is not available for coverage command");
-            return Ok(());
-        }
-    }
-
     // set the number of threads used in parallel computation
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
@@ -412,12 +404,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // 2nd step: build abacus or calculate coverage table
     //
 
-    let abacus : Abacus = match &params {
+    let abacus: Abacus = match &params {
         Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. } => {
             // creating the abacus from the gfa
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus = AbacusByTotal::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
+            let abacus =
+                AbacusByTotal::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
             log::info!(
                 "abacus has {} path groups and {} countables",
                 abacus.groups.len(),
@@ -428,7 +421,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Table { gfa_file, .. } | Params::OrderedHistgrowth { gfa_file, .. } => {
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus = AbacusByGroup::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
+            let abacus =
+                AbacusByGroup::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
             log::info!(
                 "abacus has {} path groups and {} countables",
                 abacus.groups.len(),
@@ -446,9 +440,9 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     let hist: Option<Hist> = match &params {
         Params::Histgrowth { .. } | Params::Hist { .. } => {
             if let Abacus::Total(abacus_total) = &abacus {
-            // constructing histogram
-            log::info!("constructing histogram..");
-            Some(Hist::from_abacus(abacus_total))
+                // constructing histogram
+                log::info!("constructing histogram..");
+                Some(Hist::from_abacus(abacus_total))
             } else {
                 None
             }
@@ -458,7 +452,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
             Some(Hist::from_tsv(&mut data)?)
         }
-        Params::OrderedHistgrowth { .. } |  Params::Table { .. } => {
+        Params::OrderedHistgrowth { .. } | Params::Table { .. } => {
             // do nothing
             None
         }
@@ -483,7 +477,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                             } else {
                                 unreachable!()
                             }
-                        },
+                        }
                         _ => {
                             // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
                             hist.as_ref().unwrap().calc_growth(&c, &i)
@@ -523,15 +517,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Hist { count, .. } => {
             hist.unwrap().to_tsv(&count, out)?;
         }
-        Params::OrderedHistgrowth { .. } => {
-            let hist_aux = HistAuxilliary::from_params(&params)?;
-
-            unreachable!();
-        }
         Params::Table { total, .. } => {
             if let Abacus::Group(abacus_group) = abacus {
-            log::info!("reporting coverage table");
-            abacus_group.to_tsv(total, out)?;
+                log::info!("reporting coverage table");
+                abacus_group.to_tsv(total, out)?;
             }
         }
     };

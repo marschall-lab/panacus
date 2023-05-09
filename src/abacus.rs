@@ -161,8 +161,8 @@ impl AbacusAuxilliary {
         })
     }
 
-
-    fn get_path_order<'a>(&'a self,
+    fn get_path_order<'a>(
+        &'a self,
         path_segments: &Vec<PathSegment>,
     ) -> Vec<(ItemIdSize, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.groups; the returned vector
@@ -200,7 +200,6 @@ impl AbacusAuxilliary {
         res
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct AbacusByTotal {
@@ -248,11 +247,7 @@ impl AbacusByTotal {
         Self {
             count: abacus_aux.count,
             countable: countable,
-            uncovered_bps: quantify_uncovered_bps(
-                &exclude_table,
-                &subset_covered_bps,
-                &graph_aux,
-            ),
+            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
             groups: groups,
             graph_aux: graph_aux,
         }
@@ -386,11 +381,7 @@ impl AbacusByGroup {
         Self {
             count: abacus_aux.count,
             countable: countable,
-            uncovered_bps: quantify_uncovered_bps(
-                &exclude_table,
-                &subset_covered_bps,
-                &graph_aux,
-            ),
+            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
             groups: groups,
             graph_aux: graph_aux,
         }
@@ -420,37 +411,31 @@ impl AbacusByGroup {
         });
     }
 
-    fn get_nodes_with_coverage(&self, t_coverage: usize, nodes: Option<&[CountSize]>) -> Vec<CountSize>{
-
-        match nodes {
-            Some(n) => n.into_par_iter().filter(|i| self.countable[**i as usize].iter().filter(|x| x > &&0).count() > t_coverage).cloned().collect(),
-            None => (1..self.countable.len() as CountSize).into_par_iter().filter(|&i| self.countable[i as usize].iter().filter(|x| x > &&0).count() > t_coverage).collect()
-            }
-    }
-
     //Why &self and not self? we could destroy abacus at this point.
     pub fn calc_growth(&self, t_coverage: &Threshold, t_intersection: &Threshold) -> Vec<usize> {
         let mut res = vec![vec![0; SIZE_T]; self.groups.len()];
-        
+
         let cov = usize::max(1, t_coverage.to_absolute(self.groups.len()));
         let int = usize::max(1, t_intersection.to_absolute(self.groups.len()));
 
         let mutex_vec: Vec<_> = (0..SIZE_T).map(|x| Arc::new(Mutex::new(x))).collect();
-        
+
         (0..self.countable.len()).into_iter().for_each(|i| {
             if self.countable[i].iter().filter(|x| x > &&0).count() >= cov {
                 (0..self.groups.len()).into_iter().for_each(|j| {
-                    if self.countable[i][..j].into_iter().filter(|x| x > &&0).count() >= int {
+                    if self.countable[i][..j]
+                        .into_iter()
+                        .filter(|x| x > &&0)
+                        .count()
+                        >= int
+                    {
                         let idx = i % SIZE_T;
                         if let Ok(_) = mutex_vec[idx].lock() {
-                            unsafe {
-                                match self.count {
-                                    CountType::Nodes | CountType::Edges => {
-                                        res[j][idx] += 1
-                                    },
-                                    CountType::Bps => {
-                                        res[j][idx] += self.graph_aux.node_len_ary[i] as usize - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
-                                    }
+                            match self.count {
+                                CountType::Nodes | CountType::Edges => res[j][idx] += 1,
+                                CountType::Bps => {
+                                    res[j][idx] += self.graph_aux.node_len_ary[i] as usize
+                                        - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
                                 }
                             }
                         }
@@ -462,19 +447,22 @@ impl AbacusByGroup {
         res.into_iter().map(|x| x.into_iter().sum()).collect()
     }
 
-//    pub fn uncovered_items(&self) -> Vec<usize> {
-//        self.countable
-//            .iter()
-//            .enumerate()
-//            .filter_map(|(i, c)| match c {
-//                0 => Some(i),
-//                _ => None,
-//            })
-//            .collect()
-//    }
+    //    pub fn uncovered_items(&self) -> Vec<usize> {
+    //        self.countable
+    //            .iter()
+    //            .enumerate()
+    //            .filter_map(|(i, c)| match c {
+    //                0 => Some(i),
+    //                _ => None,
+    //            })
+    //            .collect()
+    //    }
 
-
-    pub fn to_tsv<W: Write>(&self, total: bool, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
+    pub fn to_tsv<W: Write>(
+        &self,
+        total: bool,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), std::io::Error> {
         // create mapping from numerical node ids to original node identifiers
         let dummy = Vec::new();
         let mut id2node: Vec<&Vec<u8>> = vec![&dummy; self.graph_aux.node2id.len() + 1];
@@ -483,49 +471,9 @@ impl AbacusByGroup {
             .iter()
             .for_each(|(node, id)| id2node[id.0 as usize] = node);
 
-        if self.count == CountType::Nodes {
-            write!(out, "node")?;
-            if total {
-                write!(out, "\ttotal")?;
-            } else {
-                for group in self.groups.iter() {
-                    write!(out, "\t{}", group)?;
-                }
-            }
-            writeln!(out, "")?;
-
-            for (i, node) in id2node[1..].iter().enumerate() {
-                write!(out, "{}", std::str::from_utf8(node).unwrap())?;
-                let mut c = 0;
-                if total {
-                    self.countable[i + 1].iter().for_each(|x| {
-                        if x > &0 {
-                            c += 1
-                        }
-                    });
-                    writeln!(out, "\t{}", c)?;
-                } else {
-                    for j in 0..self.groups.len() {
-                        write!(out, "\t{}", self.countable[i + 1][j])?;
-                    }
-                    writeln!(out, "")?;
-                }
-            }
-        }
-        if self.count == CountType::Edges {
-            if let Some(ref edge2id) = self.graph_aux.edge2id {
-                let dummy_edge = Edge(
-                    ItemId(0),
-                    Orientation::default(),
-                    ItemId(0),
-                    Orientation::default(),
-                );
-                let mut id2edge: Vec<&Edge> = vec![&dummy_edge; edge2id.len() + 1];
-                for (edge, id) in edge2id.iter() {
-                    id2edge[id.0 as usize] = edge;
-                }
-
-                write!(out, "edge")?;
+        match self.count {
+            CountType::Nodes | CountType::Bps => {
+                write!(out, "node")?;
                 if total {
                     write!(out, "\ttotal")?;
                 } else {
@@ -535,15 +483,8 @@ impl AbacusByGroup {
                 }
                 writeln!(out, "")?;
 
-                for (i, edge) in id2edge[1..].iter().enumerate() {
-                    write!(
-                        out,
-                        "{}{}{}{}",
-                        edge.1,
-                        std::str::from_utf8(id2node[edge.0 .0 as usize]).unwrap(),
-                        edge.3,
-                        std::str::from_utf8(id2node[edge.2 .0 as usize]).unwrap(),
-                    )?;
+                for (i, node) in id2node[1..].iter().enumerate() {
+                    write!(out, "{}", std::str::from_utf8(node).unwrap())?;
                     let mut c = 0;
                     if total {
                         self.countable[i + 1].iter().for_each(|x| {
@@ -554,13 +495,75 @@ impl AbacusByGroup {
                         writeln!(out, "\t{}", c)?;
                     } else {
                         for j in 0..self.groups.len() {
-                            write!(out, "\t{}", self.countable[i + 1][j])?;
+                            write!(
+                                out,
+                                "\t{}",
+                                if self.count == CountType::Nodes {
+                                    self.countable[i + 1][j] as usize
+                                } else {
+                                    self.countable[i + 1][j] as usize
+                                        * (self.graph_aux.node_len_ary[i] as usize
+                                            - self
+                                                .uncovered_bps
+                                                .get(&(i as CountSize))
+                                                .unwrap_or(&0))
+                                }
+                            )?;
                         }
                         writeln!(out, "")?;
                     }
                 }
             }
-        }
+            CountType::Edges => {
+                if let Some(ref edge2id) = self.graph_aux.edge2id {
+                    let dummy_edge = Edge(
+                        ItemId(0),
+                        Orientation::default(),
+                        ItemId(0),
+                        Orientation::default(),
+                    );
+                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; edge2id.len() + 1];
+                    for (edge, id) in edge2id.iter() {
+                        id2edge[id.0 as usize] = edge;
+                    }
+
+                    write!(out, "edge")?;
+                    if total {
+                        write!(out, "\ttotal")?;
+                    } else {
+                        for group in self.groups.iter() {
+                            write!(out, "\t{}", group)?;
+                        }
+                    }
+                    writeln!(out, "")?;
+
+                    for (i, edge) in id2edge[1..].iter().enumerate() {
+                        write!(
+                            out,
+                            "{}{}{}{}",
+                            edge.1,
+                            std::str::from_utf8(id2node[edge.0 .0 as usize]).unwrap(),
+                            edge.3,
+                            std::str::from_utf8(id2node[edge.2 .0 as usize]).unwrap(),
+                        )?;
+                        let mut c = 0;
+                        if total {
+                            self.countable[i + 1].iter().for_each(|x| {
+                                if x > &0 {
+                                    c += 1
+                                }
+                            });
+                            writeln!(out, "\t{}", c)?;
+                        } else {
+                            for j in 0..self.groups.len() {
+                                write!(out, "\t{}", self.countable[i + 1][j])?;
+                            }
+                            writeln!(out, "")?;
+                        }
+                    }
+                }
+            }
+        };
 
         Ok(())
     }
@@ -568,10 +571,9 @@ impl AbacusByGroup {
 
 pub enum Abacus {
     Total(AbacusByTotal),
-    Group(AbacusByGroup), 
-    Nil
+    Group(AbacusByGroup),
+    Nil,
 }
-
 
 fn quantify_uncovered_bps(
     exclude_table: &Option<ActiveTable>,
@@ -597,8 +599,7 @@ fn quantify_uncovered_bps(
     if let Some(subset_map) = subset_covered_bps {
         for sid in subset_map.keys() {
             // ignore COMPETELY excluded nodes
-            if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid.0 as usize]
-            {
+            if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid.0 as usize] {
                 let l = graph_aux.node_len(sid) as usize;
                 let covered = subset_map.total_coverage(
                     sid,
@@ -613,4 +614,3 @@ fn quantify_uncovered_bps(
     }
     res
 }
-

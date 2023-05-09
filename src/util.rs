@@ -305,12 +305,7 @@ pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
 
 pub fn log2_add(a: f64, b: f64) -> f64 {
     // we assume both a and b are log2'd
-    let (a, b) = if a < b {
-        (a, b)
-    } else {
-        (b, a)
-    };
+    let (a, b) = if a < b { (a, b) } else { (b, a) };
 
     b + (1.0 + (a - b).exp2()).log2()
 }
-
