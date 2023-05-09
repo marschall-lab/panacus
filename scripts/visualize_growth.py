@@ -58,7 +58,7 @@ if __name__ == '__main__':
     '''
     parser = ArgumentParser(formatter_class=ADHF, description=description)
     parser.add_argument('growth_stats', type=open,
-            help='Output table of pangenome-growth')
+            help='Growth table computed by panacus')
 
     args = parser.parse_args()
     df = pd.read_csv(args.growth_stats, sep='\t', header=[0], index_col=[0, 1])
