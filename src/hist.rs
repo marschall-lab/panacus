@@ -3,7 +3,7 @@ use std::fs;
 use std::io::Write;
 
 /* private use */
-use crate::abacus::Abacus;
+use crate::abacus::AbacusByTotal;
 use crate::cli;
 use crate::io;
 use crate::util::{CountType, Threshold};
@@ -21,7 +21,7 @@ impl Hist {
         Ok(Self { coverage })
     }
 
-    pub fn from_abacus(abacus: &Abacus) -> Self {
+    pub fn from_abacus(abacus: &AbacusByTotal) -> Self {
         Self {
             coverage: match abacus.count {
                 CountType::Nodes | CountType::Edges => abacus.construct_hist(),
