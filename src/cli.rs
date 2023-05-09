@@ -26,6 +26,7 @@ macro_rules! clap_enum_variants {
     }};
 }
 
+
 #[derive(Parser, Debug)]
 #[clap(
     version = "0.2",
