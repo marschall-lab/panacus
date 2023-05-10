@@ -511,11 +511,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     .collect::<Vec<String>>()
                     .join("\t")
             )?;
-            for i in 0..n {
+            for i in 1..n {
                 if let Abacus::Group(abacus_group) = &abacus {
                     write!(out, "{}", &abacus_group.groups[i][..])?;
                 } else {
-                    write!(out, "{}", i + 1)?;
+                    write!(out, "{}", i )?;
                 }
                 for j in 0..hist_aux.intersection.len() {
                     write!(out, "\t{}", growths[j][i])?;
