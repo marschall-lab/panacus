@@ -85,10 +85,10 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of absolute intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
+            help = "List of absolute quorum thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
-        intersection: String,
+        quorum: String,
 
         #[clap(
             short = 'l',
@@ -166,10 +166,10 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of absolute intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
+            help = "List of absolute quorum thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
-        intersection: String,
+        quorum: String,
 
         #[clap(
             short = 'l',
@@ -233,10 +233,10 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of absolute intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
+            help = "List of absolute quorum thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
-        intersection: String,
+        quorum: String,
 
         #[clap(
             short = 'l',
@@ -470,7 +470,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             let growths: Vec<Vec<usize>> = hist_aux
                 .coverage
                 .par_iter()
-                .zip(&hist_aux.intersection)
+                .zip(&hist_aux.quorum)
                 .map(|(c, i)| {
                     match params {
                         Params::OrderedHistgrowth { .. } => {
@@ -503,9 +503,9 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             )?;
             writeln!(
                 out,
-                "intersection\t{}",
+                "quorum\t{}",
                 hist_aux
-                    .intersection
+                    .quorum
                     .iter()
                     .map(|x| x.to_string())
                     .collect::<Vec<String>>()
@@ -517,7 +517,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 } else {
                     write!(out, "{}", i )?;
                 }
-                for j in 0..hist_aux.intersection.len() {
+                for j in 0..hist_aux.quorum.len() {
                     write!(out, "\t{}", growths[j][i])?;
                 }
                 writeln!(out, "")?;

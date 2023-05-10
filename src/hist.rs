@@ -30,15 +30,15 @@ impl Hist {
         }
     }
 
-   pub fn calc_growth(&self, t_coverage: &Threshold, t_intersection: &Threshold) -> Vec<usize>{
+   pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize>{
         let n = self.coverage.len() - 1;
-        let intersection = usize::max(1, t_intersection.to_absolute(n + 1));
-        if intersection == 1 {
+        let quorum = usize::max(1, t_quorum.to_absolute(n + 1));
+        if quorum == 1 {
             self.calc_growth_union(t_coverage)
-        } else if intersection == n {
+        } else if quorum == n {
             self.calc_growth_core(t_coverage)
         } else {
-            self.calc_growth_intersection(t_coverage, t_intersection)
+            self.calc_growth_quorum(t_coverage, t_quorum)
         }
     }
 
@@ -112,11 +112,11 @@ impl Hist {
         pangrowth
     }
 
-   pub fn calc_growth_intersection(&self, t_coverage: &Threshold, t_intersection: &Threshold) -> Vec<usize>{
+   pub fn calc_growth_quorum(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize>{
         let mut n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
         let c = usize::max(1, t_coverage.to_absolute(n + 1));
-        let absolute_intersection = usize::max(1, t_intersection.to_absolute(n + 1));
-        let relative_intersection = (absolute_intersection as f64)/(n as f64);
+        let absolute_quorum = usize::max(1, t_quorum.to_absolute(n + 1));
+        let relative_quorum = (absolute_quorum as f64)/(n as f64);
         let mut pangrowth: Vec<usize> = vec![0; n + 1];
 
         let mut n_fall_m = rug::Integer::from(1);
@@ -127,9 +127,9 @@ impl Hist {
 
         for m in 1..n + 1 {
             m_fact *= m;
-            let m_intersection = (m as f64 * relative_intersection).ceil() as usize;
+            let m_quorum = (m as f64 * relative_quorum).ceil() as usize;
 
-            //100% intersection
+            //100% quorum
             let mut yl = rug::Integer::from(0);
             for i in usize::max(m,c)..n + 1 {
                 perc_mult[i] *= i-m+1;
@@ -137,11 +137,11 @@ impl Hist {
             }
             n_fall_m *= n - m + 1;
 
-            //[m_intersection, 100) intersection
+            //[m_quorum, 100) quorum
             let mut yr = rug::Integer::from(0);
-            for i in m_intersection..n+1 {
+            for i in m_quorum..n+1 {
                 let mut sum_q = rug::Integer::from(0);
-                for j in usize::max(m_intersection, c)..m {
+                for j in usize::max(m_quorum, c)..m {
                     if n+j+1>i+m {
                         if q[i][j] == 0 {
                             let ii = rug::Integer::from(i);
@@ -178,7 +178,7 @@ impl Hist {
 }
 
 pub struct HistAuxilliary {
-    pub intersection: Vec<Threshold>,
+    pub quorum: Vec<Threshold>,
     pub coverage: Vec<Threshold>,
 }
 
@@ -186,20 +186,20 @@ impl HistAuxilliary {
     pub fn from_params(params: &cli::Params) -> Result<Self, std::io::Error> {
         match params {
             cli::Params::Histgrowth {
-                intersection,
+                quorum,
                 coverage,
                 ..
             }
             | cli::Params::Growth {
-                intersection,
+                quorum,
                 coverage,
                 ..
             }
             | cli::Params::OrderedHistgrowth {
-                intersection,
+                quorum,
                 coverage,
                 ..
-            } => Self::load(intersection, coverage),
+            } => Self::load(quorum, coverage),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "not implemented",
@@ -207,30 +207,30 @@ impl HistAuxilliary {
         }
     }
 
-    fn load(intersection: &str, coverage: &str) -> Result<Self, std::io::Error> {
-        let mut intersection_thresholds = Vec::new();
-        if !intersection.is_empty() {
-            if std::path::Path::new(intersection).exists() {
-                log::info!("loading intersection thresholds from {}", intersection);
-                let mut data = std::io::BufReader::new(fs::File::open(intersection)?);
-                intersection_thresholds = io::parse_threshold_file(&mut data)?;
+    fn load(quorum: &str, coverage: &str) -> Result<Self, std::io::Error> {
+        let mut quorum_thresholds = Vec::new();
+        if !quorum.is_empty() {
+            if std::path::Path::new(quorum).exists() {
+                log::info!("loading quorum thresholds from {}", quorum);
+                let mut data = std::io::BufReader::new(fs::File::open(quorum)?);
+                quorum_thresholds = io::parse_threshold_file(&mut data)?;
             } else {
-                intersection_thresholds = cli::parse_threshold_cli(&intersection[..])?;
+                quorum_thresholds = cli::parse_threshold_cli(&quorum[..])?;
             }
             log::debug!(
-                "loaded {} intersection thresholds: {}",
-                intersection_thresholds.len(),
-                intersection_thresholds
+                "loaded {} quorum thresholds: {}",
+                quorum_thresholds.len(),
+                quorum_thresholds
                     .iter()
                     .map(|t| format!("{}", t))
                     .collect::<Vec<String>>()
                     .join(", ")
             );
         }
-        if intersection_thresholds.is_empty() {
+        if quorum_thresholds.is_empty() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                "intersection threshold setting requires at least one element, but none is given",
+                "quorum threshold setting requires at least one element, but none is given",
             ));
         }
 
@@ -260,20 +260,20 @@ impl HistAuxilliary {
             ));
         }
 
-        if intersection_thresholds.len() != coverage_thresholds.len() {
-            if intersection_thresholds.len() == 1 {
-                intersection_thresholds =
-                    vec![intersection_thresholds[0]; coverage_thresholds.len()];
+        if quorum_thresholds.len() != coverage_thresholds.len() {
+            if quorum_thresholds.len() == 1 {
+                quorum_thresholds =
+                    vec![quorum_thresholds[0]; coverage_thresholds.len()];
             } else if coverage_thresholds.len() == 1 {
-                coverage_thresholds = vec![coverage_thresholds[0]; intersection_thresholds.len()];
+                coverage_thresholds = vec![coverage_thresholds[0]; quorum_thresholds.len()];
             } else {
                 return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
-                        "number of coverage and intersection threshold must match, or either one must have a single value"));
+                        "number of coverage and quorum threshold must match, or either one must have a single value"));
             }
         }
 
         Ok(Self {
-            intersection: intersection_thresholds,
+            quorum: quorum_thresholds,
             coverage: coverage_thresholds,
         })
     }
