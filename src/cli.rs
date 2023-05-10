@@ -85,7 +85,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of absolute intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
         intersection: String,
@@ -93,7 +93,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of (named) coverage thresholds of the form <level1>,<level2>,.. or <name1>=<level1>,<name2>=<level2> or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of absolute coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
         coverage: String,
@@ -166,7 +166,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels (one per line); a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value (must contain a \".\") representing a percentage of paths/groups. The list must have the same length as the intersection list, or contain only a single entry (which is then used in for all coverage settings).",
+            help = "List of absolute intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
         intersection: String,
@@ -174,7 +174,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels in a tab-separated format; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float (must contain a \".\") value representing a percentage of paths/groups. The list must have the same length as the coverage list, or contain only a single entry (which is then used in for all intersection settings).",
+            help = "List of absolute coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
         coverage: String,
@@ -233,7 +233,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of (named) intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of absolute intersection thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
         intersection: String,
@@ -241,7 +241,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line; a level is absolute, i.e., corresponds to a number of paths/groups IFF it is integer, otherwise it is a float value representing a percentage of paths/groups.",
+            help = "List of absolute coverage thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
             default_value = "1"
         )]
         coverage: String,
