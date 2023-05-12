@@ -21,7 +21,7 @@ from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
 import seaborn as sns
 
-PAT_PANACUS = re.compile('^# \S+panacus (\S+) (.+)')
+PAT_PANACUS = re.compile('^#.+panacus (\S+) (.+)')
 
 def humanize_number(i, precision=0):
 
