@@ -462,7 +462,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // 4th step: calculation & output of growth curve / output of histogram
     //
     //
-    writeln!(out, "# {}", std::env::args().collect::<Vec<String>>().join(" "))?;
+    writeln!(
+        out,
+        "# {}",
+        std::env::args().collect::<Vec<String>>().join(" ")
+    )?;
     match params {
         Params::Histgrowth { .. } | Params::Growth { .. } | Params::OrderedHistgrowth { .. } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
@@ -471,18 +475,20 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 .coverage
                 .par_iter()
                 .zip(&hist_aux.quorum)
-                .map(|(c, i)| {
+                .map(|(c, q)| {
                     match params {
                         Params::OrderedHistgrowth { .. } => {
                             if let Abacus::Group(abacus_group) = &abacus {
-                                abacus_group.calc_growth(&c, &i)
+                                log::info!("calculating ordered growth for coverage >= {} and quorum >= {}", &c, &q);
+                                abacus_group.calc_growth(&c, &q)
                             } else {
                                 unreachable!()
                             }
                         }
                         _ => {
+                            log::info!("calculating growth for coverage >= {} and quorum >= {}", &c, &q);
                             // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
-                            hist.as_ref().unwrap().calc_growth(&c, &i)
+                            hist.as_ref().unwrap().calc_growth(&c, &q)
                         }
                     }
                 })
@@ -515,7 +521,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 if let Abacus::Group(abacus_group) = &abacus {
                     write!(out, "{}", &abacus_group.groups[i][..])?;
                 } else {
-                    write!(out, "{}", i )?;
+                    write!(out, "{}", i)?;
                 }
                 for j in 0..hist_aux.quorum.len() {
                     write!(out, "\t{}", growths[j][i])?;

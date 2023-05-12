@@ -2,7 +2,7 @@
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::iter::FromIterator;
-use std::sync::{Arc, Mutex};
+//use std::sync::{Arc, Mutex};
 
 /* external crate*/
 use rayon::prelude::*;
