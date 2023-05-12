@@ -109,7 +109,7 @@ if __name__ == '__main__':
             exit(1)
 
         arg_list = arg_list.split(' ')
-        counttype = 'nodes'
+        counttype = 'node'
         if '-c' in arg_list:
             countttype = arg_list[arg_list.index('-c')+1]
         elif '--count' in arg_list:
