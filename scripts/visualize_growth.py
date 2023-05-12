@@ -23,7 +23,7 @@ import seaborn as sns
 
 PAT_PANACUS = re.compile('^# \S+panacus (\S+) (.+)')
 
-def humanize_int(i, precision=0):
+def humanize_number(i, precision=0):
 
     assert i >= 0, f'non-negative number assumed, but received "{i}"'
 
@@ -39,14 +39,23 @@ def humanize_int(i, precision=0):
 
 def calibrate_yticks_text(yticks):
     prec = 0
-    yticks_text = list(map(partial(humanize_int, precision=prec), yticks))
+    yticks_text = list(map(partial(humanize_number, precision=prec), yticks))
     while len(set(yticks_text)) < len(yticks_text):
         prec += 1
-        yticks_text = list(map(partial(humanize_int, precision=prec), yticks))
+        yticks_text = list(map(partial(humanize_number, precision=prec), yticks))
 
     return yticks_text
 
-def plot(df, fname, counttype, out):
+def compute_growth(Y):
+
+    quad = lambda x, *y: y[0]*x**y[1]
+    X = np.arange(len(Y))+1
+    Xp = np.arange(len(Y))+1
+    popt, pcov = curve_fit(quad, X, Y, p0=[1, 1], maxfev=1000*len(Y))
+    return popt, quad(Xp, *popt)
+
+
+def plot(df, fname, counttype, out, estimate_growth=False):
 
     # setup fancy plot look
     sns.set_theme(style='darkgrid')
@@ -55,15 +64,20 @@ def plot(df, fname, counttype, out):
     sns.despine(left=True, bottom=True)
 
     # let's do it!
-    df.plot.bar(figsize=(10, 6), title=f'Pangenome growth ({fname})')
+    for i, (c,q) in enumerate(df.columns):
+        df[(c, q)].plot.bar(figsize=(10, 6), color=f'C{i}', label=f'coverage >={c}, quorum >= {q}')
+        if estimate_growth and q == 1:
+            popt, curve = compute_growth(df[(c,q)].array)
+            plt.plot(curve, '--',  color='black', label=f'coverage >={c}, quorum >= {q}, least-squares fit to m*X^γ (m={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
     _ = plt.xticks(rotation=65)
 
     yticks, _ = plt.yticks()
     plt.yticks(yticks, calibrate_yticks_text(yticks))
 
+    plt.title(f'Pangenome growth ({fname})')
     plt.ylabel(f'#{counttype}')
     plt.xlabel('samples')
-    plt.legend([f'coverage >={c}, quorum >= {q}' for c,q in df.columns])
+    plt.legend()
     plt.tight_layout()
     plt.savefig(out, format='pdf')
     plt.close()
@@ -76,6 +90,8 @@ if __name__ == '__main__':
     parser = ArgumentParser(formatter_class=ADHF, description=description)
     parser.add_argument('growth_stats', type=open,
             help='Growth table computed by panacus')
+    parser.add_argument('-e', '--estimate_growth_params', action='store_true',
+            help='Estimate growth parameters based on least-squares fit')
 
     args = parser.parse_args()
 
@@ -100,6 +116,8 @@ if __name__ == '__main__':
             countttype = arg_list[arg_list.index('--count')+1]
 
     df = pd.read_csv(args.growth_stats, sep='\t', header=[1,2], index_col=[0])
+    df.columns = df.columns.map(lambda x: (int(x[0]), int(x[1])))
+    df = df.reindex(sorted(df.columns, key=lambda x: (x[1], x[0])), axis=1)
     with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-        plot(df, path.basename(args.growth_stats.name), countttype, out)
+        plot(df, path.basename(args.growth_stats.name), countttype, out, estimate_growth=args.estimate_growth_params)
 
