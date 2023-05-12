@@ -24,8 +24,8 @@ impl Hist {
     pub fn from_abacus(abacus: &AbacusByTotal) -> Self {
         Self {
             coverage: match abacus.count {
-                CountType::Nodes | CountType::Edges => abacus.construct_hist(),
-                CountType::Bps => abacus.construct_hist_bps(),
+                CountType::Node | CountType::Edge => abacus.construct_hist(),
+                CountType::Bp => abacus.construct_hist_bps(),
             },
         }
     }

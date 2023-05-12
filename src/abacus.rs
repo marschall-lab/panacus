@@ -429,8 +429,8 @@ impl AbacusByGroup {
                         >= q
                     {
                         match self.count {
-                            CountType::Nodes | CountType::Edges => res[j] += 1,
-                            CountType::Bps => {
+                            CountType::Node | CountType::Edge => res[j] += 1,
+                            CountType::Bp => {
                                 res[j] += self.graph_aux.node_len_ary[i] as usize
                                     - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
                             }
@@ -468,7 +468,7 @@ impl AbacusByGroup {
             .for_each(|(node, id)| id2node[id.0 as usize] = node);
 
         match self.count {
-            CountType::Nodes | CountType::Bps => {
+            CountType::Node | CountType::Bp => {
                 write!(out, "node")?;
                 if total {
                     write!(out, "\ttotal")?;
@@ -494,7 +494,7 @@ impl AbacusByGroup {
                             write!(
                                 out,
                                 "\t{}",
-                                if self.count == CountType::Nodes {
+                                if self.count == CountType::Node {
                                     self.countable[i + 1][j] as usize
                                 } else {
                                     self.countable[i + 1][j] as usize
@@ -510,7 +510,7 @@ impl AbacusByGroup {
                     }
                 }
             }
-            CountType::Edges => {
+            CountType::Edge => {
                 if let Some(ref edge2id) = self.graph_aux.edge2id {
                     let dummy_edge = Edge(
                         ItemId(0),
