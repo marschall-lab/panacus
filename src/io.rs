@@ -131,7 +131,7 @@ pub fn parse_hist<R: Read>(data: &mut BufReader<R>) -> Result<Vec<usize>, std::i
         if let Some(cov_str) = row_it.next() {
             if let Ok(val) = usize::from_str(&str::from_utf8(&cov_str).unwrap()) {
                 cov = val;
-            } else if i == 0 {
+            } else if i <= 1 {
                 log::info!(
                     "values in line {} are not integer, assuming this being a header line",
                     i
