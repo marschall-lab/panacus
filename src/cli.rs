@@ -91,7 +91,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match those of coverage setting",
+            help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match that of coverage setting",
             default_value = "0"
         )]
         quorum: String,
@@ -99,7 +99,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of absolute coverage thresholds of the form <level1>,<level2>,... Number of values must be one or match those of quorum setting",
+            help = "List of absolute coverage thresholds of the form <level1>,<level2>,... Number of values must be one or match that of quorum setting",
             default_value = "1"
         )]
         coverage: String,
@@ -172,7 +172,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match those of coverage setting",
+            help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match that of coverage setting",
             default_value = "0"
         )]
         quorum: String,
@@ -180,7 +180,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of absolute coverage thresholds of the form <level1>,<level2>,... Number of values must be one or match those of quorum setting",
+            help = "List of absolute coverage thresholds of the form <level1>,<level2>,... Number of values must be one or match that of quorum setting",
             default_value = "1"
         )]
         coverage: String,
@@ -239,7 +239,7 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match those of coverage setting",
+            help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match that of coverage setting",
             default_value = "0"
         )]
         quorum: String,
@@ -247,7 +247,7 @@ pub enum Params {
         #[clap(
             short = 'l',
             long,
-            help = "List of absolute coverage thresholds of the form <level1>,<level2>,... Number of values must be one or match those of quorum setting",
+            help = "List of absolute coverage thresholds of the form <level1>,<level2>,... Number of values must be one or match that of quorum setting",
             default_value = "1"
         )]
         coverage: String,
