@@ -203,14 +203,8 @@ impl HistAuxilliary {
     fn load(quorum: &str, coverage: &str) -> Result<Self, std::io::Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {
-            if std::path::Path::new(quorum).exists() {
-                log::info!("loading quorum thresholds from {}", quorum);
-                let mut data = std::io::BufReader::new(fs::File::open(quorum)?);
-                quorum_thresholds = io::parse_threshold_file(&mut data)?;
-            } else {
-                quorum_thresholds =
-                    cli::parse_threshold_cli(&quorum[..], cli::RequireThreshold::Relative)?;
-            }
+            quorum_thresholds =
+                cli::parse_threshold_cli(&quorum[..], cli::RequireThreshold::Relative)?;
             log::debug!(
                 "loaded {} quorum thresholds: {}",
                 quorum_thresholds.len(),
@@ -230,14 +224,8 @@ impl HistAuxilliary {
 
         let mut coverage_thresholds = Vec::new();
         if !coverage.is_empty() {
-            if std::path::Path::new(&coverage).exists() {
-                log::info!("loading coverage thresholds from {}", coverage);
-                let mut data = std::io::BufReader::new(fs::File::open(coverage)?);
-                coverage_thresholds = io::parse_threshold_file(&mut data)?;
-            } else {
-                coverage_thresholds =
-                    cli::parse_threshold_cli(&coverage[..], cli::RequireThreshold::Absolute)?;
-            }
+            coverage_thresholds =
+                cli::parse_threshold_cli(&coverage[..], cli::RequireThreshold::Absolute)?;
             log::debug!(
                 "loaded {} coverage thresholds: {}",
                 coverage_thresholds.len(),
