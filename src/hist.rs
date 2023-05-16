@@ -32,7 +32,7 @@ impl Hist {
 
     pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize> {
         let n = self.coverage.len() - 1;
-        let quorum = usize::max(1, t_quorum.to_absolute(n + 1));
+        let quorum = usize::max(1, t_quorum.to_absolute(n));
         if quorum == 1 {
             self.calc_growth_union(t_coverage)
         } else if quorum >= n {
@@ -44,7 +44,7 @@ impl Hist {
 
     pub fn calc_growth_union(&self, t_coverage: &Threshold) -> Vec<usize> {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
-        let c = usize::max(1, t_coverage.to_absolute(n + 1));
+        let c = usize::max(1, t_coverage.to_absolute(n));
 
         //while self.coverage[n] == 0 {
         //    n -= 1;
@@ -88,7 +88,7 @@ impl Hist {
 
     pub fn calc_growth_core(&self, t_coverage: &Threshold) -> Vec<usize> {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
-        let c = usize::max(1, t_coverage.to_absolute(n + 1));
+        let c = usize::max(1, t_coverage.to_absolute(n));
         let mut n_fall_m = rug::Integer::from(1);
         let mut pangrowth: Vec<usize> = vec![0; n + 1];
 
@@ -114,9 +114,8 @@ impl Hist {
 
     pub fn calc_growth_quorum(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize> {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
-        let c = usize::max(1, t_coverage.to_absolute(n + 1));
-        let absolute_quorum = usize::max(1, t_quorum.to_absolute(n + 1));
-        let relative_quorum = (absolute_quorum as f64) / (n as f64);
+        let c = usize::max(1, t_coverage.to_absolute(n));
+        let quorum = t_quorum.to_relative(n);
         let mut pangrowth: Vec<usize> = vec![0; n + 1];
 
         let mut n_fall_m = rug::Integer::from(1);
@@ -127,7 +126,7 @@ impl Hist {
 
         for m in 1..n + 1 {
             m_fact *= m;
-            let m_quorum = (m as f64 * relative_quorum).ceil() as usize;
+            let m_quorum = (m as f64 * quorum).ceil() as usize;
 
             //100% quorum
             let mut yl = rug::Integer::from(0);

@@ -264,7 +264,14 @@ impl Threshold {
     pub fn to_absolute(&self, n: usize) -> usize {
         match self {
             Threshold::Absolute(c) => *c,
-            Threshold::Relative(c) => (n as f64 * c).round() as usize,
+            Threshold::Relative(c) => (n as f64 * c).ceil() as usize,
+        }
+    }
+
+    pub fn to_relative(&self, n: usize) -> f64 {
+        match self {
+            Threshold::Relative(c) => *c,
+            Threshold::Absolute(c) => *c as f64/n as f64,
         }
     }
 }
