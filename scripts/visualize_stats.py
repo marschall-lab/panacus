@@ -96,11 +96,11 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
 
     popts = list()
     for i, (c,q) in enumerate(df.columns):
-        df[(c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$', ax=axs[0])
+        df[(c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$%', ax=axs[0])
         if estimate_growth and q < 1/df.columns.shape[0]:
             popt, curve = fit_gamma(df[(c,q)].array)
             popts.append((c, q, popt, i))
-            axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+            axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
     yticks = axs[0].get_yticks()
@@ -115,12 +115,12 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
         for c, q, _, i in popts:
             x = np.zeros(df.shape[0])
             x[1:] = df.loc[:df.shape[0]-1, (c, q)]
-            (df[(c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$', ax=axs[1])
+            (df[(c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$%', ax=axs[1])
             popt, _ = fit_alpha((df.loc[2:, (c, q)] - x[1:]).array)
             k2 = popt[0]
             alpha = popt[1]
             Y = k2*np.arange(df.shape[0])**(-alpha)
-            axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
+            axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
