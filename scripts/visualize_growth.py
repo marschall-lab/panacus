@@ -66,7 +66,7 @@ def plot(df, fname, counttype, out, estimate_growth=False):
     # let's do it!
     for i, (c,q) in enumerate(df.columns):
         df[(c, q)].plot.bar(figsize=(10, 6), color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$')
-        if estimate_growth and q == 1:
+        if estimate_growth and q <= 1/df.columns.shape[0]:
             popt, curve = compute_growth(df[(c,q)].array)
             plt.plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$, LS-fit to $m X^γ$ (m={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
     _ = plt.xticks(rotation=65)
@@ -116,7 +116,7 @@ if __name__ == '__main__':
             counttype = arg_list[arg_list.index('--count')+1]
 
     df = pd.read_csv(args.growth_stats, sep='\t', header=[1,2], index_col=[0])
-    df.columns = df.columns.map(lambda x: (int(x[0]), int(x[1])))
+    df.columns = df.columns.map(lambda x: (int(x[0]), float(x[1][:-1])))
     df = df.reindex(sorted(df.columns, key=lambda x: (x[1], x[0])), axis=1)
     with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
         plot(df, path.basename(args.growth_stats.name), counttype, out, estimate_growth=args.estimate_growth_params)
