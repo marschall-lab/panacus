@@ -55,7 +55,7 @@ def compute_growth(Y):
     return popt, quad(Xp, *popt)
 
 
-def plot(df, fname, counttype, out, estimate_growth=False):
+def plot(df, fname, counttype, out, loc='lower left', estimate_growth=False):
 
     # setup fancy plot look
     sns.set_theme(style='darkgrid')
@@ -77,7 +77,7 @@ def plot(df, fname, counttype, out, estimate_growth=False):
     plt.title(f'Pangenome growth ({fname})')
     plt.ylabel(f'#{counttype}')
     plt.xlabel('samples')
-    plt.legend(loc='lower left')
+    plt.legend(loc=loc)
     plt.tight_layout()
     plt.savefig(out, format='pdf')
     plt.close()
@@ -91,6 +91,10 @@ if __name__ == '__main__':
     parser.add_argument('growth_stats', type=open,
             help='Growth table computed by panacus')
     parser.add_argument('-e', '--estimate_growth_params', action='store_true',
+            help='Estimate growth parameters based on least-squares fit')
+    parser.add_argument('-l', '--legend_location', 
+            choices = ['lower left', 'lower right', 'upper left', 'upper right'], 
+            default = 'lower left',
             help='Estimate growth parameters based on least-squares fit')
 
     args = parser.parse_args()
@@ -119,5 +123,7 @@ if __name__ == '__main__':
     df.columns = df.columns.map(lambda x: (int(x[0]), float(x[1][:-1])))
     df = df.reindex(sorted(df.columns, key=lambda x: (x[1], x[0])), axis=1)
     with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-        plot(df, path.basename(args.growth_stats.name), counttype, out, estimate_growth=args.estimate_growth_params)
+        plot(df, path.basename(args.growth_stats.name), counttype, out,
+                loc=args.legend_location,
+                estimate_growth=args.estimate_growth_params)
 
