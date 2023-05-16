@@ -111,13 +111,13 @@ if __name__ == '__main__':
         arg_list = arg_list.split(' ')
         counttype = 'node'
         if '-c' in arg_list:
-            countttype = arg_list[arg_list.index('-c')+1]
+            counttype = arg_list[arg_list.index('-c')+1]
         elif '--count' in arg_list:
-            countttype = arg_list[arg_list.index('--count')+1]
+            counttype = arg_list[arg_list.index('--count')+1]
 
     df = pd.read_csv(args.growth_stats, sep='\t', header=[1,2], index_col=[0])
     df.columns = df.columns.map(lambda x: (int(x[0]), int(x[1])))
     df = df.reindex(sorted(df.columns, key=lambda x: (x[1], x[0])), axis=1)
     with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-        plot(df, path.basename(args.growth_stats.name), countttype, out, estimate_growth=args.estimate_growth_params)
+        plot(df, path.basename(args.growth_stats.name), counttype, out, estimate_growth=args.estimate_growth_params)
 
