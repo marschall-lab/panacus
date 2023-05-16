@@ -50,7 +50,7 @@ pub enum Params {
 
         #[clap(short, long,
         help = "Graph quantity to be counted",
-        default_value = "nodes",
+        default_value = "node",
         ignore_case = true,
         value_parser = clap_enum_variants!(CountType),
     )]
@@ -69,7 +69,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
             default_value = ""
         )]
         negative_list: String,
@@ -113,7 +113,7 @@ pub enum Params {
 
         #[clap(short, long,
         help = "Graph quantity to be counted",
-        default_value = "nodes",
+        default_value = "node",
         ignore_case = true,
         value_parser = clap_enum_variants!(CountType),
     )]
@@ -132,7 +132,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bps/nodes/edges will be exluded also in other paths not part of the given list",
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
             default_value = ""
         )]
         negative_list: String,
@@ -198,7 +198,7 @@ pub enum Params {
 
         #[clap(short, long,
         help = "Graph quantity to be counted",
-        default_value = "nodes",
+        default_value = "node",
         ignore_case = true,
         value_parser = clap_enum_variants!(CountType),
     )]
@@ -217,7 +217,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
             default_value = ""
         )]
         negative_list: String,
@@ -262,7 +262,7 @@ pub enum Params {
 
         #[clap(short, long,
             help = "Graph quantity to be counted",
-            default_value = "nodes",
+            default_value = "node",
             ignore_case = true,
             value_parser = clap_enum_variants!(CountType),
         )]
@@ -289,7 +289,7 @@ pub enum Params {
             name = "exclude",
             short,
             long,
-            help = "Exclude bps/nodes/edges in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
             default_value = ""
         )]
         negative_list: String,
@@ -375,7 +375,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edges)?;
+            let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edge)?;
             log::info!(
                 "..done; found {} paths/walks and {} nodes{}",
                 graph_aux.path_segments.len(),

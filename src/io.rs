@@ -617,7 +617,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     // coodinates
     //
     let mut subset_covered_bps: Option<IntervalContainer> =
-        if abacus_aux.count == CountType::Bps && abacus_aux.include_coords.is_some() {
+        if abacus_aux.count == CountType::Bp && abacus_aux.include_coords.is_some() {
             Some(IntervalContainer::new())
         } else {
             None
@@ -629,7 +629,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
         ActiveTable::new(
             graph_aux.number_of_items(&abacus_aux.count),
-            abacus_aux.count == CountType::Bps,
+            abacus_aux.count == CountType::Bp,
         )
     });
 
@@ -696,7 +696,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                 continue;
             }
 
-            if abacus_aux.count != CountType::Edges
+            if abacus_aux.count != CountType::Edge
                 && (abacus_aux.include_coords.is_none()
                     || is_contained(include_coords, &(start, end)))
             {
@@ -732,7 +732,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                 };
 
                 match abacus_aux.count {
-                    CountType::Nodes | CountType::Bps => update_tables(
+                    CountType::Node | CountType::Bp => update_tables(
                         &mut item_table,
                         &mut subset_covered_bps.as_mut(),
                         &mut exclude_table.as_mut(),
@@ -743,7 +743,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                         exclude_coords,
                         start,
                     ),
-                    CountType::Edges => update_tables_edgecount(
+                    CountType::Edge => update_tables_edgecount(
                         &mut item_table,
                         &mut exclude_table.as_mut(),
                         num_path,

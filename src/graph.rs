@@ -205,8 +205,8 @@ impl GraphAuxilliary {
 
     pub fn number_of_items(&self, c: &CountType) -> usize {
         match c {
-            &CountType::Nodes | &CountType::Bps => self.node_count,
-            &CountType::Edges => self.edge_count,
+            &CountType::Node | &CountType::Bp => self.node_count,
+            &CountType::Edge => self.edge_count,
         }
     }
 

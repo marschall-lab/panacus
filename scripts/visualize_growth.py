@@ -65,10 +65,10 @@ def plot(df, fname, counttype, out, estimate_growth=False):
 
     # let's do it!
     for i, (c,q) in enumerate(df.columns):
-        df[(c, q)].plot.bar(figsize=(10, 6), color=f'C{i}', label=f'coverage >={c}, quorum >= {q}')
+        df[(c, q)].plot.bar(figsize=(10, 6), color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$')
         if estimate_growth and q == 1:
             popt, curve = compute_growth(df[(c,q)].array)
-            plt.plot(curve, '--',  color='black', label=f'coverage >={c}, quorum >= {q}, least-squares fit to m*X^γ (m={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+            plt.plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$, LS-fit to $m X^γ$ (m={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
     _ = plt.xticks(rotation=65)
 
     yticks, _ = plt.yticks()
@@ -77,7 +77,7 @@ def plot(df, fname, counttype, out, estimate_growth=False):
     plt.title(f'Pangenome growth ({fname})')
     plt.ylabel(f'#{counttype}')
     plt.xlabel('samples')
-    plt.legend()
+    plt.legend(loc='lower left')
     plt.tight_layout()
     plt.savefig(out, format='pdf')
     plt.close()
@@ -109,7 +109,7 @@ if __name__ == '__main__':
             exit(1)
 
         arg_list = arg_list.split(' ')
-        counttype = 'nodes'
+        counttype = 'node'
         if '-c' in arg_list:
             countttype = arg_list[arg_list.index('-c')+1]
         elif '--count' in arg_list:

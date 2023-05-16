@@ -25,9 +25,9 @@ unsafe impl Sync for Wrap<Vec<Vec<ItemIdSize>>> {}
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
 #[strum(serialize_all = "lowercase")]
 pub enum CountType {
-    Nodes,
-    Bps,
-    Edges,
+    Node,
+    Bp,
+    Edge,
 }
 
 impl fmt::Display for CountType {
@@ -36,9 +36,9 @@ impl fmt::Display for CountType {
             formatter,
             "{}",
             match self {
-                CountType::Nodes => "nodes",
-                CountType::Edges => "edges",
-                CountType::Bps => "bps",
+                CountType::Node => "node",
+                CountType::Edge => "edge",
+                CountType::Bp => "bp",
             }
         )
     }
