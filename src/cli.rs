@@ -14,6 +14,12 @@ use crate::graph::*;
 use crate::hist::*;
 use crate::util::*;
 
+pub enum RequireThreshold {
+    Absolute,
+    Relative,
+    Either,
+}
+
 //
 // Credit: Johan Andersson (https://github.com/repi)
 // Code from https://github.com/clap-rs/clap/discussions/4264
@@ -85,8 +91,8 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of absolute quorum thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
-            default_value = "1"
+            help = "List of quorum fractions of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
+            default_value = "0"
         )]
         quorum: String,
 
@@ -166,8 +172,8 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of absolute quorum thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
-            default_value = "1"
+            help = "List of quorum fractions of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
+            default_value = "0"
         )]
         quorum: String,
 
@@ -233,8 +239,8 @@ pub enum Params {
         #[clap(
             short,
             long,
-            help = "List of absolute quorum thresholds of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
-            default_value = "1"
+            help = "List of quorum fractions of the form <level1>,<level2>,.. or a file that provides these levels line-by-line.",
+            default_value = "0"
         )]
         quorum: String,
 
@@ -312,24 +318,55 @@ pub enum Params {
     },
 }
 
-pub fn parse_threshold_cli(threshold_str: &str) -> Result<Vec<Threshold>, std::io::Error> {
+pub fn parse_threshold_cli(
+    threshold_str: &str,
+    require: RequireThreshold,
+) -> Result<Vec<Threshold>, std::io::Error> {
     let mut thresholds = Vec::new();
 
     for (i, el) in threshold_str.split(',').enumerate() {
-        if let Some(t) = usize::from_str(el.trim()).ok() {
-            thresholds.push(Threshold::Absolute(t));
-        } else if let Some(t) = f64::from_str(el.trim()).ok() {
-            thresholds.push(Threshold::Relative(t));
-        } else {
-            return Err(std::io::Error::new(
+        let rel_val = match f64::from_str(el.trim()) {
+            Ok(t) => {
+                if 0.0 <= t && t <= 1.0 {
+                    Ok(t)
+                } else {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "relative threshold \"{}\" ({}. element in list) must be within [0,1].",
+                            &threshold_str,
+                            i + 1
+                        ),
+                    ))
+                }
+            }
+            Err(_) => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                &format!(
-                    "threshold \"{}\" ({}. element in list) is neither an integer nor a float",
+                format!(
+                    "threshold \"{}\" ({}. element in list) is required to be float, but isn't.",
                     &threshold_str,
                     i + 1
-                )[..],
-            ));
-        }
+                ),
+            )),
+        };
+
+        thresholds.push(
+            match require {
+                RequireThreshold::Absolute => Threshold::Absolute(usize::from_str(el.trim()).map_err(|_|
+                    std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("threshold \"{}\" ({}. element in list) is required to be integer, but isn't.",
+                    &threshold_str,
+                    i + 1)))?),
+            RequireThreshold::Relative => Threshold::Relative(rel_val?),
+            RequireThreshold::Either =>
+        if let Some(t) = usize::from_str(el.trim()).ok() {
+            Threshold::Absolute(t)
+        } else {
+            Threshold::Relative(rel_val?)
+            }
+            }
+            );
     }
     Ok(thresholds)
 }

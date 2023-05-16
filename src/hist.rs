@@ -208,7 +208,8 @@ impl HistAuxilliary {
                 let mut data = std::io::BufReader::new(fs::File::open(quorum)?);
                 quorum_thresholds = io::parse_threshold_file(&mut data)?;
             } else {
-                quorum_thresholds = cli::parse_threshold_cli(&quorum[..])?;
+                quorum_thresholds =
+                    cli::parse_threshold_cli(&quorum[..], cli::RequireThreshold::Relative)?;
             }
             log::debug!(
                 "loaded {} quorum thresholds: {}",
@@ -234,7 +235,8 @@ impl HistAuxilliary {
                 let mut data = std::io::BufReader::new(fs::File::open(coverage)?);
                 coverage_thresholds = io::parse_threshold_file(&mut data)?;
             } else {
-                coverage_thresholds = cli::parse_threshold_cli(&coverage[..])?;
+                coverage_thresholds =
+                    cli::parse_threshold_cli(&coverage[..], cli::RequireThreshold::Absolute)?;
             }
             log::debug!(
                 "loaded {} coverage thresholds: {}",
