@@ -59,7 +59,7 @@ def fit_alpha(Y):
     return fit(X, Y, lambda x, *y:  y[0]*x**(-y[1]))
 
 
-def plot_hist(df, fname, counttype, out, loc='lower left'):
+def plot_hist(df, fname, counttype, out, loc='lower left', figsize=(10, 6)):
 
     # setup fancy plot look
     sns.set_theme(style='darkgrid')
@@ -67,7 +67,7 @@ def plot_hist(df, fname, counttype, out, loc='lower left'):
     sns.set_palette('husl')
     sns.despine(left=True, bottom=True)
 
-    df.plot.bar(figsize=(10, 6))
+    df.plot.bar(figsize=figsize)
     plt.xticks(rotation=65)
 
     yticks, _ = plt.yticks()
@@ -80,7 +80,7 @@ def plot_hist(df, fname, counttype, out, loc='lower left'):
     plt.savefig(out, format='pdf')
     plt.close()
 
-def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=False):
+def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=False, figsize=(10, 6)):
 
     # setup fancy plot look
     sns.set_theme(style='darkgrid')
@@ -90,9 +90,9 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
 
     # let's do it!
     if estimate_growth and (df.columns.levels[1] > 1/df.shape[0]).any():
-        f, axs = plt.subplots(2,1, figsize=(10, 12))
+        f, axs = plt.subplots(2,1, figsize=(figsize[0], 2*figsize[1]))
     else:
-        f, ax = plt.subplots(1,1, figsize=(10, 6))
+        f, ax = plt.subplots(1,1, figsize=figsize)
         axs = [ax]
 
     popts = list()
@@ -171,6 +171,8 @@ if __name__ == '__main__':
             choices = ['lower left', 'lower right', 'upper left', 'upper right'], 
             default = 'lower left',
             help='Estimate growth parameters based on least-squares fit')
+    parser.add_argument('-s', '--figsize', nargs=2, type=int, default=[10, 6],
+            help='Set size of figure canvas')
 
     args = parser.parse_args()
 
@@ -184,12 +186,13 @@ if __name__ == '__main__':
         with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
             plot_growth(df, path.basename(args.stats.name), counttype, out,
                     loc=args.legend_location,
-                    estimate_growth=args.estimate_growth_params)
+                    estimate_growth=args.estimate_growth_params,
+                    figsize=args.figsize)
     elif command == 'hist':
         df = pd.read_csv(args.stats, sep='\t', header=[1], index_col=[0])
         with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
             plot_hist(df, path.basename(args.stats.name), counttype, out,
-                    loc=args.legend_location)
+                    loc=args.legend_location, figsize=args.figsize)
     else:
         print(f'This script cannot visualize the contents of input file {args.stats.name}, exiting.', file=stderr)
         exit(1)
