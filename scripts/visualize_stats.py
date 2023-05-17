@@ -107,7 +107,7 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
     axs[0].set_yticklabels(calibrate_yticks_text(yticks))
 
     axs[0].set_title(f'Pangenome growth ({fname})')
-    axs[0].set_ylabel(f'#{counttype}')
+    axs[0].set_ylabel(f'#{counttype}s')
     axs[0].set_xlabel('samples')
     axs[0].legend(loc=loc)
 
