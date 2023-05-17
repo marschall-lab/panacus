@@ -290,7 +290,9 @@ impl AbacusByTotal {
 
         for (i, cov) in self.countable.iter().enumerate() {
             if *cov as usize >= hist.len() {
-                log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
+                if i != 0 {
+                    log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
+                }
             } else {
                 hist[*cov as usize] += 1;
             }
@@ -315,7 +317,9 @@ impl AbacusByTotal {
         let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
         for (id, cov) in self.countable.iter().enumerate() {
             if *cov as usize >= hist.len() {
-                log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, id, self.groups.len());
+                if id != 0 {
+                    log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, id, self.groups.len());
+                }
             } else {
                 hist[*cov as usize] += self.graph_aux.node_len_ary[id] as usize;
             }
