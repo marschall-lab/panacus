@@ -121,7 +121,7 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
             k2 = popt[0]
             alpha = popt[1]
             Y = k2*df.index.array**(-alpha)
-            axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
+            axs[1].plot(Y.to_numpy(), '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
