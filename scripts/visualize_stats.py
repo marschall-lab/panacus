@@ -46,16 +46,17 @@ def calibrate_yticks_text(yticks):
 
     return yticks_text
 
-def fit(Y, func):
-    X = np.arange(len(Y))+1
+def fit(X, Y, func):
     popt, pcov = curve_fit(func, X, Y, p0=[1, 1], maxfev=1000*len(Y))
     return popt, func(X, *popt)
 
 def fit_gamma(Y):
-    return fit(Y, lambda x, *y: y[0]*x**y[1])
+    X = np.arange(len(Y))+1
+    return fit(X, Y, lambda x, *y: y[0]*x**y[1])
 
 def fit_alpha(Y):
-    return fit(Y, lambda x, *y:  y[0]*x**(-y[1]))
+    X = np.arange(len(Y))+2
+    return fit(X, Y, lambda x, *y:  y[0]*x**(-y[1]))
 
 
 def plot_hist(df, fname, counttype, out, loc='lower left'):
@@ -119,7 +120,7 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
             popt, _ = fit_alpha((df.loc[2:, (c, q)] - x[1:]).array)
             k2 = popt[0]
             alpha = popt[1]
-            Y = k2*np.arange(df.shape[0])**(-alpha)
+            Y = k2*df.index.array**(-alpha)
             axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
