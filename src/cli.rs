@@ -508,27 +508,30 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Histgrowth { .. } | Params::Growth { .. } | Params::OrderedHistgrowth { .. } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
 
-            let growths: Vec<Vec<usize>> = hist_aux
+            //let growths: Vec<Vec<usize>> = hist_aux
+            let growths: Vec<Vec<f64>> = hist_aux
                 .coverage
                 .par_iter()
                 .zip(&hist_aux.quorum)
-                .map(|(c, q)| {
-                    match params {
-                        Params::OrderedHistgrowth { .. } => {
-                            if let Abacus::Group(abacus_group) = &abacus {
-                                log::info!("calculating ordered growth for coverage >= {} and quorum >= {}", &c, &q);
-                                abacus_group.calc_growth(&c, &q)
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                        _ => {
-                            log::info!("calculating growth for coverage >= {} and quorum >= {}", &c, &q);
-                            // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
-                            hist.as_ref().unwrap().calc_growth(&c, &q)
-                        }
-                    }
-                })
+                .map(|(c, q)| { hist.as_ref().unwrap().calc_growth(&c, &q)}
+                //.map(|(c, q)| {
+                //    match params {
+                //        Params::OrderedHistgrowth { .. } => {
+                //            if let Abacus::Group(abacus_group) = &abacus {
+                //                log::info!("calculating ordered growth for coverage >= {} and quorum >= {}", &c, &q);
+                //                abacus_group.calc_growth(&c, &q)
+                //            } else {
+                //                unreachable!()
+                //            }
+                //        }
+                //        _ => {
+                //            log::info!("calculating growth for coverage >= {} and quorum >= {}", &c, &q);
+                //            // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
+                //            hist.as_ref().unwrap().calc_growth(&c, &q)
+                //        }
+                //    }
+                //})
+                )
                 .collect();
 
             // number of groups

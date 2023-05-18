@@ -13,6 +13,27 @@ pub struct Hist {
     pub coverage: Vec<usize>,
 }
 
+pub fn choose(n: usize, k: usize) -> f64 {
+    let mut res: f64 = 0.0;
+    if k > n {
+        return 0.0
+    }
+ 
+    let k = if k > n - k {
+        n - k
+    } else {
+        k
+    };
+    
+    let n = n as f64;
+
+    for i in 0..k {
+        res += (n - i as f64).log2();
+        res -= (i as f64 + 1.0).log2();
+    }
+    res
+}
+
 impl Hist {
     pub fn from_tsv<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
@@ -30,7 +51,7 @@ impl Hist {
         }
     }
 
-    pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize> {
+    pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
         let n = self.coverage.len() - 1;
         let quorum = usize::max(1, t_quorum.to_absolute(n));
         if quorum == 1 {
@@ -42,123 +63,106 @@ impl Hist {
         }
     }
 
-    pub fn calc_growth_union(&self, t_coverage: &Threshold) -> Vec<usize> {
+    pub fn calc_growth_union(&self, t_coverage: &Threshold) -> Vec<f64> {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
         let c = usize::max(1, t_coverage.to_absolute(n));
 
-        //while self.coverage[n] == 0 {
-        //    n -= 1;
-        //}
-
-        // coverage threshold setting can be used to cut computation time, because the c-1 last
-        // values do not change and thus can be copied from the previous value. We have
-        // self.coverage.len() - 1 - (c - 1) =  self.coverage.len() - c
-        // n = usize::min(n, self.coverage.len() - c);
-
-        let mut pangrowth: Vec<usize> = vec![0; n + 1];
-        let mut n_fall_m = rug::Integer::from(1);
-        let tot = rug::Integer::from(self.coverage[c..].iter().sum::<usize>());
+        let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
+        let mut n_fall_m: f64 = 0.0;
+        let tot = self.coverage[c..].iter().sum::<usize>() as f64;
 
         // perc_mult[i] contains the percentage of combinations that
         // have an item of multiplicity i
-        let mut perc_mult: Vec<rug::Integer> = Vec::with_capacity(n + 1);
-        perc_mult.resize(n + 1, rug::Integer::from(1));
+        let mut perc_mult: Vec<f64> = Vec::with_capacity(n + 1);
+        perc_mult.resize(n + 1, 0.0);
 
         for m in 1..n + 1 {
-            let mut y = rug::Integer::from(0);
+            let mut y: f64 = 0.0;
+            n_fall_m += (n as f64 - m as f64 + 1.0).log2();
             for i in c..n - m + 1 {
-                perc_mult[i] *= n - m - i + 1;
-                y += self.coverage[i] * &perc_mult[i];
+                perc_mult[i] += (n as f64 - m as f64 - i as f64 + 1.0).log2();
+                y += ((self.coverage[i] as f64).log2() + perc_mult[i] - n_fall_m).exp2();
             }
-            n_fall_m *= n - m + 1;
 
-            let dividend: rug::Integer = rug::Integer::from(&n_fall_m * &tot - &y);
-            let divisor: rug::Integer = rug::Integer::from(&n_fall_m);
-            let (pang_m, _) = dividend.div_rem(rug::Integer::from(divisor));
-            pangrowth[m] = pang_m.to_usize().unwrap();
+            pangrowth[m] = tot - y;
         }
 
-        //       for x in n..self.coverage.len() - 1 {
-        //           log::debug!("value {} copied from previous", x + 1);
-        //           pangrowth[x] = pangrowth[x - 1];
-        //       }
-
         pangrowth
+
     }
 
-    pub fn calc_growth_core(&self, t_coverage: &Threshold) -> Vec<usize> {
+    pub fn calc_growth_core(&self, t_coverage: &Threshold) -> Vec<f64> {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
-        let c = usize::max(1, t_coverage.to_absolute(n));
-        let mut n_fall_m = rug::Integer::from(1);
-        let mut pangrowth: Vec<usize> = vec![0; n + 1];
+        let c = usize::max(1, t_coverage.to_absolute(n + 1));
+        let mut n_fall_m: f64 = 0.0;
+        let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
 
         // In perc_mult[i] is contained the percentage of combinations
         // that have an item of multiplicity i
-        let mut perc_mult: Vec<rug::Integer> = Vec::with_capacity(n + 1);
-        perc_mult.resize(n + 1, rug::Integer::from(1));
+        let mut perc_mult: Vec<f64> = Vec::with_capacity(n + 1);
+        perc_mult.resize(n + 1, 0.0);
 
         for m in 1..n + 1 {
-            let mut y = rug::Integer::from(0);
+            let mut y: f64 = 0.0;
+            n_fall_m += (n as f64 - m as f64 + 1.0).log2();
             for i in usize::max(m, c)..n + 1 {
-                perc_mult[i] *= i - m + 1;
-                y += self.coverage[i] * &perc_mult[i];
+                perc_mult[i] += (i as f64 - m as f64 + 1.0).log2();
+                y += ((self.coverage[i] as f64).log2() + perc_mult[i] - n_fall_m).exp2();
             }
-            n_fall_m *= n - m + 1;
-
-            let (pang_m, _) = y.div_rem(rug::Integer::from(&n_fall_m));
-            pangrowth[m] = pang_m.to_usize().unwrap();
+            pangrowth[m] = y;
         }
 
         pangrowth
     }
 
-    pub fn calc_growth_quorum(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize> {
-        let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
+    pub fn calc_growth_quorum(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
+        let n = self.coverage.len() - 1; // hist array has length n+1: from [0..n] 
         let c = usize::max(1, t_coverage.to_absolute(n));
         let quorum = t_quorum.to_relative(n);
-        let mut pangrowth: Vec<usize> = vec![0; n + 1];
+        let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
 
-        let mut n_fall_m = rug::Integer::from(1);
-        let mut m_fact = rug::Integer::from(1);
+        let mut n_fall_m: f64 = 0.0;
+        let mut m_fact: f64 = 0.0;
 
-        let mut perc_mult = vec![rug::Integer::from(1); n + 1];
-        let mut q = vec![vec![rug::Integer::from(0); n + 1]; n + 1];
+        let mut perc_mult: Vec<f64> = vec![0.0; n + 1];
+        let mut q: Vec<Vec<f64>> = vec![vec![0.0; n + 1]; n + 1];
 
         for m in 1..n + 1 {
-            m_fact *= m;
+            m_fact += (m as f64).log2();
             let m_quorum = (m as f64 * quorum).ceil() as usize;
 
             //100% quorum
-            let mut yl = rug::Integer::from(0);
+            let mut yl: f64 = 0.0;
+            n_fall_m += (n as f64 - m as f64 + 1.0).log2();
             for i in usize::max(m, c)..n + 1 {
-                perc_mult[i] *= i - m + 1;
-                yl += self.coverage[i] * &perc_mult[i];
+                perc_mult[i] += (i as f64 - m as f64 + 1.0).log2();
+                yl += ((self.coverage[i] as f64).log2() + perc_mult[i] - n_fall_m).exp2();
             }
-            n_fall_m *= n - m + 1;
 
             //[m_quorum, 100) quorum
-            let mut yr = rug::Integer::from(0);
-            for i in m_quorum..n + 1 {
-                let mut sum_q = rug::Integer::from(0);
+            let mut yr: f64 = 0.0;
+            for i in m_quorum..n {
+                let mut sum_q = 0.0;
+                let mut add = false;
                 for j in usize::max(m_quorum, c)..m {
-                    if n + j + 1 > i + m {
-                        if q[i][j] == 0 {
-                            let ii = rug::Integer::from(i);
-                            q[i][j] = ii.binomial(j as u32);
+                    if n + j + 1 > i + m && j <= i{
+                        if q[i][j] == 0.0  {
+                            q[i][j] = choose(i,j);
                         }
-                        q[i][j] *= n - i - m + 1 + j;
-                        q[i][j] /= m - j;
-                        sum_q += &q[i][j];
+                        q[i][j] += (n as f64 - i as f64 - m as f64 + 1.0 + j as f64).log2();
+                        q[i][j] -= (m as f64 - j as f64).log2();
+                        sum_q += q[i][j].exp2();
+                        add=true;
                     }
                 }
-                yr += self.coverage[i] * sum_q;
+                if add {
+                    yr += ((self.coverage[i] as f64).log2() + sum_q.log2() + m_fact - n_fall_m).exp2();
+                }
             }
-
-            let y = yl + yr * &m_fact;
-            let (pang_m, _) = y.div_rem(rug::Integer::from(&n_fall_m));
-            pangrowth[m] = pang_m.to_usize().unwrap();
+            pangrowth[m] = yl + yr;
         }
         pangrowth
+
     }
 
     pub fn to_tsv<W: std::io::Write>(
