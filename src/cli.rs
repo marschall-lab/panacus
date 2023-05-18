@@ -1,5 +1,4 @@
 /* standard crate */
-use std::fs;
 use std::io::{BufWriter, Write};
 use std::str::FromStr;
 
