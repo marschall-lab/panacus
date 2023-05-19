@@ -1,5 +1,6 @@
 **/*.swo
 **/*.swp
+**/.DS_Store
 Cargo.lock
-target/
 binary_release/
+target/
