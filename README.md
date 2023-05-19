@@ -12,7 +12,7 @@
 
 ## Dependencies
 
-`panacus` is written in (RUST)[https://www.rust-lang.org/] and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
+`panacus` is written in [RUST](https://www.rust-lang.org/) and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
 
 - clap
 - itertools
