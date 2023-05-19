@@ -85,8 +85,7 @@ paste chr22.hprc-v1.0-pggb.paths.txt chr22.hprc-v1.0-pggb.groupnames.txt > chr22
 ```
 3. Prepare file to select subset of paths corresponding to haplotypes:
 ```shell
-grep -ve 'grch38\|chm13' chr22.hprc-v1.0-pggb.paths.txt > chr22.hprc
--v1.0-pggb.paths.haplotypes.txt
+grep -ve 'grch38\|chm13' chr22.hprc-v1.0-pggb.paths.txt > chr22.hprc-v1.0-pggb.paths.haplotypes.txt
 ```
 4. Run `panacus histgrowth` to calculate pangenome growth for nodes (default) with quorum tresholds 0, 1, 0.5, and 0.1 using up to 4 threads:
 ```shell
