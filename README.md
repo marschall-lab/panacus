@@ -93,7 +93,7 @@ RUST_LOG=info ./target/release/panacus histgrowth -t4 -q 0,1,0.5,0.1 -g chr22.hp
 ```
 5. Visualize growth curve and estimate growth parameters :
 ```shell
-./scripts/panacus-visualize.py -e pggb/chr22.hprc-v1.0-pggb.histgrowth.node.txt > pggb/chr22.hprc-v1.0-pggb.histgrowth.node.pdf
+./scripts/panacus-visualize.py -e chr22.hprc-v1.0-pggb.histgrowth.node.txt > chr22.hprc-v1.0-pggb.histgrowth.node.pdf
 ```
 
 ![ nodes in hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.histgrowth.node.png?raw=true "pangenome growth statistics on the HPRC v.1.0 pggb, chr 22")
