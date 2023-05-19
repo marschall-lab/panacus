@@ -1,40 +1,90 @@
-# Generate Growth Plots for Pangenome Graphs
+# A Counting Tool for Pangenome Graphs
 
-![Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa](docs/nodes_ordered.png?raw=true "Cumulative, major, and shared number of nodes in hprc-v1.0-pggb.gfa")
+`panacus` is a tool for computing counting statistics of (GFA)[https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md] files. It supports `P` and
+`W` lines, but requires that the graph is `blunt`, i.e., nodes do not overlap and consequently, each link (`L`) points from the end of one segment
+(`S`) to the start of another.
 
+`panacus` supports the following calculations:
 
-![Cumulative, major, and shared number of edges in hprc-v1.0-pggb.gfa](docs/edges_ordered.png?raw=true "Cumulative, major, and shared number of edges in hprc-v1.0-pggb.gfa")
+- coverage histogram
+- pangenome growth statistics
+- path-/group-resolved coverage table
+
+## Dependencies
+
+`panacus` is written in (RUST)[https://www.rust-lang.org/] and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
+
+- clap
+- itertools
+- quick-csv
+- rand
+- rayon
+- regex
+- rustc-hash
+- strum, strum_macros
+
+`panacus` provides a Python script for visualizing the calculated counting statistics and requires the following Python libraries:
+
+- matplotlib
+- numpy
+- pandas
+- scikit-learn
+- scipy
+- seaborn
+
 ## Build
 
 `cargo build --release`
 
 ## Run
 
+```console
+$ ./target/release/panacus
+Calculate count statistics for pangenomic data
+
+Usage: panacus <COMMAND>
+
+Commands:
+  histgrowth          Run in default mode, i.e., run hist and growth successively and output the results of the latter
+  hist                Calculate coverage histogram from GFA file
+  growth              Construct growth table from coverage histogram
+  ordered-histgrowth  Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)
+  table               Compute coverage table for count items
+  help                Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
 ```
-pangenome-growth 0.1
-Daniel Doerr <daniel.doerr@hhu.de>
-Calculate growth statistics for pangenome graphs
 
-USAGE:
-    pangenome-growth [OPTIONS] <GRAPH> <SAMPLES>
+## Pangenome Growth Statistics
 
-ARGS:
-    <GRAPH>      graph in GFA1 format
-    <SAMPLES>    file of samples; their order determines the cumulative count
+Here's a quick example for computing pangenome growth statistics on the HPRC v.1.0 pggb, chr 22: 
 
-OPTIONS:
-    -d, --minimum_depth <MIN_DEPTH>     minimum depth of a node to be considered in cumulative count
-                                        [default: 1]
-    -f, --fix_first                     only relevant if permuted_repeats > 0; fixes the first
-                                        sample (and its haplotypes) to be the first in all
-                                        permutations
-    -h, --help                          Print help information
-    -m, --merge_chromosomes             merge haplotype paths within samples whose names start with
-                                        'chr'
-    -r, --permuted_repeats <PERMUTE>    if larger 0, the haplotypes are not added in given order,
-                                        but by a random permutation; the process is repeated a given
-                                        number of times [default: 0]
-    -t, --type <COUNT_TYPE>             type: node or edge count [default: nodes] [possible values:
-                                        nodes, edges, bp]
-    -V, --version                       Print version information
+1. Download and unpack the graph:
+```shell
+wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chr22.hprc-v1.0-pggb.gfa.gz
+gunzip chr22.hprc-v1.0-pggb.gfa.gz
 ```
+2. Prepare file to group paths by sample:
+```shell
+grep '^P' chr22.hprc-v1.0-pggb.gfa | cut -f2 > chr22.hprc-v1.0-pggb.paths.txt
+cut -f1 -d\# chr22.hprc-v1.0-pggb.paths.txt > chr22.hprc-v1.0-pggb.groupnames.txt
+paste chr22.hprc-v1.0-pggb.paths.txt chr22.hprc-v1.0-pggb.groupnames.txt > chr22.hprc-v1.0-pggb.groups.txt
+```
+3. Prepare file to select subset of paths corresponding to haplotypes:
+```shell
+grep -ve 'grch38\|chm13' chr22.hprc-v1.0-pggb.paths.txt > chr22.hprc
+-v1.0-pggb.paths.haplotypes.txt
+```
+4. Run `panacus histgrowth` to calculate pangenome growth for nodes (default) with quorum tresholds 0, 1, 0.5, and 0.1 using up to 4 threads:
+```shell
+RUST_LOG=info ./target/release/panacus histgrowth chr22.hprc-v1.0-pggb.gfa -t4 -q 0,1,0.5,0.1 -g chr22.hprc-v1.0-pggb.groups.txt -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.txt
+```
+5. Visualize growth curve and estimate growth parameters :
+```shell
+./scripts/panacus-visualize.py -e pggb/chr22.hprc-v1.0-pggb.histgrowth.node.txt > pggb/chr22.hprc-v1.0-pggb.histgrowth.node.pdf
+```
+
+![ nodes in hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.histgrowth.node.png?raw=true "pangenome growth statistics on the HPRC v.1.0 pggb, chr 22")
+
