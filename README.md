@@ -89,7 +89,7 @@ grep -ve 'grch38\|chm13' chr22.hprc-v1.0-pggb.paths.txt > chr22.hprc-v1.0-pggb.p
 ```
 4. Run `panacus histgrowth` to calculate pangenome growth for nodes (default) with quorum tresholds 0, 1, 0.5, and 0.1 using up to 4 threads:
 ```shell
-RUST_LOG=info ./target/release/panacus histgrowth chr22.hprc-v1.0-pggb.gfa -t4 -q 0,1,0.5,0.1 -g chr22.hprc-v1.0-pggb.groups.txt -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.txt
+RUST_LOG=info ./target/release/panacus histgrowth -t4 -q 0,1,0.5,0.1 -g chr22.hprc-v1.0-pggb.groups.txt -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.txt
 ```
 5. Visualize growth curve and estimate growth parameters :
 ```shell
