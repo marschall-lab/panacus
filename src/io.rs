@@ -628,7 +628,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     //
     let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
         ActiveTable::new(
-            graph_aux.number_of_items(&abacus_aux.count),
+            graph_aux.number_of_items(&abacus_aux.count)+1,
             abacus_aux.count == CountType::Bp,
         )
     });

@@ -256,7 +256,7 @@ impl fmt::Display for Threshold {
 impl Threshold {
     pub fn to_string(&self) -> String {
         match self {
-            Threshold::Relative(c) => format!("{}%", c * 100.),
+            Threshold::Relative(c) => format!("{}", c),
             Threshold::Absolute(c) => format!("{}", c),
         }
     }
