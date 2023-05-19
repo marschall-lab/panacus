@@ -25,12 +25,12 @@ PAT_PANACUS = re.compile('^#.+panacus (\S+) (.+)')
 
 def humanize_number(i, precision=0):
 
-    assert i >= 0, f'non-negative number assumed, but received "{i}"'
+    #assert i >= 0, f'non-negative number assumed, but received "{i}"'
 
     order = 0
     x = i
-    if i > 0:
-        order = int(np.log10(i))//3
+    if abs(i) > 0:
+        order = int(np.log10(abs(i)))//3
         x = i/10**(order*3)
 
     human_r= ['', 'K', 'M', 'B', 'D']
@@ -97,11 +97,11 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
 
     popts = list()
     for i, (c,q) in enumerate(df.columns):
-        df[(c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$%', ax=axs[0])
-        if estimate_growth and q < 1/df.columns.shape[0]:
+        df[(c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
+        if estimate_growth and q < 1/df.shape[0]:
             popt, curve = fit_gamma(df[(c,q)].array)
             popts.append((c, q, popt, i))
-            axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+            axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
     yticks = axs[0].get_yticks()
@@ -116,12 +116,12 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
         for c, q, _, i in popts:
             x = np.zeros(df.shape[0])
             x[1:] = df.loc[:df.shape[0]-1, (c, q)]
-            (df[(c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q}$%', ax=axs[1])
+            (df[(c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
             popt, _ = fit_alpha((df.loc[2:, (c, q)] - x[1:]).array)
             k2 = popt[0]
             alpha = popt[1]
             Y = k2*df.index.array**(-alpha)
-            axs[1].plot(Y.to_numpy(), '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
+            axs[1].plot(Y.to_numpy(), '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
@@ -169,7 +169,7 @@ if __name__ == '__main__':
             help='Estimate growth parameters based on least-squares fit')
     parser.add_argument('-l', '--legend_location', 
             choices = ['lower left', 'lower right', 'upper left', 'upper right'], 
-            default = 'lower left',
+            default = 'upper left',
             help='Estimate growth parameters based on least-squares fit')
     parser.add_argument('-s', '--figsize', nargs=2, type=int, default=[10, 6],
             help='Set size of figure canvas')
@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
     if command in ['ordered-histgrowth', 'histgrowth', 'growth']:
         df = pd.read_csv(args.stats, sep='\t', header=[1,2], index_col=[0])
-        df.columns = df.columns.map(lambda x: (int(x[0]), float(x[1][:-1])))
+        df.columns = df.columns.map(lambda x: (int(x[0]), float(x[1])))
         df = df.reindex(sorted(df.columns, key=lambda x: (x[1], x[0])), axis=1)
         with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
             plot_growth(df, path.basename(args.stats.name), counttype, out,
