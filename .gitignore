@@ -2,3 +2,4 @@
 **/*.swp
 Cargo.lock
 target/
+binary_release/
