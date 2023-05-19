@@ -1,3 +1,5 @@
+[![Rust Build](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml/badge.svg)](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml) 
+
 # A Counting Tool for Pangenome Graphs
 
 `panacus` is a tool for computing counting statistics of [GFA](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md) files. It supports `P` and
