@@ -32,11 +32,20 @@
 - scipy
 - seaborn
 
+## Get `panacus`
+
+```shell
+git clone git@github.com:marschall-lab/panacus.git
+```
+
 ## Build
 
 ```shell
+cd panacus
 cargo build --release
 ```
+
+The compiled binary can be found in `target/release/` and is called `panacus`.
 
 ## Run
 
