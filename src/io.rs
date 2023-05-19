@@ -665,7 +665,10 @@ pub fn parse_gfa_itemcount<R: Read>(
             } else {
                 match include_map.get(&path_seg.id()) {
                     None => &[],
-                    Some(coords) => &coords[..],
+                    Some(coords) => {
+                        log::debug!("found include coords {:?} for path segment {}", &coords[..], &path_seg.id());
+                        &coords[..]
+                    }
                 }
             };
             let exclude_coords = if abacus_aux.exclude_coords.is_none() {

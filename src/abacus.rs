@@ -96,9 +96,9 @@ impl AbacusAuxilliary {
             Some(v) => {
                 v.into_iter()
                     .map(|p| {
-                        // check if path segment defined in subset coords associated with a
-                        // specific path segment (i.e., is not a group) by querying the
-                        // keys of the "groups" hashmap
+                        // check if path segment defined in coords associated with a specific path
+                        // segment (i.e., is not a group) by querying the keys of the "groups"
+                        // hashmap
                         if groups.contains_key(&p) {
                             Ok(vec![p])
                         } else if group2ps.contains_key(&p.id()) {
@@ -168,12 +168,18 @@ impl AbacusAuxilliary {
         // orders elements of path_segments by the order in abacus_aux.groups; the returned vector
         // maps indices of path_segments to the group identifier
 
+        let include : Option<HashSet<PathSegment>> = match &self.include_coords {
+            None => None,
+            Some(v) => Some(HashSet::from_iter(v.iter().cloned()))
+        };
         let mut group_order = Vec::new();
         let mut group_to_paths: HashMap<&str, Vec<&PathSegment>> = HashMap::default();
 
         let mut path_to_id: HashMap<&PathSegment, ItemIdSize> = HashMap::default();
         path_segments.iter().enumerate().for_each(|(i, s)| {
-            path_to_id.insert(s, i as ItemIdSize);
+            if include.is_none() || include.as_ref().unwrap().contains(s) {
+                path_to_id.insert(s, i as ItemIdSize);
+            }
         });
 
         self.groups.iter().for_each(|(k, v)| {
@@ -194,7 +200,7 @@ impl AbacusAuxilliary {
                     .get(g)
                     .unwrap()
                     .iter()
-                    .map(|x| (*path_to_id.get(x).unwrap(), g)),
+                    .filter_map(|x| path_to_id.get(x).map(|&z| (z, g))),
             );
         }
         res
