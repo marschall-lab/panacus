@@ -34,7 +34,9 @@
 
 ## Build
 
-`cargo build --release`
+```shell
+cargo build --release
+```
 
 ## Run
 
