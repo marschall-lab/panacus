@@ -1,5 +1,4 @@
 /* standard use */
-use std::fs;
 use std::io::Write;
 
 /* private use */

@@ -1,4 +1,5 @@
 /* standard crate */
+use std::fs;
 use std::io::{BufWriter, Write};
 use std::str::FromStr;
 
@@ -512,25 +513,23 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 .coverage
                 .par_iter()
                 .zip(&hist_aux.quorum)
-                .map(|(c, q)| { hist.as_ref().unwrap().calc_growth(&c, &q)}
-                //.map(|(c, q)| {
-                //    match params {
-                //        Params::OrderedHistgrowth { .. } => {
-                //            if let Abacus::Group(abacus_group) = &abacus {
-                //                log::info!("calculating ordered growth for coverage >= {} and quorum >= {}", &c, &q);
-                //                abacus_group.calc_growth(&c, &q)
-                //            } else {
-                //                unreachable!()
-                //            }
-                //        }
-                //        _ => {
-                //            log::info!("calculating growth for coverage >= {} and quorum >= {}", &c, &q);
-                //            // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
-                //            hist.as_ref().unwrap().calc_growth(&c, &q)
-                //        }
-                //    }
-                //})
-                )
+                .map(|(c, q)| {
+                    match params {
+                        Params::OrderedHistgrowth { .. } => {
+                            if let Abacus::Group(abacus_group) = &abacus {
+                                log::info!("calculating ordered growth for coverage >= {} and quorum >= {}", &c, &q);
+                                abacus_group.calc_growth(&c, &q)
+                            } else {
+                                unreachable!()
+                            }
+                        }
+                        _ => {
+                            log::info!("calculating growth for coverage >= {} and quorum >= {}", &c, &q);
+                            // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
+                            hist.as_ref().unwrap().calc_growth(&c, &q)
+                        }
+                    }
+                })
                 .collect();
 
             // number of groups
@@ -563,7 +562,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     write!(out, "{}", i)?;
                 }
                 for j in 0..hist_aux.quorum.len() {
-                    write!(out, "\t{}", growths[j][i])?;
+                    write!(out, "\t{:0}", growths[j][i].floor())?;
                 }
                 writeln!(out, "")?;
             }

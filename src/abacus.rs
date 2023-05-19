@@ -416,8 +416,8 @@ impl AbacusByGroup {
     }
 
     //Why &self and not self? we could destroy abacus at this point.
-    pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<usize> {
-        let mut res = vec![0; self.groups.len()];
+    pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
+        let mut res = vec![0.0; self.groups.len()];
 
         let c = usize::max(1, t_coverage.to_absolute(self.groups.len()));
         let q = usize::max(1, t_quorum.to_absolute(self.groups.len()));
@@ -433,10 +433,10 @@ impl AbacusByGroup {
                         >= q
                     {
                         match self.count {
-                            CountType::Node | CountType::Edge => res[j] += 1,
+                            CountType::Node | CountType::Edge => res[j] += 1.0,
                             CountType::Bp => {
-                                res[j] += self.graph_aux.node_len_ary[i] as usize
-                                    - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
+                                res[j] += (self.graph_aux.node_len_ary[i] as usize
+                                    - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)) as f64
                             }
                         }
                     }
