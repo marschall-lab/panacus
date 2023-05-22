@@ -1,4 +1,4 @@
-[![Rust Build](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml/badge.svg)](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml) 
+[![Rust Build](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml/badge.svg)](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml) [![Anaconda-Server Badge](https://anaconda.org/bioconda/panacus/badges/version.svg)](https://conda.anaconda.org/bioconda) [![Anaconda-Server Badge](https://anaconda.org/bioconda/panacus/badges/platforms.svg)](https://anaconda.org/bioconda/panacus) [![Anaconda-Server Badge](https://anaconda.org/bioconda/panacus/badges/license.svg)](https://anaconda.org/bioconda/panacus)
 
 # A Counting Tool for Pangenome Graphs
 
@@ -34,25 +34,64 @@
 - scipy
 - seaborn
 
-## Get panacus
+## Installation
 
+### From bioconda channel
+
+Make sure you have [conda](https://conda.io) installed!
+
+```shell
+conda install -c bioconda panacus
+```
+
+### From binary release 
+#### Linux x86\_64
+```shell
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2/panacus-0.2_linux_x86_64.tar.gz
+tar -xzvf panacus-0.2_linux_x86_64.tar.gz
+
+# suggestion: add tool to path in your ~/.bashrc
+export PATH="$(readlink -f panacus-0.2_linux_x86_64/bin)":$PATH
+
+# you are ready to go! 
+panacus --help
+```
+
+#### Mac OSX arm64
+```shell
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2/panacus-0.2_macos_arm64.tar.gz
+tar -xzvf panacus-0.2_macos_arm64.tar.gz
+
+# suggestion: add tool to path in your ~/.bashrc
+export PATH="$(readlink -f panacus-0.2_macos_arm64/bin)":$PATH
+
+# you are ready to go! 
+panacus --help
+```
+
+### From repository
 ```shell
 git clone git@github.com:marschall-lab/panacus.git
-```
 
-## Build
-
-```shell
 cd panacus
 cargo build --release
-```
 
-The compiled binary can be found in directory `target/release/` and is called `panacus`.
+mkdir bin
+ln -s ../target/release/panacus bin/
+ln -s ../scripts/panacus-visualize.py bin/panacus-visualize
+
+# suggestion: add tool to path in your ~/.bashrc
+export PATH="$(readlink -f bin)":$PATH
+
+# you are ready to go! 
+panacus --help
+
+```
 
 ## Run
 
 ```console
-$ ./target/release/panacus
+$ panacus
 Calculate count statistics for pangenomic data
 
 Usage: panacus <COMMAND>
@@ -91,11 +130,11 @@ grep -ve 'grch38\|chm13' chr22.hprc-v1.0-pggb.paths.txt > chr22.hprc-v1.0-pggb.p
 ```
 4. Run `panacus histgrowth` to calculate pangenome growth for nodes (default) with quorum tresholds 0, 1, 0.5, and 0.1 using up to 4 threads:
 ```shell
-RUST_LOG=info ./target/release/panacus histgrowth -t4 -q 0,1,0.5,0.1 -g chr22.hprc-v1.0-pggb.groups.txt -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.txt
+RUST_LOG=info panacus histgrowth -t4 -q 0,1,0.5,0.1 -g chr22.hprc-v1.0-pggb.groups.txt -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.txt
 ```
 5. Visualize growth curve and estimate growth parameters :
 ```shell
-./scripts/panacus-visualize.py -e chr22.hprc-v1.0-pggb.histgrowth.node.txt > chr22.hprc-v1.0-pggb.histgrowth.node.pdf
+panacus-visualize -e chr22.hprc-v1.0-pggb.histgrowth.node.txt > chr22.hprc-v1.0-pggb.histgrowth.node.pdf
 ```
 
 ![ nodes in hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.histgrowth.node.png?raw=true "pangenome growth statistics on the HPRC v.1.0 pggb, chr 22")
