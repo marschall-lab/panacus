@@ -89,7 +89,7 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
     sns.despine(left=True, bottom=True)
 
     # let's do it!
-    if estimate_growth and (df.columns.levels[1] > 1/df.shape[0]).any():
+    if estimate_growth and (df.columns.levels[0] <= 1).any() and (df.columns.levels[1] <= 1/df.shape[0]).any():
         f, axs = plt.subplots(2,1, figsize=(figsize[0], 2*figsize[1]))
     else:
         f, ax = plt.subplots(1,1, figsize=figsize)
@@ -98,7 +98,7 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
     popts = list()
     for i, (c,q) in enumerate(df.columns):
         df[(c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
-        if estimate_growth and q < 1/df.shape[0]:
+        if estimate_growth and c <= 1 and q <= 1/df.shape[0]:
             popt, curve = fit_gamma(df[(c,q)].array)
             popts.append((c, q, popt, i))
             axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
