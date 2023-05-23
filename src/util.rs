@@ -271,7 +271,7 @@ impl Threshold {
     pub fn to_relative(&self, n: usize) -> f64 {
         match self {
             Threshold::Relative(c) => *c,
-            Threshold::Absolute(c) => *c as f64/n as f64,
+            Threshold::Absolute(c) => *c as f64 / n as f64,
         }
     }
 }

@@ -15,15 +15,11 @@ pub struct Hist {
 pub fn choose(n: usize, k: usize) -> f64 {
     let mut res: f64 = 0.0;
     if k > n {
-        return 0.0
+        return 0.0;
     }
- 
-    let k = if k > n - k {
-        n - k
-    } else {
-        k
-    };
-    
+
+    let k = if k > n - k { n - k } else { k };
+
     let n = n as f64;
 
     for i in 0..k {
@@ -87,7 +83,6 @@ impl Hist {
         }
 
         pangrowth
-
     }
 
     pub fn calc_growth_core(&self, t_coverage: &Threshold) -> Vec<f64> {
@@ -115,7 +110,7 @@ impl Hist {
     }
 
     pub fn calc_growth_quorum(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
-        let n = self.coverage.len() - 1; // hist array has length n+1: from [0..n] 
+        let n = self.coverage.len() - 1; // hist array has length n+1: from [0..n]
         let c = usize::max(1, t_coverage.to_absolute(n));
         let quorum = t_quorum.to_relative(n);
         let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
@@ -144,24 +139,24 @@ impl Hist {
                 let mut sum_q = 0.0;
                 let mut add = false;
                 for j in usize::max(m_quorum, c)..m {
-                    if n + j + 1 > i + m && j <= i{
-                        if q[i][j] == 0.0  {
-                            q[i][j] = choose(i,j);
+                    if n + j + 1 > i + m && j <= i {
+                        if q[i][j] == 0.0 {
+                            q[i][j] = choose(i, j);
                         }
                         q[i][j] += (n as f64 - i as f64 - m as f64 + 1.0 + j as f64).log2();
                         q[i][j] -= (m as f64 - j as f64).log2();
                         sum_q += q[i][j].exp2();
-                        add=true;
+                        add = true;
                     }
                 }
                 if add {
-                    yr += ((self.coverage[i] as f64).log2() + sum_q.log2() + m_fact - n_fall_m).exp2();
+                    yr += ((self.coverage[i] as f64).log2() + sum_q.log2() + m_fact - n_fall_m)
+                        .exp2();
                 }
             }
             pangrowth[m] = yl + yr;
         }
         pangrowth
-
     }
 
     pub fn to_tsv<W: std::io::Write>(
