@@ -211,10 +211,10 @@ pub enum Params {
         count: CountType,
 
         #[clap(
-            name = "subset",
+            name = "order",
             short,
             long,
-            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            help = "The ordered histogram will be produced according to order of paths/groups in the supplied file (1-column list) or path coordinates (3- or 12-column BED file). The file also acts as subset, i.e., paths/groups not specified in the list will be omitted in the calculation. If this option is not used, the order is determined by the order paths in the GFA file.",
             default_value = ""
         )]
         positive_list: String,
