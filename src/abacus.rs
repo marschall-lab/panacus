@@ -195,7 +195,7 @@ impl AbacusAuxilliary {
                 let mut cur: &'a str = &self.groups.get(&include[0]).unwrap();
                 for (i, p) in include.iter().enumerate() {
                     let g = self.groups.get(p).unwrap();
-                    if cur != g && visited.insert(g) {
+                    if cur != g && !visited.insert(g) {
                         panic!("order of paths contains fragmented groups: path {} on line {} belongs to group that is interspersed by one or more other groups", p, i);
                     }
                     cur = g;
