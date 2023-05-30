@@ -17,8 +17,10 @@ pub type CountSize = u32;
 
 pub const SIZE_T: usize = 1024;
 pub struct Wrap<T>(pub *mut T);
-unsafe impl Sync for Wrap<Vec<ItemIdSize>> {}
 unsafe impl Sync for Wrap<Vec<usize>> {}
+unsafe impl Sync for Wrap<Vec<u64>> {}
+unsafe impl Sync for Wrap<Vec<u32>> {}
+unsafe impl Sync for Wrap<Vec<u16>> {}
 unsafe impl Sync for Wrap<[Vec<ItemIdSize>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<ItemIdSize>>> {}
 

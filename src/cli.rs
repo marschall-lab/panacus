@@ -444,6 +444,18 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     let abacus: Abacus = match &params {
         Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. } => {
             // creating the abacus from the gfa
+
+            let n_groups = abacus_aux.as_ref().unwrap().count_groups();
+            if n_groups > 65534 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    format!(
+                        "data has {} path groups, but command is not supported for more than 65534",
+                        n_groups
+                    ),
+                ));
+            }
+
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
             let abacus =
@@ -458,12 +470,20 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Table { gfa_file, .. } | Params::OrderedHistgrowth { gfa_file, .. } => {
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus =
-                AbacusByGroup::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap());
+            let abacus = AbacusByGroup::from_gfa(
+                &mut data,
+                abacus_aux.unwrap(),
+                graph_aux.unwrap(),
+                if let Params::Table { total, .. } = params {
+                    !total
+                } else {
+                    true
+                },
+            );
             log::info!(
                 "abacus has {} path groups and {} countables",
                 abacus.groups.len(),
-                abacus.countable.len()
+                abacus.r.len()
             );
             Abacus::Group(abacus)
         }
@@ -555,11 +575,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     .collect::<Vec<String>>()
                     .join("\t")
             )?;
-            for i in 1..n {
+            for i in 0..n {
                 if let Abacus::Group(abacus_group) = &abacus {
                     write!(out, "{}", &abacus_group.groups[i][..])?;
                 } else {
-                    write!(out, "{}", i)?;
+                    write!(out, "{}", i + 1)?;
                 }
                 for j in 0..hist_aux.quorum.len() {
                     write!(out, "\t{:0}", growths[j][i].floor())?;

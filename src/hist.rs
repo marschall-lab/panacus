@@ -62,7 +62,7 @@ impl Hist {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
         let c = usize::max(1, t_coverage.to_absolute(n));
 
-        let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
+        let mut pangrowth: Vec<f64> = vec![0.0; n];
         let mut n_fall_m: f64 = 0.0;
         let tot = self.coverage[c..].iter().sum::<usize>() as f64;
 
@@ -79,7 +79,7 @@ impl Hist {
                 y += ((self.coverage[i] as f64).log2() + perc_mult[i] - n_fall_m).exp2();
             }
 
-            pangrowth[m] = tot - y;
+            pangrowth[m - 1] = tot - y;
         }
 
         pangrowth
@@ -89,7 +89,7 @@ impl Hist {
         let n = self.coverage.len() - 1; // hist array has length n+1: from 0..n (both included)
         let c = usize::max(1, t_coverage.to_absolute(n + 1));
         let mut n_fall_m: f64 = 0.0;
-        let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
+        let mut pangrowth: Vec<f64> = vec![0.0; n];
 
         // In perc_mult[i] is contained the percentage of combinations
         // that have an item of multiplicity i
@@ -103,7 +103,7 @@ impl Hist {
                 perc_mult[i] += (i as f64 - m as f64 + 1.0).log2();
                 y += ((self.coverage[i] as f64).log2() + perc_mult[i] - n_fall_m).exp2();
             }
-            pangrowth[m] = y;
+            pangrowth[m - 1] = y;
         }
 
         pangrowth
@@ -113,7 +113,7 @@ impl Hist {
         let n = self.coverage.len() - 1; // hist array has length n+1: from [0..n]
         let c = usize::max(1, t_coverage.to_absolute(n));
         let quorum = t_quorum.to_relative(n);
-        let mut pangrowth: Vec<f64> = vec![0.0; n + 1];
+        let mut pangrowth: Vec<f64> = vec![0.0; n];
 
         let mut n_fall_m: f64 = 0.0;
         let mut m_fact: f64 = 0.0;
@@ -154,7 +154,7 @@ impl Hist {
                         .exp2();
                 }
             }
-            pangrowth[m] = yl + yr;
+            pangrowth[m - 1] = yl + yr;
         }
         pangrowth
     }
