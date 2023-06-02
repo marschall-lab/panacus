@@ -477,7 +477,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 if let Params::Table { total, .. } = params {
                     !total
                 } else {
-                    true
+                    false
                 },
             );
             log::info!(
@@ -524,6 +524,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         "# {}",
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
+
+//    if let Abacus::Group(abacus_group) = &abacus {
+//        abacus_group.write_rcv(out)?;
+//        out.flush()?;
+//        std::process::exit(0x0100);
+//    }
+
     match params {
         Params::Histgrowth { .. } | Params::Growth { .. } | Params::OrderedHistgrowth { .. } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;

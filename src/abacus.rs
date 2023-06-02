@@ -380,10 +380,7 @@ impl AbacusByGroup {
                 groups.push(group_id.to_string());
             }
             if groups.len() > 65534 {
-                panic!(
-                    "data has {} path groups, but command is not supported for more than 65534",
-                    groups.len()
-                );
+                panic!("data has more than 65534 path groups, but command is not supported for more than 65534");
             }
             path_order.push((path_id, (groups.len() - 1) as u16));
         }
@@ -443,8 +440,12 @@ impl AbacusByGroup {
             });
         }
         log::info!(" ++ assigning storage locations");
-        for i in 1..r.len() {
-            r[i] += r[i - 1];
+        let mut c = 0;
+        // can this be simplified?
+        for i in 0..r.len() {
+            let tmp = r[i];
+            r[i] = c;
+            c += tmp;
         }
         log::info!(
             " ++ group-aware table has {} non-zero elements",
@@ -460,7 +461,7 @@ impl AbacusByGroup {
         r: &Vec<ItemIdSize>,
         report_values: bool,
     ) -> (Option<Vec<CountSize>>, Vec<u16>) {
-        let n = *r.last().unwrap() as usize + 1;
+        let n = *r.last().unwrap() as usize;
         log::info!("allocating storage for group-based coverage table..");
         let mut v = if report_values {
             vec![0; n]
@@ -481,10 +482,8 @@ impl AbacusByGroup {
             (0..SIZE_T).into_par_iter().for_each(|i| {
                 let start = item_table.id_prefsum[i][path_id_u] as usize;
                 let end = item_table.id_prefsum[i][path_id_u + 1] as usize;
-                //                log::info!(" ++ {}:{}-{}", path_id_u, start, end);
                 for j in start..end {
                     let sid = item_table.items[i][j] as usize;
-                    //                    log::info!(" ++ v{}", sid);
                     if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid] {
                         let cv_start = r[sid] as usize;
                         let cv_end = r[sid + 1] as usize;
@@ -503,7 +502,11 @@ impl AbacusByGroup {
                             // started...
                             if c[cv_end - 1] == u16::MAX {
                                 (*c_ptr.0)[cv_start] = *group_id;
-                                (*c_ptr.0)[cv_end - 1] = 0;
+                                // if it's just a single value in this interval, the pointer game
+                                // ends before it started
+                                if cv_start < cv_end -1 {
+                                    (*c_ptr.0)[cv_end - 1] = 0;
+                                }
                                 if report_values {
                                     (*v_ptr.0)[cv_start] += 1;
                                 }
@@ -511,7 +514,7 @@ impl AbacusByGroup {
                                 // if group id of current slot does not match current group id
                                 // (remember group id's are strictly monotically increasing), then
                                 // move on to the next slot
-                                if &c[cv_start + p] < group_id {
+                                if c[cv_start + p] < *group_id {
                                     // move on to the next slot
                                     (*c_ptr.0)[cv_end - 1] += 1;
                                     // update local pointer
@@ -547,7 +550,6 @@ impl AbacusByGroup {
             let end = end as usize;
             if end - start >= c {
                 let mut k = start;
-                log::info!("{}", self.c[start]);
                 for j in self.c[start] as usize..self.groups.len() {
                     if k < end - 1 && self.c[k + 1] as usize <= j {
                         k += 1
@@ -568,6 +570,31 @@ impl AbacusByGroup {
             }
         }
         res
+    }
+
+    pub fn write_rcv<W: Write>(
+        &self,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), std::io::Error> {
+
+        write!(out, "{}", self.r[0])?;
+        for x in self.r[1..].iter() {
+            write!(out, "\t{}", x)?;
+        }
+        writeln!(out, "")?;
+        write!(out, "{}", self.c[0])?;
+        for x in self.c[1..].iter() {
+            write!(out, "\t{}", x)?;
+        }
+        writeln!(out, "")?;
+        if let Some(v) = &self.v {
+            write!(out, "{}", v[0])?;
+            for x in v[1..].iter() {
+                write!(out, "\t{}", x)?;
+            }
+            writeln!(out, "")?;
+        };
+        Ok(())
     }
 
     pub fn to_tsv<W: Write>(
@@ -598,28 +625,28 @@ impl AbacusByGroup {
                     let start = start as usize;
                     let end = end as usize;
                     let bp = if self.count == CountType::Bp {
-                        self.graph_aux.node_len_ary[i] as usize
-                            - *self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0)
+                        self.graph_aux.node_len_ary[i+1] as usize
+                            - *self.uncovered_bps.get(&(i as CountSize +1)).unwrap_or(&0)
                     } else {
                         1
                     };
-                    write!(out, "{}", std::str::from_utf8(id2node[i]).unwrap())?;
+                    write!(out, "{}", std::str::from_utf8(id2node[i+1]).unwrap())?;
                     if total {
                         // we never need to look into the actual value in self.v, because we
                         // know it must be non-zero, which is sufficient
                         writeln!(out, "\t{}", end - start)?;
                     } else {
-                        let mut k = 0;
-                        for j in start..end {
-                            while k + 1 < self.c[j] {
-                                write!(out, "\t")?;
+                        let mut k = start;
+                        for j in 0u16..self.groups.len() as u16{
+                            if k == end || j < self.c[k] {
+                                write!(out, "\t0")?;
+                            } else if j == self.c[k] {
+                                match &self.v {
+                                    None => write!(out, "\t{}", bp),
+                                    Some(v) => write!(out, "\t{}", v[k] as usize * bp),
+                                }?;
+                                k += 1;
                             }
-
-                            match &self.v {
-                                None => write!(out, "\t{}", bp),
-                                Some(v) => write!(out, "\t{}", v[j] as usize * bp),
-                            }?;
-                            k = self.c[j];
                         }
                         writeln!(out, "")?;
                     }
@@ -649,7 +676,7 @@ impl AbacusByGroup {
                     writeln!(out, "")?;
 
                     for (i, (&start, &end)) in self.r[1..].iter().tuple_windows().enumerate() {
-                        let edge = id2edge[i];
+                        let edge = id2edge[i+1];
                         let start = start as usize;
                         let end = end as usize;
                         write!(
@@ -665,17 +692,17 @@ impl AbacusByGroup {
                             // know it must be non-zero, which is sufficient
                             writeln!(out, "\t{}", end - start)?;
                         } else {
-                            let mut k = 0;
-                            for j in start..end {
-                                while k + 1 < self.c[j] {
-                                    write!(out, "\t")?;
+                            let mut k = start;
+                            for j in 0u16..self.groups.len() as u16{
+                                if k == end || j < self.c[k] {
+                                    write!(out, "\t0")?;
+                                } else if j == self.c[k] {
+                                    match &self.v {
+                                        None => write!(out, "\t1"),
+                                        Some(v) => write!(out, "\t{}", v[j as usize]),
+                                    }?;
+                                    k += 1;
                                 }
-
-                                match &self.v {
-                                    None => write!(out, "\t1"),
-                                    Some(v) => write!(out, "\t{}", &v[j]),
-                                }?;
-                                k = self.c[j];
                             }
                             writeln!(out, "")?;
                         }
