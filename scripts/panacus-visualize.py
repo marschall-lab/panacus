@@ -105,6 +105,7 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
     yticks = axs[0].get_yticks()
+    axs[0].set_yticks(yticks)
     axs[0].set_yticklabels(calibrate_yticks_text(yticks))
 
     axs[0].set_title(f'Pangenome growth ({fname})')
@@ -115,17 +116,18 @@ def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=Fal
     if popts:
         for c, q, _, i in popts:
             x = np.zeros(df.shape[0])
-            x[1:] = df.loc[:df.shape[0]-1, (c, q)]
+            x[1:] = df.loc[:df.index[-2], (c, q)]
             (df[(c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
-            popt, _ = fit_alpha((df.loc[2:, (c, q)] - x[1:]).array)
+            popt, _ = fit_alpha((df.loc[df.index[1]:, (c, q)] - x[1:]).array)
             k2 = popt[0]
             alpha = popt[1]
-            Y = k2*df.index.array**(-alpha)
-            axs[1].plot(Y.to_numpy(), '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
+            Y = k2*np.arange(1, df.shape[0]+1)**(-alpha)
+            axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
         yticks = axs[1].get_yticks()
+        axs[1].set_yticks(yticks)
         axs[1].set_yticklabels(calibrate_yticks_text(yticks))
 
         axs[1].set_title('$F_{new}$')
