@@ -252,7 +252,7 @@ impl AbacusByTotal {
         let mut countable: Vec<CountSize> =
             vec![0; graph_aux.number_of_items(&abacus_aux.count) + 1];
         // countable with ID "0" is special and should not be considered in coverage histogram
-        countable[0] = ItemIdSize::MAX;
+        countable[0] = CountSize::MAX;
         let mut last: Vec<ItemIdSize> =
             vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count) + 1];
 
@@ -354,7 +354,7 @@ impl AbacusByTotal {
 #[derive(Debug, Clone)]
 pub struct AbacusByGroup {
     pub count: CountType,
-    pub r: Vec<ItemIdSize>,
+    pub r: Vec<usize>,
     pub v: Option<Vec<CountSize>>,
     pub c: Vec<u16>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
@@ -415,12 +415,12 @@ impl AbacusByGroup {
         exclude_table: &Option<ActiveTable>,
         path_order: &Vec<(ItemIdSize, u16)>,
         n_items: usize,
-    ) -> Vec<ItemIdSize> {
+    ) -> Vec<usize> {
         log::info!("computing space allocating storage for group-based coverage table:");
         let mut last: Vec<u16> = vec![u16::MAX; n_items + 1];
         let last_ptr = Wrap(&mut last);
 
-        let mut r: Vec<ItemIdSize> = vec![0; n_items + 2];
+        let mut r: Vec<usize> = vec![0; n_items + 2];
         let r_ptr = Wrap(&mut r);
         for (path_id, group_id) in path_order {
             (0..SIZE_T).into_par_iter().for_each(|i| {
@@ -458,7 +458,7 @@ impl AbacusByGroup {
         item_table: &ItemTable,
         exclude_table: &Option<ActiveTable>,
         path_order: &Vec<(ItemIdSize, u16)>,
-        r: &Vec<ItemIdSize>,
+        r: &Vec<usize>,
         report_values: bool,
     ) -> (Option<Vec<CountSize>>, Vec<u16>) {
         let n = *r.last().unwrap() as usize;
@@ -485,8 +485,8 @@ impl AbacusByGroup {
                 for j in start..end {
                     let sid = item_table.items[i][j] as usize;
                     if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid] {
-                        let cv_start = r[sid] as usize;
-                        let cv_end = r[sid + 1] as usize;
+                        let cv_start = r[sid];
+                        let cv_end = r[sid + 1];
                         // look up storage location for node cur_sid: we use the last position
                         // of interval cv_start..cv_end, which is associated to coverage counts
                         // of the current node (sid), in the "c" array as pointer to the
@@ -495,6 +495,9 @@ impl AbacusByGroup {
                         // on to the next. If cv_start + p == cv_end - 1, this means that we are
                         // currently writing the last element in that interval, and we need to make
                         // sure that we are no longer using it as pointer.
+                        if cv_end -1 > c.len() {
+                            log::info!("oopse, cv_end-1 is larger than the length of c for sid={}", sid);
+                        }
 
                         let mut p = c[cv_end - 1] as usize;
                         unsafe {
@@ -546,8 +549,6 @@ impl AbacusByGroup {
 
         // start with 1, countable 0 is a forbidden element
         for (i, (&start, &end)) in self.r.iter().tuple_windows().enumerate() {
-            let start = start as usize;
-            let end = end as usize;
             if end - start >= c {
                 let mut k = start;
                 for j in self.c[start] as usize..self.groups.len() {
@@ -561,7 +562,7 @@ impl AbacusByGroup {
                             CountType::Node | CountType::Edge => res[j] += 1.0,
                             CountType::Bp => {
                                 res[j] += (self.graph_aux.node_len_ary[i] as usize
-                                    - self.uncovered_bps.get(&(i as CountSize)).unwrap_or(&0))
+                                    - self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0))
                                     as f64
                             }
                         }
@@ -622,11 +623,9 @@ impl AbacusByGroup {
                 writeln!(out, "")?;
 
                 for (i, (&start, &end)) in self.r[1..].iter().tuple_windows().enumerate() {
-                    let start = start as usize;
-                    let end = end as usize;
                     let bp = if self.count == CountType::Bp {
                         self.graph_aux.node_len_ary[i+1] as usize
-                            - *self.uncovered_bps.get(&(i as CountSize +1)).unwrap_or(&0)
+                            - *self.uncovered_bps.get(&(i as ItemIdSize+1)).unwrap_or(&0)
                     } else {
                         1
                     };
