@@ -14,6 +14,7 @@ use crate::graph::ItemId;
 //
 pub type ItemIdSize = u32;
 pub type CountSize = u32;
+pub type GroupSize = u16;
 
 pub const SIZE_T: usize = 1024;
 pub struct Wrap<T>(pub *mut T);
@@ -21,8 +22,8 @@ unsafe impl Sync for Wrap<Vec<usize>> {}
 unsafe impl Sync for Wrap<Vec<u64>> {}
 unsafe impl Sync for Wrap<Vec<u32>> {}
 unsafe impl Sync for Wrap<Vec<u16>> {}
-unsafe impl Sync for Wrap<[Vec<ItemIdSize>; SIZE_T]> {}
-unsafe impl Sync for Wrap<Vec<Vec<ItemIdSize>>> {}
+unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
+unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
 #[strum(serialize_all = "lowercase")]

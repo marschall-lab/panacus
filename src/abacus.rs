@@ -397,7 +397,7 @@ pub struct AbacusByGroup {
     pub count: CountType,
     pub r: Vec<usize>,
     pub v: Option<Vec<CountSize>>,
-    pub c: Vec<u16>,
+    pub c: Vec<GroupSize>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
     pub graph_aux: GraphAuxilliary,
@@ -414,7 +414,7 @@ impl AbacusByGroup {
         let (item_table, exclude_table, subset_covered_bps) =
             io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
 
-        let mut path_order: Vec<(ItemIdSize, u16)> = Vec::new();
+        let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
         for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
             if groups.is_empty() || groups.last().unwrap() != group_id {
@@ -423,7 +423,7 @@ impl AbacusByGroup {
             if groups.len() > 65534 {
                 panic!("data has more than 65534 path groups, but command is not supported for more than 65534");
             }
-            path_order.push((path_id, (groups.len() - 1) as u16));
+            path_order.push((path_id, (groups.len() - 1) as GroupSize));
         }
 
         let r = AbacusByGroup::compute_row_storage_space(
@@ -454,11 +454,11 @@ impl AbacusByGroup {
     fn compute_row_storage_space(
         item_table: &ItemTable,
         exclude_table: &Option<ActiveTable>,
-        path_order: &Vec<(ItemIdSize, u16)>,
+        path_order: &Vec<(ItemIdSize, GroupSize)>,
         n_items: usize,
     ) -> Vec<usize> {
         log::info!("computing space allocating storage for group-based coverage table:");
-        let mut last: Vec<u16> = vec![u16::MAX; n_items + 1];
+        let mut last: Vec<GroupSize> = vec![GroupSize::MAX; n_items + 1];
         let last_ptr = Wrap(&mut last);
 
         let mut r: Vec<usize> = vec![0; n_items + 2];
@@ -498,10 +498,10 @@ impl AbacusByGroup {
     fn compute_column_values(
         item_table: &ItemTable,
         exclude_table: &Option<ActiveTable>,
-        path_order: &Vec<(ItemIdSize, u16)>,
+        path_order: &Vec<(ItemIdSize, GroupSize)>,
         r: &Vec<usize>,
         report_values: bool,
-    ) -> (Option<Vec<CountSize>>, Vec<u16>) {
+    ) -> (Option<Vec<CountSize>>, Vec<GroupSize>) {
         let n = *r.last().unwrap() as usize;
         log::info!("allocating storage for group-based coverage table..");
         let mut v = if report_values {
@@ -510,7 +510,7 @@ impl AbacusByGroup {
             // we produce a dummy
             vec![0; 1]
         };
-        let mut c: Vec<u16> = vec![u16::MAX; n];
+        let mut c: Vec<GroupSize> = vec![GroupSize::MAX; n];
         log::info!("done");
 
         log::info!("computing group-based coverage..");
@@ -547,7 +547,7 @@ impl AbacusByGroup {
                         unsafe {
                             // we  look at an untouched interval, so let's get the pointer game
                             // started...
-                            if c[cv_end - 1] == u16::MAX {
+                            if c[cv_end - 1] == GroupSize::MAX {
                                 (*c_ptr.0)[cv_start] = *group_id;
                                 // if it's just a single value in this interval, the pointer game
                                 // ends before it started
@@ -676,7 +676,7 @@ impl AbacusByGroup {
                         writeln!(out, "\t{}", end - start)?;
                     } else {
                         let mut k = start;
-                        for j in 0u16..self.groups.len() as u16 {
+                        for j in 0 as GroupSize..self.groups.len() as GroupSize {
                             if k == end || j < self.c[k] {
                                 write!(out, "\t0")?;
                             } else if j == self.c[k] {
@@ -732,7 +732,7 @@ impl AbacusByGroup {
                             writeln!(out, "\t{}", end - start)?;
                         } else {
                             let mut k = start;
-                            for j in 0u16..self.groups.len() as u16 {
+                            for j in 0 as GroupSize..self.groups.len() as GroupSize {
                                 if k == end || j < self.c[k] {
                                     write!(out, "\t0")?;
                                 } else if j == self.c[k] {
