@@ -19,6 +19,7 @@ pub struct AbacusAuxilliary {
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
     pub exclude_coords: Option<Vec<PathSegment>>,
+    pub order: Option<Vec<PathSegment>>,
 }
 
 impl AbacusAuxilliary {
@@ -65,11 +66,44 @@ impl AbacusAuxilliary {
                     &groups,
                 )?;
 
+                let order = if let Params::OrderedHistgrowth { order, .. } = params {
+                    let maybe_order = AbacusAuxilliary::complement_with_group_assignments(
+                        AbacusAuxilliary::load_coord_list(order)?,
+                        &groups,
+                    )?;
+                    if let Some(o) = &maybe_order {
+                        // if order is given, check that it comprises all included coords
+                        let all_included_paths: Vec<&PathSegment> = match &include_coords {
+                            None => groups.keys().collect(),
+                            Some(include) => include.iter().collect(),
+                        };
+                        let order_set: HashSet<&PathSegment> = HashSet::from_iter(o.iter());
+
+                        for p in all_included_paths.iter() {
+                            if !order_set.contains(p) {
+                                let msg = format!(
+                                    "order list does not contain information about path {}",
+                                    p
+                                );
+                                log::error!("{}", &msg);
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    msg,
+                                ));
+                            }
+                        }
+                    }
+                    maybe_order
+                } else {
+                    None
+                };
+
                 AbacusAuxilliary {
                     count: count.clone(),
                     groups: groups,
                     include_coords: include_coords,
                     exclude_coords: exclude_coords,
+                    order: order,
                 }
             }
             _ => unreachable!("cannot produce AbausData from other Param items"),
@@ -165,11 +199,17 @@ impl AbacusAuxilliary {
     fn get_path_order<'a>(
         &'a self,
         path_segments: &Vec<PathSegment>,
-    ) -> Vec<(ItemIdSize, &'a str)> {
+    ) -> Result<Vec<(ItemIdSize, &'a str)>, std::io::Error> {
         // orders elements of path_segments by the order in abacus_aux.include; the returned vector
         // maps indices of path_segments to the group identifier
 
-        match &self.include_coords {
+        let order = if self.order.is_some() {
+            self.order.as_ref()
+        } else {
+            self.include_coords.as_ref()
+        };
+
+        match order {
             None => {
                 let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> =
                     HashMap::default();
@@ -184,20 +224,22 @@ impl AbacusAuxilliary {
                         })
                         .push((i as ItemIdSize, group));
                 }
-                groups
+                Ok(groups
                     .into_iter()
                     .map(|g| group_to_paths.remove(g).unwrap_or(Vec::new()))
                     .collect::<Vec<Vec<(ItemIdSize, &'a str)>>>()
-                    .concat()
+                    .concat())
             }
-            Some(include) => {
+            Some(o) => {
                 // check that groups are not scrambled in include
                 let mut visited: HashSet<&'a str> = HashSet::new();
-                let mut cur: &'a str = &self.groups.get(&include[0]).unwrap();
-                for (i, p) in include.iter().enumerate() {
+                let mut cur: &'a str = &self.groups.get(&o[0]).unwrap();
+                for p in o.iter() {
                     let g = self.groups.get(p).unwrap();
                     if cur != g && !visited.insert(g) {
-                        panic!("order of paths contains fragmented groups: path {} on line {} belongs to group that is interspersed by one or more other groups", p, i);
+                        let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
+                        log::error!("{}", &msg);
+                        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
                     }
                     cur = g;
                 }
@@ -207,8 +249,7 @@ impl AbacusAuxilliary {
                     .enumerate()
                     .map(|(i, p)| (p, i as ItemIdSize))
                     .collect();
-                include
-                    .iter()
+                Ok(o.iter()
                     .map(|p| {
                         (
                             path_to_id.remove(p).expect(&format!(
@@ -218,7 +259,7 @@ impl AbacusAuxilliary {
                             &self.groups.get(p).unwrap()[..],
                         )
                     })
-                    .collect()
+                    .collect())
             }
         }
     }
@@ -242,7 +283,7 @@ impl AbacusByTotal {
         data: &mut std::io::BufReader<R>,
         abacus_aux: AbacusAuxilliary,
         graph_aux: GraphAuxilliary,
-    ) -> Self {
+    ) -> Result<Self, std::io::Error> {
         log::info!("parsing path + walk sequences");
         let (item_table, exclude_table, subset_covered_bps) =
             io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
@@ -257,7 +298,7 @@ impl AbacusByTotal {
             vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count) + 1];
 
         let mut groups = Vec::new();
-        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
@@ -271,13 +312,13 @@ impl AbacusByTotal {
             );
         }
 
-        Self {
+        Ok(Self {
             count: abacus_aux.count,
             countable: countable,
             uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
             groups: groups,
             graph_aux: graph_aux,
-        }
+        })
     }
 
     fn coverage(
@@ -368,14 +409,14 @@ impl AbacusByGroup {
         abacus_aux: AbacusAuxilliary,
         graph_aux: GraphAuxilliary,
         report_values: bool,
-    ) -> Self {
+    ) -> Result<Self, std::io::Error> {
         log::info!("parsing path + walk sequences");
         let (item_table, exclude_table, subset_covered_bps) =
             io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
 
         let mut path_order: Vec<(ItemIdSize, u16)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
-        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
@@ -399,7 +440,7 @@ impl AbacusByGroup {
             report_values,
         );
 
-        Self {
+        Ok(Self {
             count: abacus_aux.count,
             r: r,
             v: v,
@@ -407,7 +448,7 @@ impl AbacusByGroup {
             uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
             groups: groups,
             graph_aux: graph_aux,
-        }
+        })
     }
 
     fn compute_row_storage_space(
@@ -495,8 +536,11 @@ impl AbacusByGroup {
                         // on to the next. If cv_start + p == cv_end - 1, this means that we are
                         // currently writing the last element in that interval, and we need to make
                         // sure that we are no longer using it as pointer.
-                        if cv_end -1 > c.len() {
-                            log::info!("oopse, cv_end-1 is larger than the length of c for sid={}", sid);
+                        if cv_end - 1 > c.len() {
+                            log::info!(
+                                "oopse, cv_end-1 is larger than the length of c for sid={}",
+                                sid
+                            );
                         }
 
                         let mut p = c[cv_end - 1] as usize;
@@ -507,7 +551,7 @@ impl AbacusByGroup {
                                 (*c_ptr.0)[cv_start] = *group_id;
                                 // if it's just a single value in this interval, the pointer game
                                 // ends before it started
-                                if cv_start < cv_end -1 {
+                                if cv_start < cv_end - 1 {
                                     (*c_ptr.0)[cv_end - 1] = 0;
                                 }
                                 if report_values {
@@ -573,11 +617,7 @@ impl AbacusByGroup {
         res
     }
 
-    pub fn write_rcv<W: Write>(
-        &self,
-        out: &mut BufWriter<W>,
-    ) -> Result<(), std::io::Error> {
-
+    pub fn write_rcv<W: Write>(&self, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
         write!(out, "{}", self.r[0])?;
         for x in self.r[1..].iter() {
             write!(out, "\t{}", x)?;
@@ -624,19 +664,19 @@ impl AbacusByGroup {
 
                 for (i, (&start, &end)) in self.r[1..].iter().tuple_windows().enumerate() {
                     let bp = if self.count == CountType::Bp {
-                        self.graph_aux.node_len_ary[i+1] as usize
-                            - *self.uncovered_bps.get(&(i as ItemIdSize+1)).unwrap_or(&0)
+                        self.graph_aux.node_len_ary[i + 1] as usize
+                            - *self.uncovered_bps.get(&(i as ItemIdSize + 1)).unwrap_or(&0)
                     } else {
                         1
                     };
-                    write!(out, "{}", std::str::from_utf8(id2node[i+1]).unwrap())?;
+                    write!(out, "{}", std::str::from_utf8(id2node[i + 1]).unwrap())?;
                     if total {
                         // we never need to look into the actual value in self.v, because we
                         // know it must be non-zero, which is sufficient
                         writeln!(out, "\t{}", end - start)?;
                     } else {
                         let mut k = start;
-                        for j in 0u16..self.groups.len() as u16{
+                        for j in 0u16..self.groups.len() as u16 {
                             if k == end || j < self.c[k] {
                                 write!(out, "\t0")?;
                             } else if j == self.c[k] {
@@ -675,7 +715,7 @@ impl AbacusByGroup {
                     writeln!(out, "")?;
 
                     for (i, (&start, &end)) in self.r[1..].iter().tuple_windows().enumerate() {
-                        let edge = id2edge[i+1];
+                        let edge = id2edge[i + 1];
                         let start = start as usize;
                         let end = end as usize;
                         write!(
@@ -692,7 +732,7 @@ impl AbacusByGroup {
                             writeln!(out, "\t{}", end - start)?;
                         } else {
                             let mut k = start;
-                            for j in 0u16..self.groups.len() as u16{
+                            for j in 0u16..self.groups.len() as u16 {
                                 if k == end || j < self.c[k] {
                                     write!(out, "\t0")?;
                                 } else if j == self.c[k] {
