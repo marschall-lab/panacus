@@ -27,12 +27,14 @@ impl AbacusAuxilliary {
         params: &Params,
         graph_aux: &GraphAuxilliary,
     ) -> Result<Self, std::io::Error> {
-        Ok(match params {
+        match params {
             Params::Histgrowth {
                 count,
                 positive_list,
                 negative_list,
                 groupby,
+                groupby_sample,
+                groupby_haplotype,
                 ..
             }
             | Params::Hist {
@@ -40,6 +42,8 @@ impl AbacusAuxilliary {
                 positive_list,
                 negative_list,
                 groupby,
+                groupby_sample,
+                groupby_haplotype,
                 ..
             }
             | Params::OrderedHistgrowth {
@@ -47,6 +51,8 @@ impl AbacusAuxilliary {
                 positive_list,
                 negative_list,
                 groupby,
+                groupby_sample,
+                groupby_haplotype,
                 ..
             }
             | Params::Table {
@@ -54,9 +60,16 @@ impl AbacusAuxilliary {
                 positive_list,
                 negative_list,
                 groupby,
+                groupby_sample,
+                groupby_haplotype,
                 ..
             } => {
-                let groups = AbacusAuxilliary::load_groups(groupby, graph_aux)?;
+                let groups = AbacusAuxilliary::load_groups(
+                    groupby,
+                    *groupby_haplotype,
+                    *groupby_sample,
+                    graph_aux,
+                )?;
                 let include_coords = AbacusAuxilliary::complement_with_group_assignments(
                     AbacusAuxilliary::load_coord_list(positive_list)?,
                     &groups,
@@ -73,9 +86,13 @@ impl AbacusAuxilliary {
                     )?;
                     if let Some(o) = &maybe_order {
                         // if order is given, check that it comprises all included coords
-                        let all_included_paths: Vec<&PathSegment> = match &include_coords {
-                            None => groups.keys().collect(),
-                            Some(include) => include.iter().collect(),
+                        let all_included_paths: Vec<PathSegment> = match &include_coords {
+                            None => graph_aux
+                                .path_segments
+                                .iter()
+                                .map(|x| x.clear_coords())
+                                .collect(),
+                            Some(include) => include.iter().map(|x| x.clear_coords()).collect(),
                         };
                         let order_set: HashSet<&PathSegment> = HashSet::from_iter(o.iter());
 
@@ -92,22 +109,41 @@ impl AbacusAuxilliary {
                                 ));
                             }
                         }
+
+                        // check that groups are not scrambled in include
+                        let mut visited: HashSet<&str> = HashSet::new();
+                        let mut cur: &str = groups.get(&o[0]).unwrap();
+                        for p in o.iter() {
+                            let g: &str = groups.get(p).unwrap();
+                            if cur != g && !visited.insert(g) {
+                                let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
+                                log::error!("{}", &msg);
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    msg,
+                                ));
+                            }
+                            cur = g;
+                        }
                     }
                     maybe_order
                 } else {
                     None
                 };
 
-                AbacusAuxilliary {
+                Ok(AbacusAuxilliary {
                     count: count.clone(),
                     groups: groups,
                     include_coords: include_coords,
                     exclude_coords: exclude_coords,
                     order: order,
-                }
+                })
             }
-            _ => unreachable!("cannot produce AbausData from other Param items"),
-        })
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "cannot produce AbausData from other Param items",
+            )),
+        }
     }
 
     fn complement_with_group_assignments(
@@ -119,37 +155,43 @@ impl AbacusAuxilliary {
         // 1. complements coords with path segments from group assignments
         // 2. checks that group-based coordinates don't have start/stop information
         //
-        let mut group2ps: HashMap<String, Vec<PathSegment>> = HashMap::default();
+        let mut group2paths: HashMap<String, Vec<PathSegment>> = HashMap::default();
         for (p, g) in groups.iter() {
-            group2ps
+            group2paths
                 .entry(g.clone())
                 .or_insert(Vec::new())
                 .push(p.clone())
         }
+        let path_to_group: HashMap<PathSegment, String> = groups
+            .iter()
+            .map(|(ps, g)| (ps.clear_coords(), g.clone()))
+            .collect();
+
         match coords {
             None => Ok(None),
             Some(v) => {
                 v.into_iter()
                     .map(|p| {
-                        // check if path segment defined in coords associated with a specific path
-                        // segment (i.e., is not a group) by querying the keys of the "groups"
-                        // hashmap
-                        if groups.contains_key(&p) {
+                        // check if path segment defined in coords associated with a specific path,
+                        // it is not considered a group 
+                        if path_to_group.contains_key(&p.clear_coords()) {
                             Ok(vec![p])
-                        } else if group2ps.contains_key(&p.id()) {
+                        } else if group2paths.contains_key(&p.id()) {
                             if p.coords().is_some() {
                                 let msg = format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p);
                                 log::error!("{}", &msg);
                                 Err(std::io::Error::new( std::io::ErrorKind::InvalidData, msg))
                             } else {
-                                let paths = group2ps.get(&p.id()).unwrap().clone();
+                                let paths = group2paths.get(&p.id()).unwrap().clone();
                                 log::debug!("complementing coordinate list with {} paths associted with group {}", paths.len(), p.id());
                                 Ok(paths)
                             }
                         } else {
                             let msg = format!("unknown path/group {}", &p);
                             log::error!("{}", &msg);
-                            Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+                            // let's not be so harsh as to throw an error, ok?
+                            // Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+                            Ok(Vec::new())
                         }
                     })
                     .collect::<Result<Vec<Vec<PathSegment>>, std::io::Error>>().map(|x| Some(x[..]
@@ -172,28 +214,72 @@ impl AbacusAuxilliary {
 
     fn load_groups(
         file_name: &str,
+        groupby_haplotype: bool,
+        groupby_sample: bool,
         graph_aux: &GraphAuxilliary,
     ) -> Result<HashMap<PathSegment, String>, std::io::Error> {
-        Ok(if file_name.is_empty() {
-            log::info!("no explicit group file given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
-            graph_aux
+        if groupby_haplotype {
+            Ok(graph_aux
                 .path_segments
                 .iter()
-                .cloned()
-                .zip(graph_aux.path_segments.iter().map(|x| x.id()))
-                .collect()
-        } else {
+                .map(|x| {
+                    (
+                        x.clear_coords(),
+                        format!(
+                            "{}#{}",
+                            &x.sample,
+                            &x.haplotype.as_ref().unwrap_or(&String::new())
+                        ),
+                    )
+                })
+                .collect())
+        } else if groupby_sample {
+            Ok(graph_aux
+                .path_segments
+                .iter()
+                .map(|x| (x.clear_coords(), x.sample.clone()))
+                .collect())
+        } else if !file_name.is_empty() {
             log::info!("loading groups from {}", file_name);
             let mut data = std::io::BufReader::new(fs::File::open(file_name)?);
-            let g = io::parse_groups(&mut data)?;
-            log::debug!("loaded {} group assignments", g.len());
-            let mut ps2group: HashMap<PathSegment, String> = g.into_iter().collect();
-            graph_aux
+            let group_assignments = io::parse_groups(&mut data)?;
+            let mut path_to_group = HashMap::default();
+            for (i, (path, group)) in group_assignments.into_iter().enumerate() {
+                let path_nocoords = path.clear_coords();
+                match path_to_group.get(&path_nocoords) {
+                    Some(g) => {
+                        if g != &group {
+                            let msg = format!(
+                                "error in line {}: path {} cannot be assigned to more than one group, but is assigned to at least two groups: {}, {}",
+                                i, &path_nocoords, &g, &group
+                            );
+                            log::error!("{}", &msg);
+                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+                        }
+                    }
+                    None => {
+                        path_to_group.insert(path_nocoords, group);
+                    }
+                }
+            }
+            log::debug!("loaded {} group assignments", path_to_group.len());
+
+            // augment the group assignments with yet unassigned path segments
+            graph_aux.path_segments.iter().for_each(|x| {
+                let path = x.clear_coords();
+                if !path_to_group.contains_key(&path) {
+                    path_to_group.insert(path, x.id());
+                }
+            });
+            Ok(path_to_group)
+        } else {
+            log::info!("no explicit grouping instruction given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
+            Ok(graph_aux
                 .path_segments
                 .iter()
-                .map(|x| (x.clone(), ps2group.remove(x).unwrap_or(x.id())))
-                .collect()
-        })
+                .map(|x| (x.clear_coords(), x.id()))
+                .collect())
+        }
     }
 
     fn get_path_order<'a>(
@@ -203,65 +289,31 @@ impl AbacusAuxilliary {
         // orders elements of path_segments by the order in abacus_aux.include; the returned vector
         // maps indices of path_segments to the group identifier
 
-        let order = if self.order.is_some() {
-            self.order.as_ref()
-        } else {
-            self.include_coords.as_ref()
-        };
-
-        match order {
-            None => {
-                let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> =
-                    HashMap::default();
-                let mut groups: Vec<&'a str> = Vec::new();
-                for (i, s) in path_segments.into_iter().enumerate() {
-                    let group = self.groups.get(s).unwrap();
-                    group_to_paths
-                        .entry(group)
-                        .or_insert({
-                            groups.push(group);
-                            Vec::new()
-                        })
-                        .push((i as ItemIdSize, group));
-                }
-                Ok(groups
-                    .into_iter()
-                    .map(|g| group_to_paths.remove(g).unwrap_or(Vec::new()))
-                    .collect::<Vec<Vec<(ItemIdSize, &'a str)>>>()
-                    .concat())
-            }
-            Some(o) => {
-                // check that groups are not scrambled in include
-                let mut visited: HashSet<&'a str> = HashSet::new();
-                let mut cur: &'a str = &self.groups.get(&o[0]).unwrap();
-                for p in o.iter() {
-                    let g = self.groups.get(p).unwrap();
-                    if cur != g && !visited.insert(g) {
-                        let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
-                        log::error!("{}", &msg);
-                        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-                    }
-                    cur = g;
-                }
-
-                let mut path_to_id: HashMap<&PathSegment, ItemIdSize> = path_segments
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, p)| (p, i as ItemIdSize))
-                    .collect();
-                Ok(o.iter()
-                    .map(|p| {
-                        (
-                            path_to_id.remove(p).expect(&format!(
-                                "path segment {} occurs more than once in path order list",
-                                p
-                            )),
-                            &self.groups.get(p).unwrap()[..],
-                        )
-                    })
-                    .collect())
-            }
+        let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> = HashMap::default();
+        for (i, p) in path_segments.into_iter().enumerate() {
+            let group: &'a str = self.groups.get(&p.clear_coords()).unwrap();
+            group_to_paths
+                .entry(group)
+                .or_insert(Vec::new())
+                .push((i as ItemIdSize, group));
         }
+
+        let order = if let Some(order) = &self.order {
+            order
+        } else if let Some(include) = &self.include_coords {
+            include
+        } else {
+            path_segments
+        };
+        Ok(order
+            .into_iter()
+            .map(|p| {
+                group_to_paths
+                    .remove(&self.groups.get(&p.clear_coords()).unwrap()[..])
+                    .unwrap_or(Vec::new())
+            })
+            .collect::<Vec<Vec<(ItemIdSize, &'a str)>>>()
+            .concat())
     }
 
     pub fn count_groups(&self) -> usize {
@@ -584,7 +636,7 @@ impl AbacusByGroup {
         (if report_values { Some(v) } else { None }, c)
     }
 
-    //Why &self and not self? we could destroy abacus at this point.
+    // why &self and not self? we could destroy abacus at this point.
     pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
         let mut res = vec![0.0; self.groups.len()];
 
@@ -605,7 +657,7 @@ impl AbacusByGroup {
                         match self.count {
                             CountType::Node | CountType::Edge => res[j] += 1.0,
                             CountType::Bp => {
-                                res[j] += (self.graph_aux.node_len_ary[i] as usize
+                                res[j] += (self.graph_aux.node_len_ary[i + 1] as usize
                                     - self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0))
                                     as f64
                             }
@@ -662,7 +714,7 @@ impl AbacusByGroup {
                 }
                 writeln!(out, "")?;
 
-                for (i, (&start, &end)) in self.r[1..].iter().tuple_windows().enumerate() {
+                for (i, (&start, &end)) in self.r.iter().tuple_windows().enumerate() {
                     let bp = if self.count == CountType::Bp {
                         self.graph_aux.node_len_ary[i + 1] as usize
                             - *self.uncovered_bps.get(&(i as ItemIdSize + 1)).unwrap_or(&0)

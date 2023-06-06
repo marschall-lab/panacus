@@ -349,6 +349,16 @@ impl PathSegment {
         }
     }
 
+    pub fn clear_coords(&self) -> Self {
+        Self {
+            sample: self.sample.clone(),
+            haplotype: self.haplotype.clone(),
+            seqid: self.seqid.clone(),
+            start: None,
+            end: None,
+        }
+    }
+
     pub fn coords(&self) -> Option<(usize, usize)> {
         if self.start.is_some() {
             Some((self.start.unwrap(), self.end.unwrap()))

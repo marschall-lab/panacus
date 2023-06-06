@@ -89,6 +89,20 @@ pub enum Params {
         groupby: String,
 
         #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+
+        #[clap(
             short,
             long,
             help = "List of quorum fractions of the form <level1>,<level2>,... Number of values must be one or match that of coverage setting",
@@ -150,6 +164,20 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
+
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
 
         #[clap(
             short,
@@ -214,7 +242,7 @@ pub enum Params {
             name = "order",
             short,
             long,
-            help = "The ordered histogram will be produced according to order of paths/groups in the supplied file (1-column list). If this option is not used, the order is determined by the subset list, and if that option is not used, the order is determined by the order of paths in the GFA file.",
+            help = "The ordered histogram will be produced according to order of paths/groups in the supplied file (1-column list). If this option is not used, the order is determined by the rank of paths/groups in the subset list, and if that option is not used, the order is determined by the rank of paths/groups in the GFA file.",
             default_value = ""
         )]
         order: String,
@@ -244,6 +272,20 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
+
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
 
         #[clap(
             short,
@@ -316,6 +358,20 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
+
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
 
         #[clap(
             short,
@@ -399,6 +455,50 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 .unwrap();
         } else {
             log::info!("running panacus using all available CPUs");
+            rayon::ThreadPoolBuilder::new().build_global().unwrap();
+        }
+    }
+
+    // make sure either group, groupby-sample, or groupby-haplotype is set
+    if let Params::Histgrowth {
+        groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    }
+    | Params::Hist {
+        groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    }
+    | Params::OrderedHistgrowth {
+        groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    }
+    | Params::Table {
+        groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    } = &params
+    {
+        let mut c = 0;
+        if groupby.is_empty() {
+            c += 1;
+        }
+        if *groupby_haplotype {
+            c += 1;
+        }
+        if *groupby_sample {
+            c += 1
+        }
+        if c > 1 {
+            let msg = "At most one option of groupby, groupby-haplotype, and groupby-sample can be set at once, but at least two are given.";
+            log::error!("{}", &msg);
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, msg));
         }
     }
 

@@ -85,7 +85,6 @@ pub fn parse_groups<R: Read>(
 ) -> Result<Vec<(PathSegment, String)>, std::io::Error> {
     let mut res: Vec<(PathSegment, String)> = Vec::new();
 
-    let mut visited: HashSet<PathSegment> = HashSet::default();
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
@@ -95,17 +94,8 @@ pub fn parse_groups<R: Read>(
         let mut row_it = row.bytes_columns();
         let path_seg =
             PathSegment::from_str(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
-        if visited.contains(&path_seg) {
-            let msg = format!(
-                "error in line {}: path segment {} has been already assigned to a group",
-                i, &path_seg
-            );
-            log::error!("{}", &msg);
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-        }
-        visited.insert(path_seg.clone());
-        if let Some(group_id) = row_it.next() {
-            res.push((path_seg, str::from_utf8(group_id).unwrap().to_string()));
+        if let Some(col) = row_it.next() {
+            res.push((path_seg, str::from_utf8(col).unwrap().to_string()));
         } else {
             let msg = format!("error in line {}: table must have two columns", i);
             log::error!("{}", &msg);
