@@ -657,7 +657,7 @@ impl AbacusByGroup {
                         match self.count {
                             CountType::Node | CountType::Edge => res[j] += 1.0,
                             CountType::Bp => {
-                                res[j] += (self.graph_aux.node_len_ary[i + 1] as usize
+                                res[j] += (self.graph_aux.node_len_ary[i] as usize
                                     - self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0))
                                     as f64
                             }
@@ -714,14 +714,17 @@ impl AbacusByGroup {
                 }
                 writeln!(out, "")?;
 
-                for (i, (&start, &end)) in self.r.iter().tuple_windows().enumerate() {
+                let mut it = self.r.iter().tuple_windows().enumerate();
+                // ignore first entry
+                it.next();
+                for (i, (&start, &end)) in it {
                     let bp = if self.count == CountType::Bp {
-                        self.graph_aux.node_len_ary[i + 1] as usize
-                            - *self.uncovered_bps.get(&(i as ItemIdSize + 1)).unwrap_or(&0)
+                        self.graph_aux.node_len_ary[i] as usize
+                            - *self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0)
                     } else {
                         1
                     };
-                    write!(out, "{}", std::str::from_utf8(id2node[i + 1]).unwrap())?;
+                    write!(out, "{}", std::str::from_utf8(id2node[i]).unwrap())?;
                     if total {
                         // we never need to look into the actual value in self.v, because we
                         // know it must be non-zero, which is sufficient
