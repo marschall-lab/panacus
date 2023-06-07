@@ -651,7 +651,7 @@ impl AbacusByGroup {
                     if k < end - 1 && self.c[k + 1] as usize <= j {
                         k += 1
                     }
-                    if k - start + 1 >= (self.c[k] as f64 * q).ceil() as usize {
+                    if k - start + 1 >= ((self.c[k] as f64 + 1.0) * q).ceil() as usize {
                         // we never need to look into the actual value in self.v, because we
                         // know it must be non-zero, which is sufficient
                         match self.count {
