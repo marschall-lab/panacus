@@ -24,6 +24,8 @@ unsafe impl Sync for Wrap<Vec<u32>> {}
 unsafe impl Sync for Wrap<Vec<u16>> {}
 unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
+unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
+unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
 #[strum(serialize_all = "lowercase")]
