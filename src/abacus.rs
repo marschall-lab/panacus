@@ -643,8 +643,10 @@ impl AbacusByGroup {
         let c = usize::max(1, t_coverage.to_absolute(self.groups.len()));
         let q = f64::max(0.0, t_quorum.to_relative(self.groups.len()));
 
-        // start with 1, countable 0 is a forbidden element
-        for (i, (&start, &end)) in self.r.iter().tuple_windows().enumerate() {
+        let mut it = self.r.iter().tuple_windows().enumerate();
+        // ignore first entry
+        it.next();
+        for (i, (&start, &end)) in it {
             if end - start >= c {
                 let mut k = start;
                 for j in self.c[start] as usize..self.groups.len() {
@@ -769,8 +771,11 @@ impl AbacusByGroup {
                     }
                     writeln!(out, "")?;
 
-                    for (i, (&start, &end)) in self.r[1..].iter().tuple_windows().enumerate() {
-                        let edge = id2edge[i + 1];
+                    let mut it = self.r.iter().tuple_windows().enumerate();
+                    // ignore first entry
+                    it.next();
+                    for (i, (&start, &end)) in it {
+                        let edge = id2edge[i];
                         let start = start as usize;
                         let end = end as usize;
                         write!(
