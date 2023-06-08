@@ -16,6 +16,7 @@ use crate::graph::*;
 use crate::util::*;
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
+    // based on https://en.wikipedia.org/wiki/BED_(file_format)
     let mut res = Vec::new();
 
     let reader = Csv::from_reader(data)
@@ -565,6 +566,7 @@ pub fn parse_graph_aux<R: Read>(
 }
 
 fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(usize, usize)>> {
+    // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
     let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
 
     path_segments.into_iter().for_each(|x| {
@@ -784,6 +786,7 @@ fn update_tables(
 
     for (sid, o) in path {
         // update current pointer in include_coords list
+        // end is not inclusive, so if end <= p (=offset) then advance to the next interval
         while i < include_coords.len() && include_coords[i].1 <= p {
             i += 1;
         }
@@ -824,14 +827,14 @@ fn update_tables(
         //
         //
         // check if the current position fits within active segment
-        if i < include_coords.len() && include_coords[i].0 <= p + l {
+        if i < include_coords.len() && include_coords[i].0 < p + l {
             let mut a = if include_coords[i].0 > p {
                 include_coords[i].0 - p
             } else {
                 0
             };
             let mut b = if include_coords[i].1 < p + l {
-                l - include_coords[i].1 + p
+                include_coords[i].1 - p
             } else {
                 l
             };
@@ -860,7 +863,7 @@ fn update_tables(
             }
         }
 
-        if j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
+        if j < exclude_coords.len() && exclude_coords[j].0 < p + l {
             let mut a = if exclude_coords[j].0 > p {
                 exclude_coords[j].0 - p
             } else {

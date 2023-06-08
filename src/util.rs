@@ -106,7 +106,16 @@ impl ActiveTable {
                     self.items[id.0 as usize] |= true;
                     m.remove(&id);
                 } else {
-                    m.add(id, start, end);
+                    if start > end {
+                        log::error!(
+                            "start ({}) is larger than end ({}) for node {}",
+                            start,
+                            end,
+                            id
+                        );
+                    } else {
+                        m.add(id, start, end);
+                    }
                     if m.get(&id).unwrap()[0] == (0, item_len) {
                         m.remove(&id);
                         self.items[id.0 as usize] |= true;
@@ -155,11 +164,11 @@ impl IntervalContainer {
                 let i = x
                     .binary_search_by_key(&start, |&(y, _)| y)
                     .unwrap_or_else(|z| z);
-                if i > 0 && x[i - 1].1 >= start && x[i - 1].1 < end {
+                if i > 0 && x[i - 1].1 >= start && x[i - 1].1 <= end {
                     x[i - 1].1 = end;
-                } else if i < x.len() && x[i].1 > start && x[i].1 < end {
+                } else if i < x.len() && x[i].1 >= start && x[i].1 < end {
                     x[i].1 = end;
-                } else if i < x.len() && x[i].0 < end {
+                } else if i < x.len() && x[i].0 <= end {
                     x[i].0 = start;
                 } else {
                     x.insert(i, (start, end));
@@ -203,7 +212,7 @@ impl IntervalContainer {
 
                             // interval that starts with exclude end and ends with node end
                             //
-                            // mind the (include, exclude] character of intervals!
+                            // mind the [include, exclude) character of intervals!
                             if &ex[i].1 < end {
                                 res += end - ex[i].1 + 1;
                             }

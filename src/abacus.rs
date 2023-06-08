@@ -579,7 +579,7 @@ impl AbacusByGroup {
                     let sid = item_table.items[i][j] as usize;
                     if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid] {
                         let cv_start = r[sid];
-                        let cv_end = r[sid + 1];
+                        let mut cv_end = r[sid + 1];
                         // look up storage location for node cur_sid: we use the last position
                         // of interval cv_start..cv_end, which is associated to coverage counts
                         // of the current node (sid), in the "c" array as pointer to the
@@ -589,10 +589,11 @@ impl AbacusByGroup {
                         // currently writing the last element in that interval, and we need to make
                         // sure that we are no longer using it as pointer.
                         if cv_end - 1 > c.len() {
-                            log::info!(
-                                "oopse, cv_end-1 is larger than the length of c for sid={}",
+                            log::error!(
+                                "oops, cv_end-1 is larger than the length of c for sid={}",
                                 sid
                             );
+                            cv_end = c.len() - 1;
                         }
 
                         let mut p = c[cv_end - 1] as usize;
@@ -659,9 +660,14 @@ impl AbacusByGroup {
                         match self.count {
                             CountType::Node | CountType::Edge => res[j] += 1.0,
                             CountType::Bp => {
-                                res[j] += (self.graph_aux.node_len_ary[i] as usize
-                                    - self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0))
-                                    as f64
+                                let uncovered =
+                                    self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0);
+                                let covered = self.graph_aux.node_len_ary[i] as usize;
+                                if uncovered > &covered {
+                                    log::error!("oops, #uncovered bps ({}) is larger than #coverd bps ({}) for node with sid {})", &uncovered, &covered, i);
+                                } else {
+                                    res[j] += (covered - uncovered) as f64
+                                }
                             }
                         }
                     }
@@ -852,8 +858,12 @@ fn quantify_uncovered_bps(
                         .as_ref()
                         .map(|ex| ex.get_active_intervals(sid, l)),
                 );
-                // report uncovered bps
-                res.insert(sid.0, l - covered);
+                if covered > l {
+                    log::error!("oops, total coverage {} is larger than node length {} for node {}, intervals: {:?}", covered, l, sid.0, subset_map.get(sid).unwrap());
+                } else {
+                    // report uncovered bps
+                    res.insert(sid.0, l - covered);
+                }
             }
         }
     }
