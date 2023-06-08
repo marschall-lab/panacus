@@ -2,7 +2,9 @@
 
 # A Counting Tool for Pangenome Graphs
 
-`panacus` is a tool for computing counting statistics of [GFA](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md) files. It supports `P` and
+![panacus is a counting tool for pangenome graphs](docs/panacus-illustration.png?raw=true "panacus is a counting tool for pangenome graphs")
+
+`panacus` is a tool for calculating statistics for [GFA](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md) files. It supports GFA files with `P` and
 `W` lines, but requires that the graph is `blunt`, i.e., nodes do not overlap and consequently, each link (`L`) points from the end of one segment
 (`S`) to the start of another.
 
