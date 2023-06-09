@@ -87,11 +87,23 @@ impl AbacusAuxilliary {
                     if let Some(o) = &maybe_order {
                         // if order is given, check that it comprises all included coords
                         let all_included_paths: Vec<PathSegment> = match &include_coords {
-                            None => graph_aux
-                                .path_segments
-                                .iter()
-                                .map(|x| x.clear_coords())
-                                .collect(),
+                            None => {
+                                let exclude: HashSet<&PathSegment> = match &exclude_coords {
+                                    Some(e) => e.iter().collect(),
+                                    None => HashSet::new(),
+                                };
+                                graph_aux
+                                    .path_segments
+                                    .iter()
+                                    .filter_map(|x| {
+                                        if exclude.contains(x) {
+                                            Some(x.clear_coords())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect()
+                            }
                             Some(include) => include.iter().map(|x| x.clear_coords()).collect(),
                         };
                         let order_set: HashSet<&PathSegment> = HashSet::from_iter(o.iter());
@@ -290,6 +302,7 @@ impl AbacusAuxilliary {
         // maps indices of path_segments to the group identifier
 
         let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> = HashMap::default();
+
         for (i, p) in path_segments.into_iter().enumerate() {
             let group: &'a str = self.groups.get(&p.clear_coords()).unwrap();
             group_to_paths
@@ -298,12 +311,19 @@ impl AbacusAuxilliary {
                 .push((i as ItemIdSize, group));
         }
 
-        let order = if let Some(order) = &self.order {
-            order
+        let order: Vec<&PathSegment> = if let Some(order) = &self.order {
+            order.iter().collect()
         } else if let Some(include) = &self.include_coords {
-            include
+            include.iter().collect()
         } else {
+            let exclude: HashSet<&PathSegment> = match &self.exclude_coords {
+                Some(e) => e.iter().collect(),
+                None => HashSet::new(),
+            };
             path_segments
+                .into_iter()
+                .filter_map(|x| if exclude.contains(x) { Some(x) } else { None })
+                .collect::<Vec<&PathSegment>>()
         };
         Ok(order
             .into_iter()
