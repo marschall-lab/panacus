@@ -486,7 +486,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     } = &params
     {
         let mut c = 0;
-        if groupby.is_empty() {
+        if !groupby.is_empty() {
             c += 1;
         }
         if *groupby_haplotype {
