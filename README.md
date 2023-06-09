@@ -1,4 +1,4 @@
-[![Rust Build](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml/badge.svg)](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml) 
+[![Rust Build](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml/badge.svg)](https://github.com/marschall-lab/panacus/actions/workflows/rust_build.yml) [![Anaconda-Server Badge](https://anaconda.org/bioconda/panacus/badges/version.svg)](https://conda.anaconda.org/bioconda) [![Anaconda-Server Badge](https://anaconda.org/bioconda/panacus/badges/platforms.svg)](https://anaconda.org/bioconda/panacus) [![Anaconda-Server Badge](https://anaconda.org/bioconda/panacus/badges/license.svg)](https://anaconda.org/bioconda/panacus)
 
 # A Counting Tool for Pangenome Graphs
 
@@ -36,25 +36,64 @@
 - scipy
 - seaborn
 
-## Get panacus
+## Installation
 
+### From bioconda channel
+
+Make sure you have [conda](https://conda.io) installed!
+
+```shell
+conda install -c bioconda panacus
+```
+
+### From binary release 
+#### Linux x86\_64
+```shell
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.1/panacus-0.2.1_linux_x86_64.tar.gz
+tar -xzvf panacus-0.2.1_linux_x86_64.tar.gz
+
+# suggestion: add tool to path in your ~/.bashrc
+export PATH="$(readlink -f panacus-0.2.1_linux_x86_64/bin)":$PATH
+
+# you are ready to go! 
+panacus --help
+```
+
+#### Mac OSX arm64
+```shell
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.1/panacus-0.2.1_macos_arm64.tar.gz
+tar -xzvf panacus-0.2.1_macos_arm64.tar.gz
+
+# suggestion: add tool to path in your ~/.bashrc
+export PATH="$(readlink -f panacus-0.2_macos_arm64/bin)":$PATH
+
+# you are ready to go! 
+panacus --help
+```
+
+### From repository
 ```shell
 git clone git@github.com:marschall-lab/panacus.git
-```
 
-## Build
-
-```shell
 cd panacus
 cargo build --release
-```
 
-The compiled binary can be found in directory `target/release/` and is called `panacus`.
+mkdir bin
+ln -s ../target/release/panacus bin/
+ln -s ../scripts/panacus-visualize.py bin/panacus-visualize
+
+# suggestion: add tool to path in your ~/.bashrc
+export PATH="$(readlink -f bin)":$PATH
+
+# you are ready to go! 
+panacus --help
+
+```
 
 ## Run
 
 ```console
-$ ./target/release/panacus
+$ panacus
 Calculate count statistics for pangenomic data
 
 Usage: panacus <COMMAND>
@@ -89,7 +128,7 @@ grep '^P' chr22.hprc-v1.0-pggb.gfa | cut -f2 | grep -ve 'grch38\|chm13' > chr22.
 ```shell
 RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.tsv
 ```
-4. Visualize growth curve and estimate growth parameters :
+4. Visualize growth curve and estimate growth parameters:
 ```shell
 panacus-visualize -e chr22.hprc-v1.0-pggb.histgrowth.node.tsv > chr22.hprc-v1.0-pggb.histgrowth.node.pdf
 ```
@@ -109,28 +148,24 @@ minigraph-cactus based human pangenome reference graph.
 wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-grch38.gfa.gz
 gunzip hprc-v1.0-mc-grch38.gfa.gz
 ```
-2. Prepare file to select subset of paths corresponding to haplotypes:
-```shell
-grep '^P' chr22.hprc-v1.0-pggb.gfa | cut -f2 | grep -ive 'grch38\|chm13' > hprc-v1.0-mc-grch38.paths.haplotypes.txt
-```
-3. Establish order of samples in the growth statistics:
+2. Establish order of samples in the growth statistics:
 ```shell
 echo 'HG03492 HG00438 HG00621 HG00673 HG02080 HG00733 HG00735 HG00741 HG01071 HG01106 HG01109 HG01123 HG01175 HG01243 HG01258 HG01358 HG01361 HG01928
 HG01952 HG01978 HG02148 HG01891 HG02055 HG02109 HG02145 HG02257 HG02486 HG02559 HG02572 HG02622 HG02630 HG02717 HG02723 HG02818 HG02886 HG03098
 HG03453 HG03486 HG03516 HG03540 HG03579 NA18906 NA20129 NA21309' | tr ' ' '\n' > hprc-v1.0-mc-grch38.order.samples.txt
 ```
-4. Exclude paths from reference genome GRCh38
+3. Exclude paths from reference genome GRCh38
 ```shell
 grep '^P' hprc-v1.0-mc-grch38.gfa | cut -f2 | grep -ie 'grch38' > hprc-v1.0-mc-grch38.paths.grch38.txt
 ```
-5. Run `panacus ordered-histgrowth` to calculate pangenome growth for basepairs with coverage thresholds 1,2,3, and 42 using up to 4 threads:
+4. Run `panacus ordered-histgrowth` to calculate pangenome growth for basepairs with coverage thresholds 1,2,3, and 42 using up to 4 threads:
 ```shell
 RUST_LOG=info panacus ordered-histgrowth -c bp -t4 -l 1,2,3,42 -S -e hprc-v1.0-mc-grch38.paths.grch38.txt hprc-v1.0-mc-grch38.gfa > hprc-v1.0-mc-grch38.ordered-histgrowth.bp.tsv
 ```
 (The log will report some errors regarding missing order information of CHM13 paths. These paths will be ignored in the plot, which is the intended
-result of this program line call)
+behavior of this command line call)
 
-6. Visualize growth curve and estimate growth parameters :
+5. Visualize growth curve and estimate growth parameters :
 ```shell
 panacus-visualize hprc-v1.0-mc-grch38.ordered-histgrowth.bp.tsv > hprc-v1.0-mc-grch38.ordered-histgrowth.bp.pdf
 ```
