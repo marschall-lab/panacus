@@ -96,7 +96,7 @@ impl AbacusAuxilliary {
                                     .path_segments
                                     .iter()
                                     .filter_map(|x| {
-                                        if exclude.contains(x) {
+                                        if !exclude.contains(x) {
                                             Some(x.clear_coords())
                                         } else {
                                             None
@@ -322,7 +322,7 @@ impl AbacusAuxilliary {
             };
             path_segments
                 .into_iter()
-                .filter_map(|x| if exclude.contains(x) { Some(x) } else { None })
+                .filter_map(|x| if !exclude.contains(x) { Some(x) } else { None })
                 .collect::<Vec<&PathSegment>>()
         };
         Ok(order
@@ -489,6 +489,7 @@ impl AbacusByGroup {
         let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
         for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
+            log::debug!("processing path {} (group {})", &graph_aux.path_segments[path_id as usize], group_id);
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
