@@ -384,24 +384,23 @@ fn parse_walk_seq_update_tables(
             }
         });
 
+    // compute prefix sum
+    for i in 0..SIZE_T {
+        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+    }
+
     // is exclude table is given, we assume that all nodes of the path are excluded
     if let Some(ex) = exclude_table {
+        log::error!("flagging nodes of path as excluded");
         for i in 0..SIZE_T {
-            let prev = if num_path > 0 {
-                item_table.id_prefsum[i][num_path - 1]
-            } else {
-                0
-            } as usize;
-            for j in prev..(item_table.id_prefsum[i][num_path] as usize) {
+            for j in (item_table.id_prefsum[i][num_path] as usize)
+                ..(item_table.id_prefsum[i][num_path + 1] as usize)
+            {
                 ex.items[item_table.items[i][j] as usize] |= true;
             }
         }
     }
 
-    // compute prefix sum
-    for i in 0..SIZE_T {
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
     log::debug!("..done");
 }
 
@@ -483,23 +482,21 @@ fn parse_path_seq_update_tables(
         }
     });
 
-    // is exclude table is given, we assume that all nodes of the path are excluded
-    if let Some(ex) = exclude_table {
-        for i in 0..SIZE_T {
-            let prev = if num_path > 0 {
-                item_table.id_prefsum[i][num_path - 1]
-            } else {
-                0
-            } as usize;
-            for j in prev..(item_table.id_prefsum[i][num_path] as usize) {
-                ex.items[item_table.items[i][j] as usize] |= true;
-            }
-        }
-    }
-
     // compute prefix sum
     for i in 0..SIZE_T {
         item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+    }
+
+    // is exclude table is given, we assume that all nodes of the path are excluded
+    if let Some(ex) = exclude_table {
+        log::debug!("flagging nodes of path as excluded");
+        for i in 0..SIZE_T {
+            for j in (item_table.id_prefsum[i][num_path] as usize)
+                ..(item_table.id_prefsum[i][num_path + 1] as usize)
+            {
+                ex.items[item_table.items[i][j] as usize] |= true;
+            }
+        }
     }
 
     log::debug!("..done");
@@ -672,7 +669,14 @@ pub fn parse_gfa_itemcount<R: Read>(
             } else {
                 match exclude_map.get(&path_seg.id()) {
                     None => &[],
-                    Some(coords) => &coords[..],
+                    Some(coords) => {
+                        log::debug!(
+                            "found exclude coords {:?} for path segment {}",
+                            &coords[..],
+                            &path_seg.id()
+                        );
+                        &coords[..]
+                    }
                 }
             };
 
@@ -698,6 +702,8 @@ pub fn parse_gfa_itemcount<R: Read>(
             if abacus_aux.count != CountType::Edge
                 && (abacus_aux.include_coords.is_none()
                     || is_contained(include_coords, &(start, end)))
+                && (abacus_aux.exclude_coords.is_none()
+                    || is_contained(exclude_coords, &(start, end)))
             {
                 log::debug!("path {} is fully contained within subset coordinates {:?} and is eligible for full parallel processing", path_seg, include_coords);
                 let ex = if exclude_coords.is_empty() {
@@ -870,7 +876,7 @@ fn update_tables(
                 0
             };
             let mut b = if exclude_coords[j].1 < p + l {
-                l - exclude_coords[j].1 + p
+                exclude_coords[j].1 - p
             } else {
                 l
             };
@@ -960,12 +966,12 @@ fn update_tables_edgecount(
                 }
             ));
         // check if the current position fits within active segment
-        if i < include_coords.len() && include_coords[i].0 <= p + l {
+        if i < include_coords.len() && include_coords[i].0 < p + l {
             let idx = (eid.0 as usize) % SIZE_T;
             item_table.items[idx].push(eid.0);
             item_table.id_prefsum[idx][num_path + 1] += 1;
         }
-        if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 <= p + l {
+        if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 < p + l {
             exclude_table.as_mut().unwrap().activate(eid);
         } else if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed

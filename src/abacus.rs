@@ -115,10 +115,11 @@ impl AbacusAuxilliary {
                                     p
                                 );
                                 log::error!("{}", &msg);
-                                return Err(std::io::Error::new(
-                                    std::io::ErrorKind::InvalidData,
-                                    msg,
-                                ));
+                                // let's not be that harsh, shall we?
+                                //                                return Err(std::io::Error::new(
+                                //                                    std::io::ErrorKind::InvalidData,
+                                //                                    msg,
+                                //                                ));
                             }
                         }
 
@@ -489,7 +490,11 @@ impl AbacusByGroup {
         let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
         for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
-            log::debug!("processing path {} (group {})", &graph_aux.path_segments[path_id as usize], group_id);
+            log::debug!(
+                "processing path {} (group {})",
+                &graph_aux.path_segments[path_id as usize],
+                group_id
+            );
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
@@ -505,13 +510,8 @@ impl AbacusByGroup {
             &path_order,
             graph_aux.number_of_items(&abacus_aux.count),
         );
-        let (v, c) = AbacusByGroup::compute_column_values(
-            &item_table,
-            &exclude_table,
-            &path_order,
-            &r,
-            report_values,
-        );
+        let (v, c) =
+            AbacusByGroup::compute_column_values(&item_table, &path_order, &r, report_values);
 
         Ok(Self {
             count: abacus_aux.count,
@@ -570,7 +570,6 @@ impl AbacusByGroup {
 
     fn compute_column_values(
         item_table: &ItemTable,
-        exclude_table: &Option<ActiveTable>,
         path_order: &Vec<(ItemIdSize, GroupSize)>,
         r: &Vec<usize>,
         report_values: bool,
@@ -598,9 +597,9 @@ impl AbacusByGroup {
                 let end = item_table.id_prefsum[i][path_id_u + 1] as usize;
                 for j in start..end {
                     let sid = item_table.items[i][j] as usize;
-                    if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid] {
-                        let cv_start = r[sid];
-                        let mut cv_end = r[sid + 1];
+                    let cv_start = r[sid];
+                    let mut cv_end = r[sid + 1];
+                    if cv_end != cv_start {
                         // look up storage location for node cur_sid: we use the last position
                         // of interval cv_start..cv_end, which is associated to coverage counts
                         // of the current node (sid), in the "c" array as pointer to the
