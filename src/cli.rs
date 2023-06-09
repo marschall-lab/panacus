@@ -34,7 +34,7 @@ macro_rules! clap_enum_variants {
 
 #[derive(Parser, Debug)]
 #[clap(
-    version = "0.2",
+    version = "0.2.1",
     author = "Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>",
     about = "Calculate count statistics for pangenomic data"
 )]
