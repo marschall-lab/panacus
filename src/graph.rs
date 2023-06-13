@@ -183,7 +183,12 @@ impl GraphAuxilliary {
         if let Some(em) = &edge2id {
             for (e, id) in em.iter() {
                 if id.0 as usize > em.len() {
-                    log::error!("id {} of edge {} is larger than total number of edges ({})", id, e, em.len());
+                    log::error!(
+                        "id {} of edge {} is larger than total number of edges ({})",
+                        id,
+                        e,
+                        em.len()
+                    );
                 }
             }
         }
@@ -218,11 +223,13 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn construct_edgemap(edges: Option<Vec<Vec<u8>>>, node2id: &HashMap<Vec<u8>, ItemId>) ->
-        Option<HashMap<Edge, ItemId>> {
+    pub fn construct_edgemap(
+        edges: Option<Vec<Vec<u8>>>,
+        node2id: &HashMap<Vec<u8>, ItemId>,
+    ) -> Option<HashMap<Edge, ItemId>> {
         match edges {
-            Some(es) => {
-                Some(es.into_iter()
+            Some(es) => Some(
+                es.into_iter()
                     .enumerate()
                     .map(|(i, e)| {
                         (
@@ -230,9 +237,9 @@ impl GraphAuxilliary {
                             ItemId(i as ItemIdSize + 1),
                         )
                     })
-                    .collect())
-            }
-            None => None
+                    .collect(),
+            ),
+            None => None,
         }
     }
 }

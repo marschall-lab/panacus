@@ -782,7 +782,8 @@ impl AbacusByGroup {
                         ItemId(0),
                         Orientation::default(),
                     );
-                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; self.graph_aux.number_of_edges() + 1];
+                    let mut id2edge: Vec<&Edge> =
+                        vec![&dummy_edge; self.graph_aux.number_of_edges() + 1];
                     for (edge, id) in edge2id.iter() {
                         id2edge[id.0 as usize] = edge;
                     }
