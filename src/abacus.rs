@@ -725,7 +725,7 @@ impl AbacusByGroup {
     ) -> Result<(), std::io::Error> {
         // create mapping from numerical node ids to original node identifiers
         let dummy = Vec::new();
-        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; self.graph_aux.node2id.len() + 1];
+        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; self.graph_aux.number_of_nodes() + 1];
         for (node, id) in self.graph_aux.node2id.iter() {
             id2node[id.0 as usize] = node;
         }
@@ -775,14 +775,14 @@ impl AbacusByGroup {
                 }
             }
             CountType::Edge => {
-                if let Some(ref edge2id) = self.graph_aux.edge2id {
+                if let Some(edge2id) = &self.graph_aux.edge2id {
                     let dummy_edge = Edge(
                         ItemId(0),
                         Orientation::default(),
                         ItemId(0),
                         Orientation::default(),
                     );
-                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; edge2id.len() + 1];
+                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; self.graph_aux.number_of_edges() + 1];
                     for (edge, id) in edge2id.iter() {
                         id2edge[id.0 as usize] = edge;
                     }

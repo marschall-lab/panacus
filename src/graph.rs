@@ -178,7 +178,15 @@ impl GraphAuxilliary {
         let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges)?;
         // don't count "0" ID
         let nc = node_len_ary.len() - 1;
-        let (edge2id, ec) = Self::construct_edgemap(edges, &node2id);
+        let ec = edges.as_ref().map(|e| e.len()).unwrap_or(0);
+        let edge2id = Self::construct_edgemap(edges, &node2id);
+        if let Some(em) = &edge2id {
+            for (e, id) in em.iter() {
+                if id.0 as usize > em.len() {
+                    log::error!("id {} of edge {} is larger than total number of edges ({})", id, e, em.len());
+                }
+            }
+        }
         Ok(Self::new(
             node2id,
             node_len_ary,
@@ -210,18 +218,11 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn construct_edgemap(
-        edges: Option<Vec<Vec<u8>>>,
-        node2id: &HashMap<Vec<u8>, ItemId>,
-    ) -> (Option<HashMap<Edge, ItemId>>, usize) {
-        let ec = if edges.is_none() {
-            0
-        } else {
-            edges.as_ref().unwrap().len()
-        };
-        (
-            edges.map(|es| {
-                es.into_iter()
+    pub fn construct_edgemap(edges: Option<Vec<Vec<u8>>>, node2id: &HashMap<Vec<u8>, ItemId>) ->
+        Option<HashMap<Edge, ItemId>> {
+        match edges {
+            Some(es) => {
+                Some(es.into_iter()
                     .enumerate()
                     .map(|(i, e)| {
                         (
@@ -229,10 +230,10 @@ impl GraphAuxilliary {
                             ItemId(i as ItemIdSize + 1),
                         )
                     })
-                    .collect()
-            }),
-            ec,
-        )
+                    .collect())
+            }
+            None => None
+        }
     }
 }
 
