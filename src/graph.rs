@@ -178,20 +178,7 @@ impl GraphAuxilliary {
         let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges)?;
         // don't count "0" ID
         let nc = node_len_ary.len() - 1;
-        let ec = edges.as_ref().map(|e| e.len()).unwrap_or(0);
-        let edge2id = Self::construct_edgemap(edges, &node2id);
-        if let Some(em) = &edge2id {
-            for (e, id) in em.iter() {
-                if id.0 as usize > em.len() {
-                    log::error!(
-                        "id {} of edge {} is larger than total number of edges ({})",
-                        id,
-                        e,
-                        em.len()
-                    );
-                }
-            }
-        }
+        let (edge2id, ec) = Self::construct_edgemap(edges, &node2id);
         Ok(Self::new(
             node2id,
             node_len_ary,
@@ -226,20 +213,23 @@ impl GraphAuxilliary {
     pub fn construct_edgemap(
         edges: Option<Vec<Vec<u8>>>,
         node2id: &HashMap<Vec<u8>, ItemId>,
-    ) -> Option<HashMap<Edge, ItemId>> {
+    ) -> (Option<HashMap<Edge, ItemId>>, usize) {
         match edges {
-            Some(es) => Some(
-                es.into_iter()
-                    .enumerate()
-                    .map(|(i, e)| {
-                        (
-                            Edge::from_link(&e[..], node2id, true),
-                            ItemId(i as ItemIdSize + 1),
-                        )
-                    })
-                    .collect(),
-            ),
-            None => None,
+            Some(es) => {
+                let mut res = HashMap::default();
+                let mut c: ItemIdSize = 0;
+                for b in es {
+                    let e = Edge::from_link(&b[..], node2id, true);
+                    if res.contains_key(&e) {
+                        log::error!("edge {} is duplicated in GFA", &e);
+                    } else {
+                        c += 1;
+                        res.insert(e, ItemId(c));
+                    }
+                }
+                (Some(res), c as usize)
+            }
+            None => (None, 0),
         }
     }
 }
