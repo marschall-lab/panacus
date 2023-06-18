@@ -361,7 +361,7 @@ impl PathSegment {
     }
 
     pub fn coords(&self) -> Option<(usize, usize)> {
-        if self.start.is_some() {
+        if self.start.is_some() && self.end.is_some() {
             Some((self.start.unwrap(), self.end.unwrap()))
         } else {
             None

@@ -40,10 +40,10 @@
 
 ### From bioconda channel
 
-Make sure you have [conda](https://conda.io) installed!
+Make sure you have [conda](https://conda.io)/[mamba](https://anaconda.org/conda-forge/mamba) installed!
 
 ```shell
-conda install -c bioconda panacus
+mamba install -c conda-forge -c bioconda panacus
 ```
 
 ### From binary release 
