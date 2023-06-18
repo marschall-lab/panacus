@@ -1,4 +1,6 @@
 /* standard use */
+use once_cell::sync::Lazy;
+use regex::{Match, Regex};
 use std::collections::HashMap;
 use std::fmt;
 use std::str::{self, FromStr};
@@ -6,6 +8,10 @@ use std::str::{self, FromStr};
 /* private use */
 use crate::io;
 use crate::util::{CountType, ItemIdSize};
+
+static PATHID_PANSN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#]+)?$").unwrap());
+static PATHID_COORDS: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+):([0-9]+)-([0-9]+)$").unwrap());
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemId(pub ItemIdSize);
@@ -269,57 +275,54 @@ impl PathSegment {
             end: None,
         };
 
-        let segments = s.split('#').collect::<Vec<&str>>();
-        match segments.len() {
-            3 => {
-                res.sample = segments[0].to_string();
-                res.haplotype = Some(segments[1].to_string());
-                let seq_coords = segments[2].split(':').collect::<Vec<&str>>();
-                res.seqid = Some(seq_coords[0].to_string());
-                if seq_coords.len() == 2 {
-                    let start_end = seq_coords[1].split('-').collect::<Vec<&str>>();
-                    res.start = usize::from_str(start_end[0]).ok();
-                    res.end = usize::from_str(start_end[1]).ok();
-                } else {
-                    assert!(
-                        seq_coords.len() == 1,
-                        r"unknown format, expected string of kind \w#\w(#\w)?:\d-\d, but got {}",
-                        &s
-                    );
+        if let Some(c) = PATHID_PANSN.captures(s) {
+            let segments: Vec<&str> = c.iter().filter_map(|x| x.map(|y| y.as_str())).collect();
+            // first capture group is the string itself
+            log::debug!(
+                "path id {} can be decomposed into capture groups {:?}",
+                s,
+                segments
+            );
+            match segments.len() {
+                4 => {
+                    res.sample = segments[1].to_string();
+                    res.haplotype = Some(segments[2][1..].to_string());
+                    match PATHID_COORDS.captures(&segments[3][1..]) {
+                        None => {
+                            res.seqid = Some(segments[3][1..].to_string());
+                        }
+                        Some(cc) => {
+                            log::debug!("path has coodinates {:?}", cc);
+                            res.seqid = Some(cc.get(1).unwrap().as_str().to_string());
+                            res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
+                            res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
+                        }
+                    }
                 }
-            }
-            2 => {
-                res.sample = segments[0].to_string();
-                let seq_coords = segments[1].split(':').collect::<Vec<&str>>();
-                res.haplotype = Some(seq_coords[0].to_string());
-                if seq_coords.len() == 2 {
-                    let start_end = seq_coords[1].split('-').collect::<Vec<&str>>();
-                    res.start = usize::from_str(start_end[0]).ok();
-                    res.end = usize::from_str(start_end[1]).ok();
-                } else {
-                    assert!(
-                        seq_coords.len() == 1,
-                        r"unknown format, expected string of kind \w#\w(#\w)?:\d-\d, but got {}",
-                        &s
-                    );
+                3 => {
+                    res.sample = segments[1].to_string();
+                    match PATHID_COORDS.captures(&segments[2][1..]) {
+                        None => {
+                            res.haplotype = Some(segments[2][1..].to_string());
+                        }
+                        Some(cc) => {
+                            log::debug!("path has coodinates {:?}", cc);
+                            res.haplotype = Some(cc.get(1).unwrap().as_str().to_string());
+                            res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
+                            res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
+                        }
+                    }
                 }
-            }
-            1 => {
-                let seq_coords = segments[0].split(':').collect::<Vec<&str>>();
-                if seq_coords.len() == 2 {
-                    res.sample = seq_coords[0].to_string();
-                    let start_end = seq_coords[1].split('-').collect::<Vec<&str>>();
-                    res.start = usize::from_str(start_end[0]).ok();
-                    res.end = usize::from_str(start_end[1]).ok();
-                } else {
-                    assert!(
-                        seq_coords.len() == 1,
-                        r"unknown format, expected string of kind \w#\w(#\w)?:\d-\d, but got {}",
-                        &s
-                    );
+                2 => {
+                    if let Some(cc) = PATHID_COORDS.captures(segments[1]) {
+                        log::debug!("path has coodinates {:?}", cc);
+                        res.sample = cc.get(1).unwrap().as_str().to_string();
+                        res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
+                        res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
+                    }
                 }
+                _ => (),
             }
-            _ => (),
         }
         res
     }
