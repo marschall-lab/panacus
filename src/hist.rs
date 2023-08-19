@@ -9,6 +9,7 @@ use crate::util::{CountType, Threshold};
 
 #[derive(Debug, Clone)]
 pub struct Hist {
+    pub count: CountType,
     pub coverage: Vec<usize>,
 }
 
@@ -33,15 +34,17 @@ impl Hist {
     pub fn from_tsv<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
     ) -> Result<Self, std::io::Error> {
-        let coverage = io::parse_hist(data)?;
-        Ok(Self { coverage })
+        let (count, coverage) = io::parse_hist(data)?;
+        Ok(Self { count, coverage })
     }
 
     pub fn from_abacus(abacus: &AbacusByTotal) -> Self {
         Self {
+            count: abacus.count,
             coverage: match abacus.count {
                 CountType::Node | CountType::Edge => abacus.construct_hist(),
                 CountType::Bp => abacus.construct_hist_bps(),
+                CountType::All => unreachable!("inadmissable count type"),
             },
         }
     }
@@ -161,10 +164,9 @@ impl Hist {
 
     pub fn to_tsv<W: std::io::Write>(
         &self,
-        count: &CountType,
         out: &mut std::io::BufWriter<W>,
     ) -> Result<(), std::io::Error> {
-        writeln!(out, "coverage\t{}", count)?;
+        writeln!(out, "hist\t{}", self.count)?;
         for (i, c) in self.coverage.iter().enumerate() {
             writeln!(out, "{}\t{}", i, c)?;
         }

@@ -15,7 +15,6 @@ use crate::io;
 use crate::util::*;
 
 pub struct AbacusAuxilliary {
-    pub count: CountType,
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
     pub exclude_coords: Option<Vec<PathSegment>>,
@@ -29,7 +28,6 @@ impl AbacusAuxilliary {
     ) -> Result<Self, std::io::Error> {
         match params {
             Params::Histgrowth {
-                count,
                 positive_list,
                 negative_list,
                 groupby,
@@ -38,7 +36,6 @@ impl AbacusAuxilliary {
                 ..
             }
             | Params::Hist {
-                count,
                 positive_list,
                 negative_list,
                 groupby,
@@ -47,7 +44,6 @@ impl AbacusAuxilliary {
                 ..
             }
             | Params::OrderedHistgrowth {
-                count,
                 positive_list,
                 negative_list,
                 groupby,
@@ -56,7 +52,6 @@ impl AbacusAuxilliary {
                 ..
             }
             | Params::Table {
-                count,
                 positive_list,
                 negative_list,
                 groupby,
@@ -145,7 +140,6 @@ impl AbacusAuxilliary {
                 };
 
                 Ok(AbacusAuxilliary {
-                    count: count.clone(),
                     groups: groups,
                     include_coords: include_coords,
                     exclude_coords: exclude_coords,
@@ -343,32 +337,32 @@ impl AbacusAuxilliary {
 }
 
 #[derive(Debug, Clone)]
-pub struct AbacusByTotal {
+pub struct AbacusByTotal<'a> {
     pub count: CountType,
     pub countable: Vec<CountSize>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
-    pub graph_aux: GraphAuxilliary,
+    pub graph_aux: &'a GraphAuxilliary,
 }
 
-impl AbacusByTotal {
+impl<'a> AbacusByTotal<'a> {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
-        abacus_aux: AbacusAuxilliary,
-        graph_aux: GraphAuxilliary,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &'a GraphAuxilliary,
+        count: CountType,
     ) -> Result<Self, std::io::Error> {
         log::info!("parsing path + walk sequences");
         let (item_table, exclude_table, subset_covered_bps) =
-            io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
+            io::parse_gfa_itemcount(data, abacus_aux, graph_aux, &count);
         log::info!("counting abacus entries..");
         // first element in countable is the "zero" element--which should be ignored in
         // counting
-        let mut countable: Vec<CountSize> =
-            vec![0; graph_aux.number_of_items(&abacus_aux.count) + 1];
+        let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&count) + 1];
         // countable with ID "0" is special and should not be considered in coverage histogram
         countable[0] = CountSize::MAX;
         let mut last: Vec<ItemIdSize> =
-            vec![ItemIdSize::MAX; graph_aux.number_of_items(&abacus_aux.count) + 1];
+            vec![ItemIdSize::MAX; graph_aux.number_of_items(&count) + 1];
 
         let mut groups = Vec::new();
         for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
@@ -386,7 +380,7 @@ impl AbacusByTotal {
         }
 
         Ok(Self {
-            count: abacus_aux.count,
+            count: count,
             countable: countable,
             uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
             groups: groups,
@@ -466,26 +460,27 @@ impl AbacusByTotal {
 }
 
 #[derive(Debug, Clone)]
-pub struct AbacusByGroup {
+pub struct AbacusByGroup<'a> {
     pub count: CountType,
     pub r: Vec<usize>,
     pub v: Option<Vec<CountSize>>,
     pub c: Vec<GroupSize>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
-    pub graph_aux: GraphAuxilliary,
+    pub graph_aux: &'a GraphAuxilliary,
 }
 
-impl AbacusByGroup {
+impl<'a> AbacusByGroup<'a> {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
-        abacus_aux: AbacusAuxilliary,
-        graph_aux: GraphAuxilliary,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &'a GraphAuxilliary,
+        count: CountType,
         report_values: bool,
     ) -> Result<Self, std::io::Error> {
         log::info!("parsing path + walk sequences");
         let (item_table, exclude_table, subset_covered_bps) =
-            io::parse_gfa_itemcount(data, &abacus_aux, &graph_aux);
+            io::parse_gfa_itemcount(data, abacus_aux, graph_aux, &count);
 
         let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
@@ -508,17 +503,17 @@ impl AbacusByGroup {
             &item_table,
             &exclude_table,
             &path_order,
-            graph_aux.number_of_items(&abacus_aux.count),
+            graph_aux.number_of_items(&count),
         );
         let (v, c) =
             AbacusByGroup::compute_column_values(&item_table, &path_order, &r, report_values);
 
         Ok(Self {
-            count: abacus_aux.count,
+            count: count,
             r: r,
             v: v,
             c: c,
-            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
+            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, graph_aux),
             groups: groups,
             graph_aux: graph_aux,
         })
@@ -689,6 +684,7 @@ impl AbacusByGroup {
                                     res[j] += (covered - uncovered) as f64
                                 }
                             }
+                            CountType::All => unreachable!("inadmissible count type"),
                         }
                     }
                 }
@@ -835,15 +831,16 @@ impl AbacusByGroup {
                     }
                 }
             }
+            CountType::All => unreachable!("inadmissible count type"),
         };
 
         Ok(())
     }
 }
 
-pub enum Abacus {
-    Total(AbacusByTotal),
-    Group(AbacusByGroup),
+pub enum Abacus<'a> {
+    Total(AbacusByTotal<'a>),
+    Group(AbacusByGroup<'a>),
     Nil,
 }
 

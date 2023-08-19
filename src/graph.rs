@@ -1,6 +1,6 @@
 /* standard use */
 use once_cell::sync::Lazy;
-use regex::{Match, Regex};
+use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 use std::str::{self, FromStr};
@@ -213,6 +213,7 @@ impl GraphAuxilliary {
         match c {
             &CountType::Node | &CountType::Bp => self.node_count,
             &CountType::Edge => self.edge_count,
+            &CountType::All => unreachable!("inadmissible count type"),
         }
     }
 

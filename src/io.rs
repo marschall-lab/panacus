@@ -107,27 +107,39 @@ pub fn parse_groups<R: Read>(
     Ok(res)
 }
 
-pub fn parse_hist<R: Read>(data: &mut BufReader<R>) -> Result<Vec<usize>, std::io::Error> {
+pub fn parse_hist<R: Read>(
+    data: &mut BufReader<R>,
+) -> Result<(CountType, Vec<usize>), std::io::Error> {
     let mut table: HashMap<usize, usize> = HashMap::default();
 
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
         .has_header(false);
+    let mut is_header = true;
+    let mut count_type = None;
     for (i, row) in reader.enumerate() {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
         let cov;
         let count;
         if let Some(cov_str) = row_it.next() {
-            if let Ok(val) = usize::from_str(&str::from_utf8(&cov_str).unwrap()) {
+            if is_header {
+                cov = 0;
+                if &b'#' == &cov_str[0] {
+                    continue;
+                } else {
+                    if &b"hist" != &cov_str {
+                        let msg = format!(
+                            "error in line {}: table appears not to contain histogram data",
+                            i
+                        );
+                        log::error!("{}", &msg);
+                        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+                    }
+                }
+            } else if let Ok(val) = usize::from_str(&str::from_utf8(&cov_str).unwrap()) {
                 cov = val;
-            } else if i <= 1 {
-                log::info!(
-                    "values in line {} are not integer, assuming this being a header line",
-                    i
-                );
-                continue;
             } else {
                 let msg = format!(
                     "error in line {}: value must be integer, but is '{}'",
@@ -143,14 +155,22 @@ pub fn parse_hist<R: Read>(data: &mut BufReader<R>) -> Result<Vec<usize>, std::i
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
         }
         if let Some(count_str) = row_it.next() {
-            if let Ok(val) = usize::from_str(&str::from_utf8(&count_str).unwrap()) {
-                count = val;
-            } else if i == 0 {
-                log::info!(
-                    "values in line {} are not integer, assuming this being a header line",
-                    i
+            if is_header {
+                count_type = Some(
+                    CountType::from_str(&str::from_utf8(&count_str).unwrap()).or_else(|_| {
+                        let msg = format!(
+                            "error in line {}: expected count type declaration, but got '{}'",
+                            i,
+                            &str::from_utf8(&count_str).unwrap()
+                        );
+                        log::error!("{}", &msg);
+                        Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+                    })?,
                 );
+                is_header = false;
                 continue;
+            } else if let Ok(val) = usize::from_str(&str::from_utf8(&count_str).unwrap()) {
+                count = val;
             } else {
                 let msg = format!(
                     "error in line {}: value must be integer, but is '{}'",
@@ -181,7 +201,14 @@ pub fn parse_hist<R: Read>(data: &mut BufReader<R>) -> Result<Vec<usize>, std::i
     let mut res = vec![0; max_cov + 1];
     table.into_iter().for_each(|(cov, count)| res[cov] = count);
 
-    Ok(res)
+    match count_type {
+        Some(count) => Ok((count, res)),
+        None => {
+            let msg = "unknown count type";
+            log::error!("{}", msg);
+            Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+        }
+    }
 }
 
 pub fn parse_threshold_file<R: Read>(
@@ -596,6 +623,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     data: &mut BufReader<R>,
     abacus_aux: &AbacusAuxilliary,
     graph_aux: &GraphAuxilliary,
+    count: &CountType,
 ) -> (ItemTable, Option<ActiveTable>, Option<IntervalContainer>) {
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
 
@@ -606,7 +634,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     // coodinates
     //
     let mut subset_covered_bps: Option<IntervalContainer> =
-        if abacus_aux.count == CountType::Bp && abacus_aux.include_coords.is_some() {
+        if count == &CountType::Bp && abacus_aux.include_coords.is_some() {
             Some(IntervalContainer::new())
         } else {
             None
@@ -617,8 +645,8 @@ pub fn parse_gfa_itemcount<R: Read>(
     //
     let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
         ActiveTable::new(
-            graph_aux.number_of_items(&abacus_aux.count) + 1,
-            abacus_aux.count == CountType::Bp,
+            graph_aux.number_of_items(count) + 1,
+            count == &CountType::Bp,
         )
     });
 
@@ -699,7 +727,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                 continue;
             }
 
-            if abacus_aux.count != CountType::Edge
+            if count != &CountType::Edge
                 && (abacus_aux.include_coords.is_none()
                     || is_contained(include_coords, &(start, end)))
                 && (abacus_aux.exclude_coords.is_none()
@@ -736,7 +764,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                     _ => unreachable!(),
                 };
 
-                match abacus_aux.count {
+                match count {
                     CountType::Node | CountType::Bp => update_tables(
                         &mut item_table,
                         &mut subset_covered_bps.as_mut(),
@@ -758,6 +786,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                         exclude_coords,
                         start,
                     ),
+                    CountType::All => unreachable!("inadmissable count type"),
                 };
             }
             num_path += 1;

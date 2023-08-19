@@ -33,6 +33,7 @@ pub enum CountType {
     Node,
     Bp,
     Edge,
+    All,
 }
 
 impl fmt::Display for CountType {
@@ -44,6 +45,7 @@ impl fmt::Display for CountType {
                 CountType::Node => "node",
                 CountType::Edge => "edge",
                 CountType::Bp => "bp",
+                CountType::All => "all",
             }
         )
     }

@@ -32,6 +32,15 @@ macro_rules! clap_enum_variants {
     }};
 }
 
+#[macro_export]
+macro_rules! clap_enum_variants_no_all {
+    ($e: ty) => {{
+        use clap::builder::TypedValueParser;
+        clap::builder::PossibleValuesParser::new(<$e>::VARIANTS.iter().filter(|&x| x != &"all"))
+            .map(|s| s.parse::<$e>().unwrap())
+    }};
+}
+
 #[derive(Parser, Debug)]
 #[clap(
     version = "0.2.1",
@@ -117,6 +126,9 @@ pub enum Params {
             default_value = "1"
         )]
         coverage: String,
+
+        #[clap(short = 'a', long, help = "Include also histogram in output")]
+        hist: bool,
 
         #[clap(
             short,
@@ -213,6 +225,9 @@ pub enum Params {
         )]
         coverage: String,
 
+        #[clap(short = 'H', long, help = "Include histogram in output")]
+        hist: bool,
+
         #[clap(
             short,
             long,
@@ -234,7 +249,7 @@ pub enum Params {
         help = "Graph quantity to be counted",
         default_value = "node",
         ignore_case = true,
-        value_parser = clap_enum_variants!(CountType),
+        value_parser = clap_enum_variants_no_all!(CountType),
     )]
         count: CountType,
 
@@ -312,7 +327,7 @@ pub enum Params {
         threads: usize,
     },
 
-    #[clap(about = "Compute coverage table for count items")]
+    #[clap(about = "Compute coverage table for count type")]
     Table {
         #[clap(index = 1, help = "graph in GFA1 format", required = true)]
         gfa_file: String,
@@ -321,7 +336,7 @@ pub enum Params {
             help = "Graph quantity to be counted",
             default_value = "node",
             ignore_case = true,
-            value_parser = clap_enum_variants!(CountType),
+            value_parser = clap_enum_variants_no_all!(CountType),
         )]
         count: CountType,
 
@@ -436,6 +451,78 @@ pub fn parse_threshold_cli(
     Ok(thresholds)
 }
 
+pub fn write_ordered_histgrowth_table<W: Write>(
+    abacus_group: &AbacusByGroup,
+    hist_aux: &HistAuxilliary,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let mut output_columns: Vec<Vec<f64>> = hist_aux
+        .coverage
+        .par_iter()
+        .zip(&hist_aux.quorum)
+        .map(|(c, q)| {
+            log::info!(
+                "calculating ordered growth for coverage >= {} and quorum >= {}",
+                &c,
+                &q
+            );
+            abacus_group.calc_growth(&c, &q)
+        })
+        .collect();
+
+    // insert empty row for 0 element
+    for c in &mut output_columns {
+        c.insert(0, std::f64::NAN);
+    }
+    let m = hist_aux.coverage.len();
+    let mut header_cols = vec![vec![
+        "panacus".to_string(),
+        "count".to_string(),
+        "coverage".to_string(),
+        "quorum".to_string(),
+    ]];
+    header_cols.extend(
+        std::iter::repeat("ordered-growth")
+            .take(m)
+            .zip(std::iter::repeat(abacus_group.count).take(m))
+            .zip(hist_aux.coverage.iter())
+            .zip(&hist_aux.quorum)
+            .map(|(((p, t), c), q)| {
+                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+            })
+            .collect::<Vec<Vec<String>>>(),
+    );
+    write_table(&header_cols, &output_columns, out)
+}
+
+pub fn write_table<W: Write>(
+    headers: &Vec<Vec<String>>,
+    columns: &Vec<Vec<f64>>,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let n = headers.first().unwrap_or(&Vec::new()).len();
+
+    for i in 0..n {
+        for j in 0..headers.len() {
+            if j > 0 {
+                write!(out, "\t")?;
+            }
+            write!(out, "{:0}", headers[j][i])?;
+        }
+        writeln!(out, "")?;
+    }
+    let n = columns.first().unwrap_or(&Vec::new()).len();
+    for i in 0..n {
+        write!(out, "{}", i)?;
+        for j in 0..columns.len() {
+            write!(out, "\t{:0}", columns[j][i].floor())?;
+        }
+        writeln!(out, "")?;
+    }
+
+    Ok(())
+}
+
 pub fn read_params() -> Params {
     Command::parse().cmd
 }
@@ -506,6 +593,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // 1st step: loading data from group / subset / exclude files and indexing graph
     //
     //
+    // graph_aux and abacus_aux do not make use of count type information, so they don't need to be
+    // adjusted
     let (graph_aux, abacus_aux) = match &params {
         Params::Histgrowth {
             gfa_file, count, ..
@@ -521,7 +610,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let graph_aux = GraphAuxilliary::from_gfa(&mut data, count == &CountType::Edge)?;
+            let graph_aux = GraphAuxilliary::from_gfa(
+                &mut data,
+                (count == &CountType::Edge) | (count == &CountType::All),
+            )?;
             log::info!(
                 "..done; found {} paths/walks and {} nodes{}",
                 graph_aux.path_segments.len(),
@@ -550,8 +642,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // 2nd step: build abacus or calculate coverage table
     //
 
-    let abacus: Abacus = match &params {
-        Params::Histgrowth { gfa_file, .. } | Params::Hist { gfa_file, .. } => {
+    let mut abaci: Vec<Abacus> = match &params {
+        Params::Histgrowth {
+            gfa_file, count, ..
+        }
+        | Params::Hist {
+            gfa_file, count, ..
+        } => {
             // creating the abacus from the gfa
 
             let n_groups = abacus_aux.as_ref().unwrap().count_groups();
@@ -565,24 +662,60 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 ));
             }
 
-            log::info!("loading graph from {}", &gfa_file);
-            let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus =
-                AbacusByTotal::from_gfa(&mut data, abacus_aux.unwrap(), graph_aux.unwrap())?;
-            log::info!(
-                "abacus has {} path groups and {} countables",
-                abacus.groups.len(),
-                abacus.countable.len()
-            );
-            Abacus::Total(abacus)
+            let mut abaci = Vec::new();
+            if matches!(count, CountType::All | CountType::Node | CountType::Bp) {
+                // unless we specifically count only nodes, let's ignore bps stuff...
+                let mycount = match count {
+                    CountType::Node => CountType::Node,
+                    _ => CountType::Bp,
+                };
+
+                let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+                log::info!("loading graph from {}", &gfa_file);
+                let abacus = AbacusByTotal::from_gfa(
+                    &mut data,
+                    abacus_aux.as_ref().unwrap(),
+                    graph_aux.as_ref().unwrap(),
+                    mycount,
+                )?;
+                log::info!(
+                    "abacus has {} path groups and {} countables",
+                    abacus.groups.len(),
+                    abacus.countable.len()
+                );
+                abaci.push(Abacus::Total(abacus));
+            }
+            if matches!(count, CountType::All | CountType::Edge) {
+                let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+                log::info!("loading graph from {}", &gfa_file);
+                let abacus = AbacusByTotal::from_gfa(
+                    &mut data,
+                    abacus_aux.as_ref().unwrap(),
+                    graph_aux.as_ref().unwrap(),
+                    CountType::Edge,
+                )?;
+                log::info!(
+                    "abacus has {} path groups and {} countables",
+                    abacus.groups.len(),
+                    abacus.countable.len()
+                );
+                abaci.push(Abacus::Total(abacus));
+            }
+            abaci
         }
-        Params::Table { gfa_file, .. } | Params::OrderedHistgrowth { gfa_file, .. } => {
+        Params::Table {
+            gfa_file, count, ..
+        }
+        | Params::OrderedHistgrowth {
+            gfa_file, count, ..
+        } => {
             log::info!("loading graph from {}", &gfa_file);
             let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
             let abacus = AbacusByGroup::from_gfa(
                 &mut data,
-                abacus_aux.unwrap(),
-                graph_aux.unwrap(),
+                abacus_aux.as_ref().unwrap(),
+                graph_aux.as_ref().unwrap(),
+                *count,
                 if let Params::Table { total, .. } = params {
                     !total
                 } else {
@@ -594,29 +727,43 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 abacus.groups.len(),
                 abacus.r.len()
             );
-            Abacus::Group(abacus)
+            vec![Abacus::Group(abacus)]
         }
-        _ => Abacus::Nil,
+        _ => vec![Abacus::Nil],
     };
 
     //
     // 3rd step: build histograam
     //
 
-    let hist: Option<Hist> = match &params {
-        Params::Histgrowth { .. } | Params::Hist { .. } => {
-            if let Abacus::Total(abacus_total) = &abacus {
+    let hists: Option<Vec<Hist>> = match &params {
+        Params::Histgrowth { count, .. } | Params::Hist { count, .. } => {
+            let mut hists = Vec::new();
+
+            if matches!(count, CountType::All) {
+                // by construction, node/bp abacus comes first, then edge abacus
+                if let Some(Abacus::Total(ref mut abacus_total)) = abaci.first_mut() {
+                    // constructing histogram
+                    log::info!("constructing bp histogram..");
+                    hists.push(Hist::from_abacus(&abacus_total));
+                    log::info!("constructing node histogram..");
+                    abacus_total.count = CountType::Node;
+                    hists.push(Hist::from_abacus(&abacus_total));
+                    // revert back
+                    abacus_total.count = CountType::Bp;
+                }
+            }
+            if let Some(Abacus::Total(abacus_total)) = &abaci.last() {
                 // constructing histogram
                 log::info!("constructing histogram..");
-                Some(Hist::from_abacus(abacus_total))
-            } else {
-                None
+                hists.push(Hist::from_abacus(abacus_total));
             }
+            Some(hists)
         }
         Params::Growth { hist_file, .. } => {
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
-            Some(Hist::from_tsv(&mut data)?)
+            Some(vec![Hist::from_tsv(&mut data)?])
         }
         Params::OrderedHistgrowth { .. } | Params::Table { .. } => {
             // do nothing
@@ -641,73 +788,86 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //    }
 
     match params {
-        Params::Histgrowth { .. } | Params::Growth { .. } | Params::OrderedHistgrowth { .. } => {
+        Params::OrderedHistgrowth { .. } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
-
-            //let growths: Vec<Vec<usize>> = hist_aux
-            let growths: Vec<Vec<f64>> = hist_aux
-                .coverage
-                .par_iter()
-                .zip(&hist_aux.quorum)
-                .map(|(c, q)| {
-                    match params {
-                        Params::OrderedHistgrowth { .. } => {
-                            if let Abacus::Group(abacus_group) = &abacus {
-                                log::info!("calculating ordered growth for coverage >= {} and quorum >= {}", &c, &q);
-                                abacus_group.calc_growth(&c, &q)
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                        _ => {
-                            log::info!("calculating growth for coverage >= {} and quorum >= {}", &c, &q);
-                            // <hist> must be some-thing in histgrowth and growth, so let's unwrap it!
-                            hist.as_ref().unwrap().calc_growth(&c, &q)
-                        }
-                    }
-                })
-                .collect();
-
-            // number of groups
-            let n = growths[0].len();
-
-            writeln!(
-                out,
-                "coverage\t{}",
-                hist_aux
-                    .coverage
-                    .iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<String>>()
-                    .join("\t")
-            )?;
-            writeln!(
-                out,
-                "quorum\t{}",
-                hist_aux
-                    .quorum
-                    .iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<String>>()
-                    .join("\t")
-            )?;
-            for i in 0..n {
-                if let Abacus::Group(abacus_group) = &abacus {
-                    write!(out, "{}", &abacus_group.groups[i][..])?;
-                } else {
-                    write!(out, "{}", i + 1)?;
+            match &abaci.last() {
+                Some(Abacus::Group(abacus_group)) => {
+                    write_ordered_histgrowth_table(abacus_group, &hist_aux, out)?;
                 }
-                for j in 0..hist_aux.quorum.len() {
-                    write!(out, "\t{:0}", growths[j][i].floor())?;
-                }
-                writeln!(out, "")?;
+                _ => unreachable!(),
             }
         }
-        Params::Hist { count, .. } => {
-            hist.unwrap().to_tsv(&count, out)?;
+        Params::Histgrowth { hist, .. } | Params::Growth { hist, .. } => {
+            let hist_aux = HistAuxilliary::from_params(&params)?;
+            if let Some(hs) = hists {
+                let mut header_cols = vec![vec![
+                    "panacus".to_string(),
+                    "count".to_string(),
+                    "coverage".to_string(),
+                    "quorum".to_string(),
+                ]];
+                let mut output_columns = Vec::new();
+
+                if hist {
+                    for h in hs.iter() {
+                        output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+                        header_cols.push(vec![
+                            "hist".to_string(),
+                            h.count.to_string(),
+                            String::new(),
+                            String::new(),
+                        ])
+                    }
+                }
+
+                for h in hs.iter() {
+                    let mut columns: Vec<Vec<f64>> = hist_aux
+                        .coverage
+                        .par_iter()
+                        .zip(&hist_aux.quorum)
+                        .map(|(c, q)| {
+                            log::info!(
+                                "calculating growth for coverage >= {} and quorum >= {}",
+                                &c,
+                                &q
+                            );
+                            h.calc_growth(&c, &q)
+                        })
+                        .collect();
+                    // insert empty row for 0 element
+                    for c in &mut columns {
+                        c.insert(0, std::f64::NAN);
+                    }
+                    output_columns.extend(columns);
+
+                    let m = hist_aux.coverage.len();
+                    header_cols.extend(
+                        std::iter::repeat("growth")
+                            .take(m)
+                            .zip(std::iter::repeat(h.count).take(m))
+                            .zip(hist_aux.coverage.iter())
+                            .zip(&hist_aux.quorum)
+                            .map(|(((p, t), c), q)| {
+                                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+                            }),
+                    );
+                }
+                write_table(&header_cols, &output_columns, out)?;
+            }
+        }
+        Params::Hist { .. } => {
+            if let Some(hs) = hists {
+                let mut header_cols = vec![vec!["panacus".to_string(), "count".to_string()]];
+                let mut output_columns = Vec::new();
+                for h in hs.iter() {
+                    output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+                    header_cols.push(vec!["hist".to_string(), h.count.to_string()])
+                }
+                write_table(&header_cols, &output_columns, out)?;
+            }
         }
         Params::Table { total, .. } => {
-            if let Abacus::Group(abacus_group) = abacus {
+            if let Some(Abacus::Group(abacus_group)) = abaci.last() {
                 log::info!("reporting coverage table");
                 abacus_group.to_tsv(total, out)?;
             }
