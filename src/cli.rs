@@ -857,11 +857,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         }
         Params::Hist { .. } => {
             if let Some(hs) = hists {
-                let mut header_cols = vec![vec!["panacus".to_string(), "count".to_string()]];
+                let mut header_cols = vec![vec!["panacus".to_string(), "count".to_string(), String::new(), String::new()]];
                 let mut output_columns = Vec::new();
                 for h in hs.iter() {
                     output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
-                    header_cols.push(vec!["hist".to_string(), h.count.to_string()])
+                    header_cols.push(vec!["hist".to_string(), h.count.to_string(), String::new(), String::new()])
                 }
                 write_table(&header_cols, &output_columns, out)?;
             }
