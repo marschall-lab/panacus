@@ -17,6 +17,7 @@ use crate::util::*;
 pub enum RequireThreshold {
     Absolute,
     Relative,
+    #[allow(dead_code)]
     Either,
 }
 
@@ -127,7 +128,7 @@ pub enum Params {
         )]
         coverage: String,
 
-        #[clap(short = 'a', long, help = "Include also histogram in output")]
+        #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
 
         #[clap(
@@ -225,7 +226,7 @@ pub enum Params {
         )]
         coverage: String,
 
-        #[clap(short = 'H', long, help = "Include histogram in output")]
+        #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
 
         #[clap(
@@ -763,7 +764,17 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Growth { hist_file, .. } => {
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
-            Some(vec![Hist::from_tsv(&mut data)?])
+            let (coverages, comments) = crate::io::parse_hists(&mut data)?;
+            for c in comments {
+                out.write(&c[..])?;
+                out.write(b"\n")?;
+            }
+            Some(
+                coverages
+                    .into_iter()
+                    .map(|(count, coverage)| Hist { count, coverage })
+                    .collect(),
+            )
         }
         Params::OrderedHistgrowth { .. } | Params::Table { .. } => {
             // do nothing
@@ -857,11 +868,21 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         }
         Params::Hist { .. } => {
             if let Some(hs) = hists {
-                let mut header_cols = vec![vec!["panacus".to_string(), "count".to_string(), String::new(), String::new()]];
+                let mut header_cols = vec![vec![
+                    "panacus".to_string(),
+                    "count".to_string(),
+                    String::new(),
+                    String::new(),
+                ]];
                 let mut output_columns = Vec::new();
                 for h in hs.iter() {
                     output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
-                    header_cols.push(vec!["hist".to_string(), h.count.to_string(), String::new(), String::new()])
+                    header_cols.push(vec![
+                        "hist".to_string(),
+                        h.count.to_string(),
+                        String::new(),
+                        String::new(),
+                    ])
                 }
                 write_table(&header_cols, &output_columns, out)?;
             }

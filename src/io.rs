@@ -107,110 +107,124 @@ pub fn parse_groups<R: Read>(
     Ok(res)
 }
 
-pub fn parse_hist<R: Read>(
+pub fn parse_tsv<R: Read>(
     data: &mut BufReader<R>,
-) -> Result<(CountType, Vec<usize>), std::io::Error> {
-    let mut table: HashMap<usize, usize> = HashMap::default();
-
+) -> Result<(Vec<Vec<u8>>, Vec<Vec<Vec<u8>>>), std::io::Error> {
+    let mut comments = Vec::new();
+    let mut table = Vec::new();
     let reader = Csv::from_reader(data)
         .delimiter(b'\t')
         .flexible(true)
         .has_header(false);
-    let mut is_header = true;
-    let mut count_type = None;
-    for (i, row) in reader.enumerate() {
-        let row = row.unwrap();
-        let mut row_it = row.bytes_columns();
-        let cov;
-        let count;
-        if let Some(cov_str) = row_it.next() {
-            if is_header {
-                cov = 0;
-                if &b'#' == &cov_str[0] {
-                    continue;
-                } else {
-                    if &b"hist" != &cov_str {
-                        let msg = format!(
-                            "error in line {}: table appears not to contain histogram data",
-                            i
-                        );
-                        log::error!("{}", &msg);
-                        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-                    }
-                }
-            } else if let Ok(val) = usize::from_str(&str::from_utf8(&cov_str).unwrap()) {
-                cov = val;
-            } else {
-                let msg = format!(
-                    "error in line {}: value must be integer, but is '{}'",
-                    i,
-                    &str::from_utf8(&cov_str).unwrap()
-                );
-                log::error!("{}", &msg);
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-            }
-        } else {
-            let msg = format!("error in line {}: table must have two columns", i);
-            log::error!("{}", &msg);
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-        }
-        if let Some(count_str) = row_it.next() {
-            if is_header {
-                count_type = Some(
-                    CountType::from_str(&str::from_utf8(&count_str).unwrap()).or_else(|_| {
-                        let msg = format!(
-                            "error in line {}: expected count type declaration, but got '{}'",
-                            i,
-                            &str::from_utf8(&count_str).unwrap()
-                        );
-                        log::error!("{}", &msg);
-                        Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
-                    })?,
-                );
-                is_header = false;
-                continue;
-            } else if let Ok(val) = usize::from_str(&str::from_utf8(&count_str).unwrap()) {
-                count = val;
-            } else {
-                let msg = format!(
-                    "error in line {}: value must be integer, but is '{}'",
-                    i,
-                    &str::from_utf8(&count_str).unwrap()
-                );
-                log::error!("{}", &msg);
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-            }
-        } else {
-            let msg = format!("error in line {}: table must have two columns", i);
-            log::error!("{}", &msg);
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
-        }
 
-        if table.insert(cov, count).is_some() {
-            let msg = format!(
-                "error in line {}: table has duplicate entries for coverage {}",
-                i, cov
-            );
-            log::error!("{}", &msg);
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+    let mut is_header = true;
+    for (i, row) in reader.enumerate() {
+        let row: Vec<Vec<u8>> = row
+            .map_err(|_| {
+                let msg = format!("unable to parse row {}", i);
+                log::error!("{}", &msg);
+                std::io::Error::new(std::io::ErrorKind::Other, msg)
+            })?
+            .bytes_columns()
+            .map(|x| x.to_vec())
+            .collect();
+        if is_header && (b'#' == row[0][0]) {
+            let mut c = row[0].to_vec();
+            for e in &row[1..] {
+                c.push(b'\t');
+                c.extend(e);
+            }
+            comments.push(c);
+        } else {
+            is_header = false;
+            table.push(row);
+        }
+    }
+    Ok((comments, table))
+}
+
+fn transpose_table<'a>(table: &'a Vec<Vec<Vec<u8>>>) -> Vec<Vec<&'a [u8]>> {
+    let n = table.first().unwrap_or(&Vec::new()).len();
+
+    let mut res = vec![vec![&table[0][0][..]; table.len()]; n];
+
+    for j in 0..n {
+        for i in 0..table.len() {
+            res[j][i] = &table[i][j][..];
         }
     }
 
-    let max_cov = table.keys().max().unwrap();
-    log::info!("read counts for up to {}x coverage", &max_cov);
-    let mut res = vec![0; max_cov + 1];
-    table.into_iter().for_each(|(cov, count)| res[cov] = count);
+    res
+}
 
-    match count_type {
-        Some(count) => Ok((count, res)),
-        None => {
-            let msg = "unknown count type";
-            log::error!("{}", msg);
-            Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, std::io::Error> {
+    let mut res = vec![0; col.len() - 4];
+
+    for (i, e) in col[4..].iter().enumerate() {
+        if let Ok(val) = usize::from_str(&str::from_utf8(e).unwrap()) {
+            res[i] = val;
+        } else {
+            let msg = format!(
+                "error in line {}: value must be integer, but is '{}'",
+                i + 4 + offset,
+                &str::from_utf8(e).unwrap()
+            );
+            log::error!("{}", &msg);
+            Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))?
         }
+    }
+
+    Ok(res)
+}
+
+pub fn parse_hists<R: Read>(
+    data: &mut BufReader<R>,
+) -> Result<(Vec<(CountType, Vec<usize>)>, Vec<Vec<u8>>), std::io::Error> {
+    let (comments, raw_table) = parse_tsv(data)?;
+    let raw_table = transpose_table(&raw_table);
+    if raw_table.len() < 4 && b"panacus" != &raw_table[0][0][..] {
+        let msg = format!(
+            "error in line {}: table appears not to be generated by panacus",
+            comments.len()
+        );
+        log::error!("{}", &msg);
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+    }
+
+    let mut res = Vec::new();
+
+    let index = parse_column(&raw_table[0], comments.len())?;
+    let mx = index.iter().max().unwrap();
+    for col in &raw_table[1..] {
+        if b"hist" == &col[0] {
+            let count = CountType::from_str(&str::from_utf8(&col[1]).unwrap()).or_else(|_| {
+                let msg = format!(
+                    "error in line {}: expected count type declaration, but got '{}'",
+                    2 + comments.len(),
+                    &str::from_utf8(&col[1]).unwrap()
+                );
+                log::error!("{}", &msg);
+                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+            })?;
+            let mut cov = vec![0; mx + 1];
+            for (i, c) in index.iter().zip(parse_column(&col, comments.len())?) {
+                cov[*i] = c;
+            }
+
+            res.push((count, cov));
+        }
+    }
+
+    if res.is_empty() {
+        let msg = "table does not contain hist columns";
+        log::error!("{}", msg);
+        Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+    } else {
+        Ok((res, comments))
     }
 }
 
+#[allow(dead_code)]
 pub fn parse_threshold_file<R: Read>(
     data: &mut BufReader<R>,
 ) -> Result<Vec<Threshold>, std::io::Error> {

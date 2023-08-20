@@ -4,7 +4,6 @@ use std::io::Write;
 /* private use */
 use crate::abacus::AbacusByTotal;
 use crate::cli;
-use crate::io;
 use crate::util::{CountType, Threshold};
 
 #[derive(Debug, Clone)]
@@ -31,13 +30,6 @@ pub fn choose(n: usize, k: usize) -> f64 {
 }
 
 impl Hist {
-    pub fn from_tsv<R: std::io::Read>(
-        data: &mut std::io::BufReader<R>,
-    ) -> Result<Self, std::io::Error> {
-        let (count, coverage) = io::parse_hist(data)?;
-        Ok(Self { count, coverage })
-    }
-
     pub fn from_abacus(abacus: &AbacusByTotal) -> Self {
         Self {
             count: abacus.count,
@@ -162,6 +154,7 @@ impl Hist {
         pangrowth
     }
 
+    #[allow(dead_code)]
     pub fn to_tsv<W: std::io::Write>(
         &self,
         out: &mut std::io::BufWriter<W>,

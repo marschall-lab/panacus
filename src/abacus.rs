@@ -693,6 +693,7 @@ impl<'a> AbacusByGroup<'a> {
         res
     }
 
+    #[allow(dead_code)]
     pub fn write_rcv<W: Write>(&self, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
         write!(out, "{}", self.r[0])?;
         for x in self.r[1..].iter() {
