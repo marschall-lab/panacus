@@ -22,6 +22,37 @@ from scipy.optimize import curve_fit
 import seaborn as sns
 
 PAT_PANACUS = re.compile('^#.+panacus (\S+) (.+)')
+N_HEADERS = 4
+
+ids = pd.IndexSlice
+
+def clean_multicolumn_labels(df):
+    '''
+    Replaces 'Unnamed: ...' column headers from hierarchical columns by empty
+    strings.
+
+    Parameters
+    ----------
+    df : DataFrame
+        A table
+
+    Returns
+    -------
+    DataFrame
+        Same table (i.e., same object) as input table, but with 'Unnamed: ..'
+        column headers replaced by empty strings.
+    '''
+
+    column_header = list()
+    for c in df.columns:
+        if isinstance(c, tuple):
+            c = tuple((not x.startswith('Unnamed:') and x or '' for x in c))
+        elif isinstance(c, str) and c.startswith('Unnamed:'):
+            c = ''
+        column_header.append(c)
+    df.columns = pd.Index(column_header, tupleize_cols=True)
+    return df
+
 
 def humanize_number(i, precision=0):
 
@@ -59,106 +90,82 @@ def fit_alpha(Y):
     return fit(X, Y, lambda x, *y:  y[0]*x**(-y[1]))
 
 
-def plot_hist(df, fname, counttype, out, loc='lower left', figsize=(10, 6)):
+def plot_hist(df, ax, loc='lower left'):
 
-    # setup fancy plot look
-    sns.set_theme(style='darkgrid')
-    sns.set_color_codes('colorblind')
-    sns.set_palette('husl')
-    sns.despine(left=True, bottom=True)
+    df.plot.bar(ax=ax, label=df.columns[0][1])
 
-    df.plot.bar(figsize=figsize)
-    plt.xticks(rotation=65)
+    ax.set_xticks(ax.get_xticks())
+    ax.set_xticklabels(ax.get_xticks(), rotation=65)
+    yticks = ax.get_yticks()
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(calibrate_yticks_text(yticks))
 
-    yticks, _ = plt.yticks()
-    plt.yticks(yticks, calibrate_yticks_text(yticks))
+    ax.set_title(f'coverage histogram for #{df.columns[0][1]}s')
+    ax.set_ylabel(f'#{df.columns[0][1]}s')
+    #ax.legend(loc=loc)
+    ax.get_legend().remove()
 
-    plt.title(f'coverage histogram for #{counttype}s ({fname})')
-    plt.legend(loc=loc)
 
-    plt.tight_layout()
-    plt.savefig(out, format='pdf')
-    plt.close()
-
-def plot_growth(df, fname, counttype, out, loc='lower left', estimate_growth=False, figsize=(10, 6)):
-
-    # setup fancy plot look
-    sns.set_theme(style='darkgrid')
-    sns.set_color_codes('colorblind')
-    sns.set_palette('husl')
-    sns.despine(left=True, bottom=True)
+def plot_growth(df, axs, loc='lower left', estimate_growth=False):
 
     # let's do it!
-    if estimate_growth and (df.columns.levels[0] <= 1).any() and (df.columns.levels[1] <= 1/df.shape[0]).any():
-        f, axs = plt.subplots(2,1, figsize=(figsize[0], 2*figsize[1]))
-    else:
-        f, ax = plt.subplots(1,1, figsize=figsize)
-        axs = [ax]
-
     popts = list()
-    for i, (c,q) in enumerate(df.columns):
-        df[(c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
-        if estimate_growth and c <= 1 and q <= 1/df.shape[0]:
-            popt, curve = fit_gamma(df[(c,q)].array)
-            popts.append((c, q, popt, i))
-            axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+    for i, (t, ct, c, q) in enumerate(df.columns):
+        df[(t, ct, c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
+        if c <= 1 and q <= 1/df.shape[0]:
+            if estimate_growth:
+                popt, curve = fit_gamma(df[(t, ct, c,q)].array)
+                popts.append((c, q, popt, i))
+                axs[0].plot(curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+            else:
+                popts.append((c, q, None, i))
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
 
     yticks = axs[0].get_yticks()
     axs[0].set_yticks(yticks)
     axs[0].set_yticklabels(calibrate_yticks_text(yticks))
 
-    axs[0].set_title(f'Pangenome growth ({fname})')
-    axs[0].set_ylabel(f'#{counttype}s')
+    axs[0].set_title(f'{df.columns[0][0]} plot for #{df.columns[0][1]}s')
+    axs[0].set_ylabel(f'#{df.columns[0][1]}s')
     axs[0].set_xlabel('samples')
     axs[0].legend(loc=loc)
 
     if popts:
         for c, q, _, i in popts:
-            x = np.zeros(df.shape[0])
-            x[1:] = df.loc[:df.index[-2], (c, q)]
-            (df[(c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
-            popt, _ = fit_alpha((df.loc[df.index[1]:, (c, q)] - x[1:]).array)
+            x = np.zeros(df.shape[0]-1)
+            x[1:] = df.loc[df.index[1]:df.index[-2], (t, ct, c, q)]
+            (df.loc[df.index[1]:, (t, ct, c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
+            popt, _ = fit_alpha((df.loc[df.index[2]:, (t, ct, c, q)] - x[1:]).array)
             k2 = popt[0]
             alpha = popt[1]
             Y = k2*np.arange(1, df.shape[0]+1)**(-alpha)
             axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
-        axs[1].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
+        axs[1].set_xticklabels(axs[1].get_xticklabels(), rotation=65)
 
         yticks = axs[1].get_yticks()
         axs[1].set_yticks(yticks)
         axs[1].set_yticklabels(calibrate_yticks_text(yticks))
 
-        axs[1].set_title('$F_{new}$')
-        axs[1].set_ylabel(f'#{counttype}s')
+        axs[1].set_title(f'$F_{{new}}$ (#{df.columns[0][1]}s)')
+        axs[1].set_ylabel(f'#{df.columns[0][1]}s')
         axs[1].set_xlabel('samples')
         axs[1].legend(loc=loc)
 
-    plt.tight_layout()
-    plt.savefig(out, format='pdf')
-    plt.close()
+def count_comments(data):
+    for i, line in enumerate(data):
+        if not line.startswith('#'):
+            break
+    return i
 
+def get_subplot_dim(df):
 
-def get_panacus_command_counttype(data):
+    growths = [x for x in df.columns.levels[0] if x.endswith('growth')]
+    non_cum = 0
+    if growths:
+        non_cum = df.loc[:, ids[growths, :, :, :]].columns.map(lambda c: c[2] <= 1 and c[3] <= 1/df.shape[0]).any() and len(growths) or 0
 
-    header = next(data)
-    m = PAT_PANACUS.match(header)
-
-    if not m:
-        print(f'Input file "{data.name}" has wrong header. It doesn\'t seem to be generated by panacus, exiting.', file=stderr)
-        exit(1)
-
-    command, arg_list = m.groups()
-    arg_list = arg_list.split(' ')
-    counttype = 'node'
-    if '-c' in arg_list:
-        counttype = arg_list[arg_list.index('-c')+1]
-    elif '--count' in arg_list:
-        counttype = arg_list[arg_list.index('--count')+1]
-
-    return command, counttype
-
+    return len(df.columns.levels[1]), len(df.columns.levels[0]) + non_cum, non_cum
 
 if __name__ == '__main__':
     description='''
@@ -178,25 +185,53 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    with open(args.stats.name) as growth:
-        command, counttype = get_panacus_command_counttype(growth)
+    with open(args.stats.name) as f:
+        skip_n = count_comments(f)
 
-    if command in ['ordered-histgrowth', 'histgrowth', 'growth']:
-        df = pd.read_csv(args.stats, sep='\t', header=[1,2], index_col=[0])
-        df.columns = df.columns.map(lambda x: (int(x[0]), float(x[1])))
-        df = df.reindex(sorted(df.columns, key=lambda x: (x[1], x[0])), axis=1)
-        with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-            plot_growth(df, path.basename(args.stats.name), counttype, out,
-                    loc=args.legend_location,
-                    estimate_growth=args.estimate_growth_params,
-                    figsize=args.figsize)
-    elif command == 'hist':
-        df = pd.read_csv(args.stats, sep='\t', header=[1], index_col=[0])
-        with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-            plot_hist(df, path.basename(args.stats.name), counttype, out,
-                    loc=args.legend_location, figsize=args.figsize)
-    else:
-        print(f'This script cannot visualize the contents of input file {args.stats.name}, exiting.', file=stderr)
-        exit(1)
+    df = clean_multicolumn_labels(pd.read_csv(args.stats, sep='\t', header=list(range(skip_n, skip_n + N_HEADERS)), index_col=[0]))
+    df.columns = df.columns.map(lambda x: (x[0], x[1], x[2] and int(x[2]), x[3] and float(x[3])))
+
+    n, m, non_cum_plots = get_subplot_dim(df)
+    # setup fancy plot look
+    sns.set_theme(style='darkgrid')
+    sns.set_color_codes('colorblind')
+    sns.set_palette('husl')
+    sns.despine(left=True, bottom=True)
+
+    f, axs = plt.subplots(n, m, figsize=(args.figsize[0] * m, args.figsize[1] * n))
+
+
+    if m == 1 and n == 1:
+        axs = np.array([[axs]]);
+    elif m == 1:
+        axs = axs.reshape(axs.size, 1)
+    elif n == 1:
+        axs = axs.reshape(1, axs.size)
+
+    for t in df.columns.levels[0]:
+        for j, c in enumerate(df.columns.levels[1]):
+            df_tc = df.loc[:, ids[t, c, :, :]]
+            if t == 'hist':
+                plot_hist(df_tc, axs[j, 0], loc=args.legend_location)
+            elif t == 'growth':
+                offset = 'hist' in df.columns.levels[0] and 1 or 0
+                axs_tc = axs[j, offset:offset+1]
+                if non_cum_plots:
+                    axs_tc = axs[j, offset:offset+2]
+                plot_growth(df_tc, axs_tc, loc=args.legend_location, estimate_growth=args.estimate_growth_params)
+            elif t == 'ordered-growth':
+                axs_tc = axs[j, -1:]
+                if non_cum_plots:
+                    axs_tc = axs[j, -2:]
+                plot_growth(df_tc, axs_tc, loc=args.legend_location, estimate_growth=args.estimate_growth_params)
+            else:
+                print(f'This script cannot visualize the content of type {t}, exiting.', file=stderr)
+                exit(1)
+
+    plt.tight_layout()
+    with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
+        plt.savefig(out, format='pdf')
+    plt.close()
+
 
 
