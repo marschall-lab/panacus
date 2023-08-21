@@ -1,6 +1,6 @@
 /* standard use */
 use std::collections::{HashMap, HashSet};
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, BufWriter, Write};
 use std::iter::FromIterator;
 use std::str::{self, FromStr};
 use std::sync::{Arc, Mutex};
@@ -13,6 +13,7 @@ use rayon::prelude::*;
 /* private use */
 use crate::abacus::*;
 use crate::graph::*;
+use crate::hist::*;
 use crate::util::*;
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
@@ -1027,4 +1028,145 @@ fn update_tables_edgecount(
         item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
     }
     log::debug!("..done");
+}
+
+pub fn write_table<W: Write>(
+    headers: &Vec<Vec<String>>,
+    columns: &Vec<Vec<f64>>,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let n = headers.first().unwrap_or(&Vec::new()).len();
+
+    for i in 0..n {
+        for j in 0..headers.len() {
+            if j > 0 {
+                write!(out, "\t")?;
+            }
+            write!(out, "{:0}", headers[j][i])?;
+        }
+        writeln!(out, "")?;
+    }
+    let n = columns.first().unwrap_or(&Vec::new()).len();
+    for i in 0..n {
+        write!(out, "{}", i)?;
+        for j in 0..columns.len() {
+            write!(out, "\t{:0}", columns[j][i].floor())?;
+        }
+        writeln!(out, "")?;
+    }
+
+    Ok(())
+}
+
+
+pub fn write_hist_table<W: Write>(
+    hists: &Vec<Hist>,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let mut header_cols = vec![vec![
+        "panacus".to_string(),
+        "count".to_string(),
+        String::new(),
+        String::new(),
+    ]];
+    let mut output_columns = Vec::new();
+    for h in hists.iter() {
+        output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+        header_cols.push(vec![
+            "hist".to_string(),
+            h.count.to_string(),
+            String::new(),
+            String::new(),
+        ])
+    }
+    write_table(&header_cols, &output_columns, out)
+}
+
+
+pub fn write_histgrowth_table<W: Write>(
+    hists: &Option<Vec<Hist>>,
+    growths: &Vec<(CountType, Vec<Vec<f64>>)>,
+    hist_aux: &HistAuxilliary,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let mut header_cols = vec![vec![
+        "panacus".to_string(),
+        "count".to_string(),
+        "coverage".to_string(),
+        "quorum".to_string(),
+    ]];
+    let mut output_columns: Vec<Vec<f64>> = Vec::new();
+
+    if let Some(hs) = hists {
+        for h in hs.iter() {
+            output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+            header_cols.push(vec![
+                "hist".to_string(),
+                h.count.to_string(),
+                String::new(),
+                String::new(),
+            ])
+        }
+    }
+
+    for (count, g) in growths {
+        output_columns.extend(g.clone());
+        let m = hist_aux.coverage.len();
+        header_cols.extend(
+            std::iter::repeat("growth")
+                .take(m)
+                .zip(std::iter::repeat(count).take(m))
+                .zip(hist_aux.coverage.iter())
+                .zip(&hist_aux.quorum)
+                .map(|(((p, t), c), q)| {
+                    vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+                }),
+        );
+    }
+    write_table(&header_cols, &output_columns, out)
+}
+
+
+pub fn write_ordered_histgrowth_table<W: Write>(
+    abacus_group: &AbacusByGroup,
+    hist_aux: &HistAuxilliary,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let mut output_columns: Vec<Vec<f64>> = hist_aux
+        .coverage
+        .par_iter()
+        .zip(&hist_aux.quorum)
+        .map(|(c, q)| {
+            log::info!(
+                "calculating ordered growth for coverage >= {} and quorum >= {}",
+                &c,
+                &q
+            );
+            abacus_group.calc_growth(&c, &q)
+        })
+        .collect();
+
+    // insert empty row for 0 element
+    for c in &mut output_columns {
+        c.insert(0, std::f64::NAN);
+    }
+    let m = hist_aux.coverage.len();
+    let mut header_cols = vec![vec![
+        "panacus".to_string(),
+        "count".to_string(),
+        "coverage".to_string(),
+        "quorum".to_string(),
+    ]];
+    header_cols.extend(
+        std::iter::repeat("ordered-growth")
+            .take(m)
+            .zip(std::iter::repeat(abacus_group.count).take(m))
+            .zip(hist_aux.coverage.iter())
+            .zip(&hist_aux.quorum)
+            .map(|(((p, t), c), q)| {
+                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+            })
+            .collect::<Vec<Vec<String>>>(),
+    );
+    write_table(&header_cols, &output_columns, out)
 }

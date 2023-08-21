@@ -12,6 +12,7 @@ use strum::VariantNames;
 use crate::abacus::*;
 use crate::graph::*;
 use crate::hist::*;
+use crate::io::*;
 use crate::util::*;
 
 pub enum RequireThreshold {
@@ -452,78 +453,6 @@ pub fn parse_threshold_cli(
     Ok(thresholds)
 }
 
-pub fn write_ordered_histgrowth_table<W: Write>(
-    abacus_group: &AbacusByGroup,
-    hist_aux: &HistAuxilliary,
-    out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
-    let mut output_columns: Vec<Vec<f64>> = hist_aux
-        .coverage
-        .par_iter()
-        .zip(&hist_aux.quorum)
-        .map(|(c, q)| {
-            log::info!(
-                "calculating ordered growth for coverage >= {} and quorum >= {}",
-                &c,
-                &q
-            );
-            abacus_group.calc_growth(&c, &q)
-        })
-        .collect();
-
-    // insert empty row for 0 element
-    for c in &mut output_columns {
-        c.insert(0, std::f64::NAN);
-    }
-    let m = hist_aux.coverage.len();
-    let mut header_cols = vec![vec![
-        "panacus".to_string(),
-        "count".to_string(),
-        "coverage".to_string(),
-        "quorum".to_string(),
-    ]];
-    header_cols.extend(
-        std::iter::repeat("ordered-growth")
-            .take(m)
-            .zip(std::iter::repeat(abacus_group.count).take(m))
-            .zip(hist_aux.coverage.iter())
-            .zip(&hist_aux.quorum)
-            .map(|(((p, t), c), q)| {
-                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
-            })
-            .collect::<Vec<Vec<String>>>(),
-    );
-    write_table(&header_cols, &output_columns, out)
-}
-
-pub fn write_table<W: Write>(
-    headers: &Vec<Vec<String>>,
-    columns: &Vec<Vec<f64>>,
-    out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
-    let n = headers.first().unwrap_or(&Vec::new()).len();
-
-    for i in 0..n {
-        for j in 0..headers.len() {
-            if j > 0 {
-                write!(out, "\t")?;
-            }
-            write!(out, "{:0}", headers[j][i])?;
-        }
-        writeln!(out, "")?;
-    }
-    let n = columns.first().unwrap_or(&Vec::new()).len();
-    for i in 0..n {
-        write!(out, "{}", i)?;
-        for j in 0..columns.len() {
-            write!(out, "\t{:0}", columns[j][i].floor())?;
-        }
-        writeln!(out, "")?;
-    }
-
-    Ok(())
-}
-
 pub fn read_params() -> Params {
     Command::parse().cmd
 }
@@ -764,7 +693,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Growth { hist_file, .. } => {
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
-            let (coverages, comments) = crate::io::parse_hists(&mut data)?;
+            let (coverages, comments) = parse_hists(&mut data)?;
             for c in comments {
                 out.write(&c[..])?;
                 out.write(b"\n")?;
@@ -803,6 +732,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             let hist_aux = HistAuxilliary::from_params(&params)?;
             match &abaci.last() {
                 Some(Abacus::Group(abacus_group)) => {
+                    log::info!("reporting ordered-growth table");
                     write_ordered_histgrowth_table(abacus_group, &hist_aux, out)?;
                 }
                 _ => unreachable!(),
@@ -811,80 +741,23 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Histgrowth { hist, .. } | Params::Growth { hist, .. } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
             if let Some(hs) = hists {
-                let mut header_cols = vec![vec![
-                    "panacus".to_string(),
-                    "count".to_string(),
-                    "coverage".to_string(),
-                    "quorum".to_string(),
-                ]];
-                let mut output_columns = Vec::new();
-
-                if hist {
-                    for h in hs.iter() {
-                        output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
-                        header_cols.push(vec![
-                            "hist".to_string(),
-                            h.count.to_string(),
-                            String::new(),
-                            String::new(),
-                        ])
-                    }
-                }
-
-                for h in hs.iter() {
-                    let mut columns: Vec<Vec<f64>> = hist_aux
-                        .coverage
-                        .par_iter()
-                        .zip(&hist_aux.quorum)
-                        .map(|(c, q)| {
-                            log::info!(
-                                "calculating growth for coverage >= {} and quorum >= {}",
-                                &c,
-                                &q
-                            );
-                            h.calc_growth(&c, &q)
-                        })
-                        .collect();
-                    // insert empty row for 0 element
-                    for c in &mut columns {
-                        c.insert(0, std::f64::NAN);
-                    }
-                    output_columns.extend(columns);
-
-                    let m = hist_aux.coverage.len();
-                    header_cols.extend(
-                        std::iter::repeat("growth")
-                            .take(m)
-                            .zip(std::iter::repeat(h.count).take(m))
-                            .zip(hist_aux.coverage.iter())
-                            .zip(&hist_aux.quorum)
-                            .map(|(((p, t), c), q)| {
-                                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
-                            }),
-                    );
-                }
-                write_table(&header_cols, &output_columns, out)?;
+                let growths: Vec<(CountType, Vec<Vec<f64>>)> = hs
+                    .par_iter()
+                    .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
+                    .collect();
+                log::info!("reporting histgrowth table");
+                write_histgrowth_table(
+                    &if hist { Some(hs) } else { None },
+                    &growths,
+                    &hist_aux,
+                    out,
+                )?;
             }
         }
         Params::Hist { .. } => {
             if let Some(hs) = hists {
-                let mut header_cols = vec![vec![
-                    "panacus".to_string(),
-                    "count".to_string(),
-                    String::new(),
-                    String::new(),
-                ]];
-                let mut output_columns = Vec::new();
-                for h in hs.iter() {
-                    output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
-                    header_cols.push(vec![
-                        "hist".to_string(),
-                        h.count.to_string(),
-                        String::new(),
-                        String::new(),
-                    ])
-                }
-                write_table(&header_cols, &output_columns, out)?;
+                log::info!("reporting hist table");
+                write_hist_table(&hs, out)?;
             }
         }
         Params::Table { total, .. } => {

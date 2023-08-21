@@ -1,6 +1,9 @@
 /* standard use */
 use std::io::Write;
 
+/* external crate */
+use rayon::prelude::*;
+
 /* private use */
 use crate::abacus::AbacusByTotal;
 use crate::cli;
@@ -51,6 +54,27 @@ impl Hist {
         } else {
             self.calc_growth_quorum(t_coverage, t_quorum)
         }
+    }
+
+    pub fn calc_all_growths(&self, hist_aux: &HistAuxilliary) -> Vec<Vec<f64>> {
+        let mut growths: Vec<Vec<f64>> = hist_aux
+            .coverage
+            .par_iter()
+            .zip(&hist_aux.quorum)
+            .map(|(c, q)| {
+                log::info!(
+                    "calculating growth for coverage >= {} and quorum >= {}",
+                    &c,
+                    &q
+                );
+                self.calc_growth(&c, &q)
+            })
+            .collect();
+        // insert empty row for 0 element
+        for g in &mut growths {
+            g.insert(0, std::f64::NAN);
+        }
+        growths
     }
 
     pub fn calc_growth_union(&self, t_coverage: &Threshold) -> Vec<f64> {
