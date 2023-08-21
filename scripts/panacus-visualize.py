@@ -135,11 +135,12 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
             x = np.zeros(df.shape[0]-1)
             x[1:] = df.loc[df.index[1]:df.index[-2], (t, ct, c, q)]
             (df.loc[df.index[1]:, (t, ct, c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
-            popt, _ = fit_alpha((df.loc[df.index[2]:, (t, ct, c, q)] - x[1:]).array)
-            k2 = popt[0]
-            alpha = popt[1]
-            Y = k2*np.arange(1, df.shape[0]+1)**(-alpha)
-            axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
+            if estimate_growth:
+                popt, _ = fit_alpha((df.loc[df.index[2]:, (t, ct, c, q)] - x[1:]).array)
+                k2 = popt[0]
+                alpha = popt[1]
+                Y = k2*np.arange(1, df.shape[0]+1)**(-alpha)
+                axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[1].get_xticklabels(), rotation=65)
 
