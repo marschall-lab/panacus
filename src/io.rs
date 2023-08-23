@@ -1,20 +1,28 @@
 /* standard use */
 use std::collections::{HashMap, HashSet};
-use std::io::{BufRead, BufReader, Read, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::iter::FromIterator;
 use std::str::{self, FromStr};
 use std::sync::{Arc, Mutex};
 
-/* crate use */
+/* external use */
 use itertools::Itertools;
 use quick_csv::Csv;
 use rayon::prelude::*;
+use strum_macros::{EnumString, EnumVariantNames};
 
-/* private use */
+/* internal use */
 use crate::abacus::*;
 use crate::graph::*;
 use crate::hist::*;
 use crate::util::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
+#[strum(serialize_all = "lowercase")]
+pub enum OutputFormat {
+    Table,
+    Html,
+}
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     // based on https://en.wikipedia.org/wiki/BED_(file_format)
@@ -1058,11 +1066,16 @@ pub fn write_table<W: Write>(
     Ok(())
 }
 
-
 pub fn write_hist_table<W: Write>(
     hists: &Vec<Hist>,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
+    writeln!(
+        out,
+        "# {}",
+        std::env::args().collect::<Vec<String>>().join(" ")
+    )?;
+
     let mut header_cols = vec![vec![
         "panacus".to_string(),
         "count".to_string(),
@@ -1082,13 +1095,18 @@ pub fn write_hist_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-
 pub fn write_histgrowth_table<W: Write>(
     hists: &Option<Vec<Hist>>,
     growths: &Vec<(CountType, Vec<Vec<f64>>)>,
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
+    writeln!(
+        out,
+        "# {}",
+        std::env::args().collect::<Vec<String>>().join(" ")
+    )?;
+
     let mut header_cols = vec![vec![
         "panacus".to_string(),
         "count".to_string(),
@@ -1126,12 +1144,17 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-
 pub fn write_ordered_histgrowth_table<W: Write>(
     abacus_group: &AbacusByGroup,
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
+    writeln!(
+        out,
+        "# {}",
+        std::env::args().collect::<Vec<String>>().join(" ")
+    )?;
+
     let mut output_columns: Vec<Vec<f64>> = hist_aux
         .coverage
         .par_iter()

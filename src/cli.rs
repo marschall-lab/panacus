@@ -1,10 +1,11 @@
 /* standard crate */
 use std::fs;
 use std::io::{BufWriter, Write};
+use std::path::Path;
 use std::str::FromStr;
 
 /* external crate */
-use clap::{Parser, Subcommand};
+use clap::{crate_version, Parser, Subcommand};
 use rayon::prelude::*;
 use strum::VariantNames;
 
@@ -12,6 +13,7 @@ use strum::VariantNames;
 use crate::abacus::*;
 use crate::graph::*;
 use crate::hist::*;
+use crate::html::*;
 use crate::io::*;
 use crate::util::*;
 
@@ -45,7 +47,7 @@ macro_rules! clap_enum_variants_no_all {
 
 #[derive(Parser, Debug)]
 #[clap(
-    version = "0.2.1",
+    version = crate_version!(),
     author = "Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>",
     about = "Calculate count statistics for pangenomic data"
 )]
@@ -132,6 +134,14 @@ pub enum Params {
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
 
+        #[clap(short, long,
+        help = "Choose output format: table (tab-separated-values) or html report",
+        default_value = "table",
+        ignore_case = true,
+        value_parser = clap_enum_variants!(OutputFormat),
+    )]
+        output_format: OutputFormat,
+
         #[clap(
             short,
             long,
@@ -193,6 +203,14 @@ pub enum Params {
         )]
         groupby_sample: bool,
 
+        #[clap(short, long,
+        help = "Choose output format: table (tab-separated-values) or html report",
+        default_value = "table",
+        ignore_case = true,
+        value_parser = clap_enum_variants!(OutputFormat),
+    )]
+        output_format: OutputFormat,
+
         #[clap(
             short,
             long,
@@ -229,6 +247,14 @@ pub enum Params {
 
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
+
+        #[clap(short, long,
+        help = "Choose output format: table (tab-separated-values) or html report",
+        default_value = "table",
+        ignore_case = true,
+        value_parser = clap_enum_variants!(OutputFormat),
+    )]
+        output_format: OutputFormat,
 
         #[clap(
             short,
@@ -319,6 +345,14 @@ pub enum Params {
             default_value = "1"
         )]
         coverage: String,
+
+        #[clap(short, long,
+        help = "Choose output format: table (tab-separated-values) or html report",
+        default_value = "table",
+        ignore_case = true,
+        value_parser = clap_enum_variants!(OutputFormat),
+    )]
+        output_format: OutputFormat,
 
         #[clap(
             short,
@@ -715,12 +749,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     // 4th step: calculation & output of growth curve / output of histogram
     //
     //
-    writeln!(
-        out,
-        "# {}",
-        std::env::args().collect::<Vec<String>>().join(" ")
-    )?;
-
     //    if let Abacus::Group(abacus_group) = &abacus {
     //        abacus_group.write_rcv(out)?;
     //        out.flush()?;
@@ -738,26 +766,68 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 _ => unreachable!(),
             }
         }
-        Params::Histgrowth { hist, .. } | Params::Growth { hist, .. } => {
+        Params::Histgrowth {
+            hist,
+            output_format,
+            ..
+        }
+        | Params::Growth {
+            hist,
+            output_format,
+            ..
+        } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
-            if let Some(hs) = hists {
+            let filename = match params {
+                Params::Histgrowth { gfa_file, .. } => Path::new(&gfa_file)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                Params::Growth { hist_file, .. } => Path::new(&hist_file)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                _ => unreachable!(),
+            };
+
+            if let Some(hs) = &hists {
                 let growths: Vec<(CountType, Vec<Vec<f64>>)> = hs
                     .par_iter()
                     .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
                     .collect();
                 log::info!("reporting histgrowth table");
-                write_histgrowth_table(
-                    &if hist { Some(hs) } else { None },
-                    &growths,
-                    &hist_aux,
-                    out,
-                )?;
+                match output_format {
+                    OutputFormat::Table => write_histgrowth_table(
+                        &if hist { hists } else { None },
+                        &growths,
+                        &hist_aux,
+                        out,
+                    )?,
+                    OutputFormat::Html => write_histgrowth_html(
+                        &if hist { hists } else { None },
+                        &growths,
+                        &hist_aux,
+                        &filename,
+                        out,
+                    )?,
+                };
             }
         }
-        Params::Hist { .. } => {
+        Params::Hist {
+            gfa_file,
+            output_format,
+            ..
+        } => {
+            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
             if let Some(hs) = hists {
                 log::info!("reporting hist table");
-                write_hist_table(&hs, out)?;
+                match output_format {
+                    OutputFormat::Table => write_hist_table(&hs, out)?,
+                    OutputFormat::Html => write_hist_html(&hs, &filename, out)?,
+                };
             }
         }
         Params::Table { total, .. } => {

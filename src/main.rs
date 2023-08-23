@@ -7,6 +7,7 @@ mod abacus;
 mod cli;
 mod graph;
 mod hist;
+mod html;
 mod io;
 mod util;
 
