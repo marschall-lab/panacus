@@ -110,6 +110,7 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
 
     # let's do it!
     popts = list()
+    df = df.reindex(sorted(df.columns, key=lambda x: (x[3], x[2])), axis=1)
     for i, (t, ct, c, q) in enumerate(df.columns):
         df[(t, ct, c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
         if c <= 1 and q <= 1/df.shape[0]:

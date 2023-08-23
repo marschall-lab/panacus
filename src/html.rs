@@ -1,25 +1,23 @@
 /* standard use */
 use std::collections::HashMap;
 use std::io::{BufWriter, Write};
+
 /* external use */
 use base64::{engine::general_purpose, Engine as _};
 use handlebars::Handlebars;
 use time::{macros::format_description, OffsetDateTime};
 
 /* internal use */
-//use crate::abacus::*;
-//use crate::graph::*;
 use crate::hist::*;
 use crate::util::*;
 
-pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.js");
+pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.min.js");
 pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
 pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
 pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
-pub const CHART_UTILS_JS: &[u8] = include_bytes!("../etc/chart-utils.js");
 pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
-pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.js");
-pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.js");
+pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.min.js");
+pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.min.js");
 pub const HTML_TEMPLATE: &[u8] = include_bytes!("../etc/report_template.html");
 pub const PANACUS_LOGO: &[u8] = include_bytes!("../etc/panacus-illustration-small.png");
 pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
@@ -38,10 +36,6 @@ pub fn populate_constants(vars: &mut HashMap<&str, String>) {
         String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
     );
     vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
-    vars.insert(
-        "chart_utils_js",
-        String::from_utf8_lossy(CHART_UTILS_JS).into_owned(),
-    );
     vars.insert(
         "custom_css",
         String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
