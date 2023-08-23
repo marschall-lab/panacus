@@ -103,7 +103,7 @@ Commands:
   hist                Calculate coverage histogram from GFA file
   growth              Construct growth table from coverage histogram
   ordered-histgrowth  Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)
-  table               Compute coverage table for count items
+  table               Compute coverage table for count type
   help                Print this message or the help of the given subcommand(s)
 
 Options:
