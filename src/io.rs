@@ -575,7 +575,7 @@ pub fn parse_graph_aux<R: Read>(
     node_len.push(ItemIdSize::MAX);
 
     let mut buf = vec![];
-    while data.read_line(&mut buf).unwrap_or(0) > 0 {
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'S' {
             let mut iter = buf[2..].iter();
             let offset = iter.position(|&x| x == b'\t').unwrap();
@@ -690,7 +690,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
 
-    while data.read_line(&mut buf).unwrap_or(0) > 0 {
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' || buf[0] == b'W' {
             let (path_seg, buf_path_seg) = match buf[0] {
                 b'P' => parse_path_identifier(&buf),
