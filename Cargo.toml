@@ -9,6 +9,7 @@ rust-version= "1.60"
 [dependencies]
 base64      = "0.21"
 clap        = { version = "4.3", features = ["derive", "cargo"] }
+flate2      = "1.0"
 handlebars  = "4.3"
 itertools   = "0.11"
 once_cell   = "1.18"
