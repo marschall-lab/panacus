@@ -1,11 +1,12 @@
 /* standard crate */
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use std::str::FromStr;
 
 /* external crate */
 use clap::{crate_version, Parser, Subcommand};
+use flate2::read::GzDecoder;
 use rayon::prelude::*;
 use strum::VariantNames;
 
@@ -573,7 +574,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             gfa_file, count, ..
         } => {
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
-            let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+            let f = std::fs::File::open(&gfa_file)?;
+            let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+                Box::new(GzDecoder::new(f))
+            } else {
+                Box::new(f)
+            };
+            let mut data = BufReader::new(reader);
             let graph_aux = GraphAuxilliary::from_gfa(
                 &mut data,
                 (count == &CountType::Edge) | (count == &CountType::All),
@@ -633,8 +640,14 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     CountType::Node => CountType::Node,
                     _ => CountType::Bp,
                 };
+                let f = std::fs::File::open(&gfa_file)?;
+                let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+                    Box::new(GzDecoder::new(f))
+                } else {
+                    Box::new(f)
+                };
+                let mut data = BufReader::new(reader);
 
-                let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
                 log::info!("loading graph from {}", &gfa_file);
                 let abacus = AbacusByTotal::from_gfa(
                     &mut data,
@@ -650,7 +663,14 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 abaci.push(Abacus::Total(abacus));
             }
             if matches!(count, CountType::All | CountType::Edge) {
-                let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+                let f = std::fs::File::open(&gfa_file)?;
+                let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+                    Box::new(GzDecoder::new(f))
+                } else {
+                    Box::new(f)
+                };
+                let mut data = BufReader::new(reader);
+
                 log::info!("loading graph from {}", &gfa_file);
                 let abacus = AbacusByTotal::from_gfa(
                     &mut data,
@@ -674,7 +694,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             gfa_file, count, ..
         } => {
             log::info!("loading graph from {}", &gfa_file);
-            let mut data = std::io::BufReader::new(fs::File::open(&gfa_file)?);
+            let f = std::fs::File::open(&gfa_file)?;
+            let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+                Box::new(GzDecoder::new(f))
+            } else {
+                Box::new(f)
+            };
+            let mut data = BufReader::new(reader);
             let abacus = AbacusByGroup::from_gfa(
                 &mut data,
                 abacus_aux.as_ref().unwrap(),
