@@ -691,6 +691,12 @@ pub fn parse_gfa_itemcount<R: Read>(
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
 
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        // really really make sure that we hit a new line, which is not guaranteed when reading
+        // from a compressed buffer
+        let mut buf2 = vec![];
+        while buf.last().unwrap() != &b'\n' || data.read_until(b'\n', &mut buf2).unwrap_or(0) > 0 {
+            buf.extend(buf2.iter());
+        }
         if buf[0] == b'P' || buf[0] == b'W' {
             let (path_seg, buf_path_seg) = match buf[0] {
                 b'P' => parse_path_identifier(&buf),
