@@ -576,6 +576,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
             let f = std::fs::File::open(&gfa_file)?;
             let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+                log::info!("assuming that {} is gzip compressed..", &gfa_file);
                 Box::new(GzDecoder::new(f))
             } else {
                 Box::new(f)
@@ -642,6 +643,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                 };
                 let f = std::fs::File::open(&gfa_file)?;
                 let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+                    log::info!("assuming that {} is gzip compressed..", &gfa_file);
                     Box::new(GzDecoder::new(f))
                 } else {
                     Box::new(f)
