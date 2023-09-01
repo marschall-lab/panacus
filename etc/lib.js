@@ -79,6 +79,9 @@ function buildGrowthTableDownload(chart, obj, prefix) {
 
         var thresholds = obj.getThresholds();
         var growths = 'panacus\tgrowth' 
+        if (typeof obj.index[0] === 'string' || obj.index[0] instanceof String) {
+            growths = 'panacus\tordered-growth'
+        }
         var counts = '\ncount\t' + obj.count 
         cs = '\ncoverage\t' + thresholds[0][0];
         qs = '\nquorum\t' + thresholds[0][1];
@@ -104,6 +107,9 @@ function buildGrowthTableDownload(chart, obj, prefix) {
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = prefix + '_growth_' + obj.count + '.tsv';
+        if (typeof obj.index[0] === 'string' || obj.index[0] instanceof String) {
+            a.download = prefix + '_orderedgrowth_' + obj.count + '.tsv';
+        }
         a.click();
     };
 }
