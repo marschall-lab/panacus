@@ -225,6 +225,8 @@ if __name__ == '__main__':
                 axs_tc = axs[j, -1:]
                 if non_cum_plots:
                     axs_tc = axs[j, -2:]
+                if df_tc.index[0] == '0' and df_tc.loc['0'].isna().all():
+                    df_tc.drop(['0'], inplace=True)
                 plot_growth(df_tc, axs_tc, loc=args.legend_location, estimate_growth=args.estimate_growth_params)
             else:
                 print(f'This script cannot visualize the content of type {t}, exiting.', file=stderr)
