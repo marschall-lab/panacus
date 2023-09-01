@@ -247,6 +247,7 @@ pub fn write_histgrowth_html<W: Write>(
     growths: &Vec<(CountType, Vec<Vec<f64>>)>,
     hist_aux: &HistAuxilliary,
     fname: &str,
+    ordered_names: Option<&Vec<String>>,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
     let mut vars: HashMap<&str, String> = HashMap::default();
@@ -271,7 +272,7 @@ pub fn write_histgrowth_html<W: Write>(
     if hists.is_some() {
         nav.push_str(r##"<button class="nav-link text-nowrap active" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>"##);
     }
-    nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-growth-tab" data-bs-toggle="pill" data-bs-target="#v-pills-growth" type="button" role="tab" aria-controls="v-pills-growth" aria-selected="true">pangenome growth</button>"##, if hists.is_some() { "" } else { " active"}));
+    nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-growth-tab" data-bs-toggle="pill" data-bs-target="#v-pills-growth" type="button" role="tab" aria-controls="v-pills-growth" aria-selected="true">{}pangenome growth</button>"##, if hists.is_some() { "" } else { " active"}, if ordered_names.is_some() { "ordered " } else {""} ));
 
     let mut js_objects = String::from("");
     js_objects.push_str("const hists = [\n");
@@ -280,12 +281,18 @@ pub fn write_histgrowth_html<W: Write>(
             if i > 0 {
                 js_objects.push_str(",\n");
             }
-            js_objects.push_str(&format!(
-                "new Hist('{}', {:?}, {:?})",
-                h.count,
-                (0..h.coverage.len()).collect::<Vec<usize>>(),
-                h.coverage
-            ));
+            match ordered_names {
+                Some(names) => js_objects.push_str(&format!(
+                    "new Hist('{}', {:?}, {:?})",
+                    h.count, names, h.coverage
+                )),
+                None => js_objects.push_str(&format!(
+                    "new Hist('{}', {:?}, {:?})",
+                    h.count,
+                    (0..h.coverage.len()).collect::<Vec<usize>>(),
+                    h.coverage
+                )),
+            }
         }
     }
     js_objects.push_str("];\n\n");
@@ -295,30 +302,56 @@ pub fn write_histgrowth_html<W: Write>(
         if i > 0 {
             js_objects.push_str(",\n");
         }
-        js_objects.push_str(&format!(
-            "new Growth('{}', {:?}, [{}], [{}], {:?})",
-            count,
-            (1..columns[0].len()).collect::<Vec<usize>>(),
-            &hist_aux
-                .coverage
-                .iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>()
-                .join(", "),
-            &hist_aux
-                .quorum
-                .iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>()
-                .join(", "),
-            &columns
-                .iter()
-                .map(|col| col[1..]
-                    .into_iter()
-                    .map(|x| x.floor() as usize)
-                    .collect::<Vec<usize>>())
-                .collect::<Vec<Vec<usize>>>()
-        ));
+        match ordered_names {
+            Some(names) => js_objects.push_str(&format!(
+                "new Growth('{}', {:?}, [{}], [{}], {:?})",
+                count,
+                names,
+                &hist_aux
+                    .coverage
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                &hist_aux
+                    .quorum
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                &columns
+                    .iter()
+                    .map(|col| col[1..]
+                        .into_iter()
+                        .map(|x| x.floor() as usize)
+                        .collect::<Vec<usize>>())
+                    .collect::<Vec<Vec<usize>>>()
+            )),
+            None => js_objects.push_str(&format!(
+                "new Growth('{}', {:?}, [{}], [{}], {:?})",
+                count,
+                (1..columns[0].len()).collect::<Vec<usize>>(),
+                &hist_aux
+                    .coverage
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                &hist_aux
+                    .quorum
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                &columns
+                    .iter()
+                    .map(|col| col[1..]
+                        .into_iter()
+                        .map(|x| x.floor() as usize)
+                        .collect::<Vec<usize>>())
+                    .collect::<Vec<Vec<usize>>>()
+            )),
+        }
     }
     js_objects.push_str("];\n\nconst fname = '");
     js_objects.push_str(fname);

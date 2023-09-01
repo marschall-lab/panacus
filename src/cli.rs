@@ -135,12 +135,14 @@ pub enum Params {
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
 
-        #[clap(short, long,
-        help = "Choose output format: table (tab-separated-values) or html report",
-        default_value = "table",
-        ignore_case = true,
-        value_parser = clap_enum_variants!(OutputFormat),
-    )]
+        #[clap(
+            short,
+            long,
+            help = "Choose output format: table (tab-separated-values) or html report",
+            default_value = "table",
+            ignore_case = true,
+            value_parser = clap_enum_variants!(OutputFormat),
+        )]
         output_format: OutputFormat,
 
         #[clap(
@@ -204,12 +206,14 @@ pub enum Params {
         )]
         groupby_sample: bool,
 
-        #[clap(short, long,
-        help = "Choose output format: table (tab-separated-values) or html report",
-        default_value = "table",
-        ignore_case = true,
-        value_parser = clap_enum_variants!(OutputFormat),
-    )]
+        #[clap(
+            short,
+            long,
+            help = "Choose output format: table (tab-separated-values) or html report",
+            default_value = "table",
+            ignore_case = true,
+            value_parser = clap_enum_variants!(OutputFormat),
+        )]
         output_format: OutputFormat,
 
         #[clap(
@@ -249,12 +253,14 @@ pub enum Params {
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
 
-        #[clap(short, long,
-        help = "Choose output format: table (tab-separated-values) or html report",
-        default_value = "table",
-        ignore_case = true,
-        value_parser = clap_enum_variants!(OutputFormat),
-    )]
+        #[clap(
+            short,
+            long,
+            help = "Choose output format: table (tab-separated-values) or html report",
+            default_value = "table",
+            ignore_case = true,
+            value_parser = clap_enum_variants!(OutputFormat),
+        )]
         output_format: OutputFormat,
 
         #[clap(
@@ -283,8 +289,7 @@ pub enum Params {
         count: CountType,
 
         #[clap(
-            name = "order",
-            short,
+            short = 'O',
             long,
             help = "The ordered histogram will be produced according to order of paths/groups in the supplied file (1-column list). If this option is not used, the order is determined by the rank of paths/groups in the subset list, and if that option is not used, the order is determined by the rank of paths/groups in the GFA file.",
             default_value = ""
@@ -347,12 +352,14 @@ pub enum Params {
         )]
         coverage: String,
 
-        #[clap(short, long,
-        help = "Choose output format: table (tab-separated-values) or html report",
-        default_value = "table",
-        ignore_case = true,
-        value_parser = clap_enum_variants!(OutputFormat),
-    )]
+        #[clap(
+            short,
+            long,
+            help = "Choose output format: table (tab-separated-values) or html report",
+            default_value = "table",
+            ignore_case = true,
+            value_parser = clap_enum_variants!(OutputFormat),
+        )]
         output_format: OutputFormat,
 
         #[clap(
@@ -783,13 +790,56 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
     //        std::process::exit(0x0100);
     //    }
 
-    match params {
-        Params::OrderedHistgrowth { .. } => {
+    match &params {
+        Params::OrderedHistgrowth {
+            gfa_file,
+            count,
+            output_format,
+            ..
+        } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
             match &abaci.last() {
                 Some(Abacus::Group(abacus_group)) => {
                     log::info!("reporting ordered-growth table");
-                    write_ordered_histgrowth_table(abacus_group, &hist_aux, out)?;
+                    match output_format {
+                        OutputFormat::Table => {
+                            write_ordered_histgrowth_table(abacus_group, &hist_aux, out)?
+                        }
+                        OutputFormat::Html => {
+                            let mut growths: Vec<Vec<f64>> = hist_aux
+                                .coverage
+                                .par_iter()
+                                .zip(&hist_aux.quorum)
+                                .map(|(c, q)| {
+                                    log::info!(
+                                        "calculating ordered growth for coverage >= {} and quorum >= {}",
+                                        &c,
+                                        &q
+                                    );
+                                    abacus_group.calc_growth(&c, &q)
+                                })
+                                .collect();
+                            // insert empty row for 0 element
+                            for c in &mut growths {
+                                c.insert(0, std::f64::NAN);
+                            }
+                            log::info!("reporting (hist-)growth table");
+
+                            write_histgrowth_html(
+                                &None,
+                                &vec![(*count, growths)],
+                                &hist_aux,
+                                &Path::new(&gfa_file)
+                                    .file_name()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string(),
+                                Some(&abacus_group.groups),
+                                out,
+                            )?
+                        }
+                    }
                 }
                 _ => unreachable!(),
             }
@@ -805,7 +855,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             ..
         } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
-            let filename = match params {
+            let filename = match &params {
                 Params::Histgrowth { gfa_file, .. } => Path::new(&gfa_file)
                     .file_name()
                     .unwrap()
@@ -826,19 +876,20 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
                     .par_iter()
                     .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
                     .collect();
-                log::info!("reporting histgrowth table");
+                log::info!("reporting (hist-)growth table");
                 match output_format {
                     OutputFormat::Table => write_histgrowth_table(
-                        &if hist { hists } else { None },
+                        &if *hist { hists } else { None },
                         &growths,
                         &hist_aux,
                         out,
                     )?,
                     OutputFormat::Html => write_histgrowth_html(
-                        &if hist { hists } else { None },
+                        &if *hist { hists } else { None },
                         &growths,
                         &hist_aux,
                         &filename,
+                        None,
                         out,
                     )?,
                 };
@@ -861,7 +912,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
         Params::Table { total, .. } => {
             if let Some(Abacus::Group(abacus_group)) = abaci.last() {
                 log::info!("reporting coverage table");
-                abacus_group.to_tsv(total, out)?;
+                abacus_group.to_tsv(*total, out)?;
             }
         }
     };
