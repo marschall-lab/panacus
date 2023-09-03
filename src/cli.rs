@@ -65,7 +65,7 @@ pub enum Params {
         about = "Run in default mode, i.e., run hist and growth successively and output the results of the latter"
     )]
     Histgrowth {
-        #[clap(index = 1, help = "graph in GFA1 format", required = true)]
+        #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)]
         gfa_file: String,
 
         #[clap(short, long,
@@ -155,7 +155,7 @@ pub enum Params {
     },
     #[clap(alias = "h", about = "Calculate coverage histogram from GFA file")]
     Hist {
-        #[clap(index = 1, help = "graph in GFA1 format", required = true)]
+        #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)]
         gfa_file: String,
 
         #[clap(short, long,
@@ -277,7 +277,7 @@ pub enum Params {
         about = "Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)"
     )]
     OrderedHistgrowth {
-        #[clap(index = 1, help = "graph in GFA1 format", required = true)]
+        #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)]
         gfa_file: String,
 
         #[clap(short, long,
@@ -373,7 +373,7 @@ pub enum Params {
 
     #[clap(about = "Compute coverage table for count type")]
     Table {
-        #[clap(index = 1, help = "graph in GFA1 format", required = true)]
+        #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)]
         gfa_file: String,
 
         #[clap(short, long,
