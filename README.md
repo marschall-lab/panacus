@@ -146,7 +146,7 @@ Instead of tab-separated tables, `panacus` supports for many commands also HTML 
 RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt -c all -a -o html chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.html
 ```
 
-**View the resulting (https://htmlpreview.github.io/?https://github.com/marschall-lab/panacus/blob/main/docs/chr22.hprc-v1.0-pggb.histgrowth.html)[HTML report here]!**
+**View the resulting [https://htmlpreview.github.io/?https://github.com/marschall-lab/panacus/blob/main/docs/chr22.hprc-v1.0-pggb.histgrowth.html](HTML report here)!**
 
 ![panacus report (coverage histogram) for chr22.hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.report.histogram.logscale.highlight.png?raw=true "pangenome report of chr22.hprc-v1.0-pggb.gfa showing coverage histogram in logsacle")
 
