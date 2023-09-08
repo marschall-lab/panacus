@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 /* external use */
-use strum_macros::{EnumString, EnumVariantNames};
+use strum_macros::{EnumString, EnumVariantNames, EnumIter};
 
 /* internal use */
 use crate::graph::ItemId;
@@ -27,7 +27,7 @@ unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
 unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
 #[strum(serialize_all = "lowercase")]
 pub enum CountType {
     Node,
@@ -67,7 +67,7 @@ impl ItemTable {
 
 pub struct ActiveTable {
     pub items: Vec<bool>,
-    // intervall container + item length vector
+    // intervall container + item len vector
     annotation: Option<IntervalContainer>,
 }
 
@@ -326,9 +326,39 @@ pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
     .is_ok()
 }
 
-pub fn log2_add(a: f64, b: f64) -> f64 {
-    // we assume both a and b are log2'd
-    let (a, b) = if a < b { (a, b) } else { (b, a) };
-
-    b + (1.0 + (a - b).exp2()).log2()
+pub fn average (v: &[u32]) -> f32 {
+    v.iter().sum::<u32>() as f32 / v.len() as f32
 }
+
+pub fn median_already_sorted(v: &[u32]) -> f32 {
+    //v.sort(); this has been done before
+    let n = v.len();
+    let mid = n / 2;
+    if n % 2 == 1 {
+        v[mid] as f32
+    } else {
+        (v[mid - 1] as f32 + v[mid] as f32) / 2.0
+    }
+}
+
+pub fn n50_already_sorted(v: &[u32]) -> Option<u32> {
+    //v.sort(); this has been done before
+    let total_length: u32 = v.iter().sum();
+
+    let mut running_sum = 0;
+    for &len in v.iter() {
+        running_sum += len;
+        if running_sum * 2 >= total_length {
+            return Some(len);
+        }
+    }
+
+    None
+}
+
+//pub fn log2_add(a: f64, b: f64) -> f64 {
+//    // we assume both a and b are log2'd
+//    let (a, b) = if a < b { (a, b) } else { (b, a) };
+//
+//    b + (1.0 + (a - b).exp2()).log2()
+//}

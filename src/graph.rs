@@ -4,13 +4,14 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 use std::str::{self, FromStr};
+use std::io::Error;
 
 /* private use */
 use crate::io;
 use crate::util::{CountType, ItemIdSize};
+use crate::util::*;
 
-static PATHID_PANSN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#]+)?$").unwrap());
+static PATHID_PANSN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#]+)?$").unwrap());
 static PATHID_COORDS: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+):([0-9]+)-([0-9]+)$").unwrap());
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -156,6 +157,7 @@ pub struct GraphAuxilliary {
     pub path_segments: Vec<PathSegment>,
     pub node_count: usize,
     pub edge_count: usize,
+    pub degree: Option<Vec<u32>>,
 }
 
 impl GraphAuxilliary {
@@ -166,6 +168,7 @@ impl GraphAuxilliary {
         path_segments: Vec<PathSegment>,
         node_count: usize,
         edge_count: usize,
+        degree: Option<Vec<u32>>,
     ) -> Self {
         Self {
             node2id,
@@ -174,24 +177,42 @@ impl GraphAuxilliary {
             path_segments,
             node_count,
             edge_count,
+            degree,
         }
     }
 
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
-        index_edges: bool,
-    ) -> Result<Self, std::io::Error> {
-        let (node2id, node_len_ary, edges, path_segments) = io::parse_graph_aux(data, index_edges)?;
-        // don't count "0" ID
-        let nc = node_len_ary.len() - 1;
-        let (edge2id, ec) = Self::construct_edgemap(edges, &node2id);
+        count_type: CountType,
+    ) -> Result<Self, Error> {
+        log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
+        let (node2id, node_len_ary, edges, path_segments) = 
+            io::parse_graph_aux(data,(count_type == CountType::Edge) | (count_type == CountType::All))?;
+        let node_count = node2id.len();
+        let (edge2id, edge_count, degree) = Self::construct_edgemap(edges, &node2id);
+
+        log::info!(
+            "found {} paths/walks and {} nodes{}",
+            path_segments.len(),
+            node_count,
+            if edge_count != 0{
+                format!(" {} edges", edge_count)
+            } else {
+                String::new()
+            }
+        );
+        if path_segments.len() == 0 {
+            log::warn!("graph does not contain any annotated paths (P/W lines)");
+        }
+
         Ok(Self::new(
             node2id,
             node_len_ary,
             edge2id,
             path_segments,
-            nc,
-            ec,
+            node_count,
+            edge_count,
+            degree,
         ))
     }
 
@@ -199,14 +220,70 @@ impl GraphAuxilliary {
         self.node_len_ary[v.0 as usize]
     }
 
-    #[allow(dead_code)]
-    pub fn number_of_nodes(&self) -> usize {
-        self.node_count
+    pub fn graph_info(&self) {
+        let degree = self.degree.as_ref().unwrap();
+        let mut node_len_sorted = self.node_len_ary[1..].to_vec();
+        node_len_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
+        println!("Graph Info:");
+        println!("\tNumber of Nodes: {}", self.node_count);
+        println!("\tNumber of Edges: {}", self.edge_count);
+        println!("\tAverage Degree (undirected): {}", average(&degree[1..]));
+        println!(
+            "\tMax Degree (undirected): {}",
+            degree[1..].iter().max().unwrap()
+        );
+        println!(
+            "\tMin Degree (undirected): {}",
+            degree[1..].iter().min().unwrap()
+        );
+        println!(
+            "\tNumber 0-degree Nodes: {}",
+            degree[1..].iter().filter(|&x| *x == 0).count()
+        );
+        println!(
+            "\tLargest Node (bp): {}",
+            node_len_sorted.iter().max().unwrap()
+        );
+        println!(
+            "\tShortest Node (bp): {}",
+            node_len_sorted.iter().min().unwrap()
+        );
+        println!("\tAverage Node Length (bp): {}", average(&node_len_sorted));
+        println!(
+            "\tMedian Node Length (bp): {}",
+            median_already_sorted(&node_len_sorted)
+        );
+        println!(
+            "\tN50 Node Length (bp): {}",
+            n50_already_sorted(&node_len_sorted).unwrap()
+        );
+        //println!("Edge-level Metrics:");
+        //println!("\tEdge Length Distribution (bp): TODO");
+        // DISTRIBUTIONS
+        //println!("\tDegree Distribution:");
+        //if let Some(hist) = graph.degree_distribution() {
+        //    for i in 0..hist.len() {
+        //        println!("{}:{} ",i, hist[i]);
+        //    }
+        //}
     }
 
-    #[allow(dead_code)]
-    pub fn number_of_edges(&self) -> usize {
-        self.edge_count
+    pub fn path_info(&self, paths_len: &Vec<u32>) {
+        println!("Path/Walk Info:");
+        println!("\tNumber of Paths/Walks: {}", paths_len.len());
+        println!(
+            "\tLongest Path/Walk (node): {}",
+            paths_len.iter().max().unwrap()
+        );
+        println!(
+            "\tShortest Path/Walk (node): {}",
+            paths_len.iter().min().unwrap()
+        );
+        println!(
+            "\tAverage Number of Nodes in Paths/Walks: {}",
+            average(&paths_len)
+        );
+        println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
     }
 
     pub fn number_of_items(&self, c: &CountType) -> usize {
@@ -220,23 +297,45 @@ impl GraphAuxilliary {
     pub fn construct_edgemap(
         edges: Option<Vec<Vec<u8>>>,
         node2id: &HashMap<Vec<u8>, ItemId>,
-    ) -> (Option<HashMap<Edge, ItemId>>, usize) {
+    ) -> (Option<HashMap<Edge, ItemId>>, usize, Option<Vec<u32>>) {
+        let mut degree: Vec<u32> = vec![0; node2id.len()+1];
         match edges {
             Some(es) => {
                 let mut res = HashMap::default();
-                let mut c: ItemIdSize = 0;
+                let mut c: ItemIdSize = 1;
                 for b in es {
                     let e = Edge::from_link(&b[..], node2id, true);
                     if res.contains_key(&e) {
-                        log::error!("edge {} is duplicated in GFA", &e);
+                        log::warn!("edge {} is duplicated in GFA", &e);
                     } else {
-                        c += 1;
+                        degree[e.0.0 as usize] += 1;
+                        //if e.0.0 != e.2.0 {
+                        degree[e.2.0 as usize] += 1;
+                        //}
                         res.insert(e, ItemId(c));
+                        c += 1;
                     }
                 }
-                (Some(res), c as usize)
+                (Some(res), c as usize, Some(degree))
             }
-            None => (None, 0),
+            None => (None, 0, None),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn degree_distribution(&self) -> Option<Vec<u32>> {
+        match &self.degree {
+            Some(degree) => {
+                let mut hist: Vec<u32> = vec![0,1];
+                for i in 1..self.node_count+1 {
+                    if degree[i] as usize >= hist.len() {
+                        hist.resize(degree[i] as usize +1, 0);
+                    }
+                    hist[degree[i] as usize] += 1
+                }
+                Some(hist)
+            }
+            None => None
         }
     }
 }
@@ -279,11 +378,11 @@ impl PathSegment {
         if let Some(c) = PATHID_PANSN.captures(s) {
             let segments: Vec<&str> = c.iter().filter_map(|x| x.map(|y| y.as_str())).collect();
             // first capture group is the string itself
-            log::debug!(
-                "path id {} can be decomposed into capture groups {:?}",
-                s,
-                segments
-            );
+            //log::debug!(
+            //    "path id {} can be decomposed into capture groups {:?}",
+            //    s,
+            //    segments
+            //);
             match segments.len() {
                 4 => {
                     res.sample = segments[1].to_string();

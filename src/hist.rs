@@ -1,5 +1,6 @@
 /* standard use */
 use std::io::Write;
+use std::io::{Error, ErrorKind};
 
 /* external crate */
 use rayon::prelude::*;
@@ -182,7 +183,7 @@ impl Hist {
     pub fn to_tsv<W: std::io::Write>(
         &self,
         out: &mut std::io::BufWriter<W>,
-    ) -> Result<(), std::io::Error> {
+    ) -> Result<(), Error> {
         writeln!(out, "hist\t{}", self.count)?;
         for (i, c) in self.coverage.iter().enumerate() {
             writeln!(out, "{}\t{}", i, c)?;
@@ -198,25 +199,17 @@ pub struct HistAuxilliary {
 }
 
 impl HistAuxilliary {
-    pub fn from_params(params: &cli::Params) -> Result<Self, std::io::Error> {
+    pub fn from_params(params: &cli::Params) -> Result<Self, Error> {
         match params {
-            cli::Params::Histgrowth {
-                quorum, coverage, ..
-            }
-            | cli::Params::Growth {
-                quorum, coverage, ..
-            }
-            | cli::Params::OrderedHistgrowth {
-                quorum, coverage, ..
-            } => Self::load(quorum, coverage),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "not implemented",
-            )),
+              cli::Params::Histgrowth { quorum, coverage, .. }
+            | cli::Params::Growth { quorum, coverage, .. }
+            | cli::Params::OrderedHistgrowth { quorum, coverage, .. } 
+              => Self::parse_params(quorum, coverage),
+            _ => Err(Error::new( ErrorKind::Other, "not implemented",)),
         }
     }
 
-    fn load(quorum: &str, coverage: &str) -> Result<Self, std::io::Error> {
+    fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {
             quorum_thresholds =
@@ -232,8 +225,8 @@ impl HistAuxilliary {
             );
         }
         if quorum_thresholds.is_empty() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
+            return Err(Error::new(
+                ErrorKind::InvalidData,
                 "quorum threshold setting requires at least one element, but none is given",
             ));
         }
@@ -253,8 +246,8 @@ impl HistAuxilliary {
             );
         }
         if coverage_thresholds.is_empty() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
+            return Err(Error::new(
+                ErrorKind::InvalidData,
                 "coverage threshold setting requires at least one element, but none is given",
             ));
         }
@@ -265,7 +258,7 @@ impl HistAuxilliary {
             } else if coverage_thresholds.len() == 1 {
                 coverage_thresholds = vec![coverage_thresholds[0]; quorum_thresholds.len()];
             } else {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
+                return Err(Error::new(ErrorKind::InvalidData,
                         "number of coverage and quorum threshold must match, or either one must have a single value"));
             }
         }
