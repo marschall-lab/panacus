@@ -30,46 +30,17 @@ impl AbacusAuxilliary {
         graph_aux: &GraphAuxilliary,
     ) -> Result<Self, Error> {
         match params {
-            Params::Histgrowth {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Hist {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Stats {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::OrderedHistgrowth {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Table {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            } => {
+            Params::Histgrowth          { positive_list, negative_list, groupby, 
+                                          groupby_sample, groupby_haplotype, .. }
+            | Params::Hist              { positive_list, negative_list, groupby, 
+                                          groupby_sample, groupby_haplotype, .. }
+            | Params::Stats             { positive_list, negative_list, groupby, 
+                                          groupby_sample, groupby_haplotype, .. }
+            | Params::OrderedHistgrowth { positive_list, negative_list, groupby, 
+                                          groupby_sample, groupby_haplotype, .. } 
+            | Params::Table             { positive_list, negative_list, groupby, 
+                                          groupby_sample, groupby_haplotype, .. } 
+            => {
                 let groups = AbacusAuxilliary::load_groups(
                     groupby,
                     *groupby_haplotype,
@@ -110,7 +81,7 @@ impl AbacusAuxilliary {
                                     })
                                     .collect()
                             }
-                            Some(include) => include.iter().map(|x| x.clear_coords()).collect(),
+                            Some(include) => include.iter().map(|x| x.clear_coords()).collect()
                         };
                         let order_set: HashSet<&PathSegment> = HashSet::from_iter(o.iter());
 
