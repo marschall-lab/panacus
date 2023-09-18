@@ -283,7 +283,7 @@ impl GraphAuxilliary {
             "\tAverage Number of Nodes in Paths/Walks: {}",
             average(&paths_len)
         );
-        println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
+        //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
     }
 
     pub fn number_of_items(&self, c: &CountType) -> usize {
