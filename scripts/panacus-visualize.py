@@ -184,6 +184,8 @@ if __name__ == '__main__':
             help='Estimate growth parameters based on least-squares fit')
     parser.add_argument('-s', '--figsize', nargs=2, type=int, default=[10, 6],
             help='Set size of figure canvas')
+    parser.add_argument('--png', action='store_true',
+            help='Output figure as png')
 
     args = parser.parse_args()
 
@@ -234,7 +236,10 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-        plt.savefig(out, format='pdf')
+        if args.png:
+            plt.savefig(out, format='png')
+        else:
+            plt.savefig(out, format='pdf')
     plt.close()
 
 
