@@ -172,11 +172,9 @@ def get_subplot_dim(df):
 
 def full_extent(ax, pad=0.0):
     '''
-    Get the full extent of an axes, including axes labels, tick labels, and
+    Gets the full extent of a given axes including labels, axis and
     titles.
     '''
-    # For text objects, we need to draw the figure first, otherwise the extents
-    # are undefined.
     ax.figure.canvas.draw()
     items = ax.get_xticklabels() + ax.get_yticklabels()
     items += [ax, ax.title, ax.xaxis.label, ax.yaxis.label]
