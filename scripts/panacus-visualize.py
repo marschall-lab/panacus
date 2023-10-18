@@ -182,17 +182,13 @@ def full_extent(ax, pad=0.0):
     bbox = Bbox.union([item.get_window_extent() for item in items])
     return bbox.expanded(1.0 + pad, 1.0 + pad)
 
-def save_split_figures(ax, f):
+def save_split_figures(ax, f, format, prefix):
     for i, ax_row in enumerate(axs):
         for j, ax in enumerate(ax_row):
             extent = full_extent(ax).transformed(
                     f.dpi_scale_trans.inverted())
-            if args.png:
-                with open(f'out_{i}_{j}.png', 'wb+') as out:
-                    plt.savefig(out, bbox_inches=extent, format='png')
-            else:
-                with open(f'out_{i}_{j}.pdf', 'wb+') as out:
-                    plt.savefig(out, bbox_inches=extent, format='pdf')
+            with open(f'{prefix}{i}_{j}.{format}', 'wb+') as out:
+                plt.savefig(out, bbox_inches=extent, format=format)
 
 
 if __name__ == '__main__':
@@ -210,10 +206,12 @@ if __name__ == '__main__':
             help='Estimate growth parameters based on least-squares fit')
     parser.add_argument('-s', '--figsize', nargs=2, type=int, default=[10, 6],
             help='Set size of figure canvas')
-    parser.add_argument('--png', action='store_true',
-            help='Output figure as png')
+    parser.add_argument('-f', '--format', default='pdf', choices=['eps', 'jpeg', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'tif', 'webp'],
+            help='Specify the format of the output (default: %(default)s)')
     parser.add_argument('--split_subfigures', action='store_true',
             help='Split output into multiple files')
+    parser.add_argument('--output_prefix', default="out_",
+            help="Prefix given to the files generated when splitting into subfigures")
 
     args = parser.parse_args()
 
@@ -265,12 +263,9 @@ if __name__ == '__main__':
     plt.tight_layout()
     if not args.split_subfigures:
         with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-            if args.png:
-                plt.savefig(out, format='png')
-            else:
-                plt.savefig(out, format='pdf')
+            plt.savefig(out, format=args.format)
     else:
-        save_split_figures(axs, f)
+        save_split_figures(axs, f, args.format, args.output_prefix)
 
     plt.close()
 
