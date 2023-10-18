@@ -13,6 +13,7 @@ import re
 # third party packages
 #
 
+from matplotlib.transforms import Bbox
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -169,6 +170,33 @@ def get_subplot_dim(df):
 
     return len(df.columns.levels[1]), len(df.columns.levels[0]) + non_cum, non_cum
 
+def full_extent(ax, pad=0.0):
+    '''
+    Get the full extent of an axes, including axes labels, tick labels, and
+    titles.
+    '''
+    # For text objects, we need to draw the figure first, otherwise the extents
+    # are undefined.
+    ax.figure.canvas.draw()
+    items = ax.get_xticklabels() + ax.get_yticklabels()
+    items += [ax, ax.title, ax.xaxis.label, ax.yaxis.label]
+    items += [ax, ax.title]
+    bbox = Bbox.union([item.get_window_extent() for item in items])
+    return bbox.expanded(1.0 + pad, 1.0 + pad)
+
+def save_split_figures(ax, f):
+    for i, ax_row in enumerate(axs):
+        for j, ax in enumerate(ax_row):
+            extent = full_extent(ax).transformed(
+                    f.dpi_scale_trans.inverted())
+            if args.png:
+                with open(f'out_{i}_{j}.png', 'wb+') as out:
+                    plt.savefig(out, bbox_inches=extent, format='png')
+            else:
+                with open(f'out_{i}_{j}.pdf', 'wb+') as out:
+                    plt.savefig(out, bbox_inches=extent, format='pdf')
+
+
 if __name__ == '__main__':
     description='''
     Visualize growth stats. PDF file will be plotted to stdout.
@@ -186,6 +214,8 @@ if __name__ == '__main__':
             help='Set size of figure canvas')
     parser.add_argument('--png', action='store_true',
             help='Output figure as png')
+    parser.add_argument('--split_subfigures', action='store_true',
+            help='Split output into multiple files')
 
     args = parser.parse_args()
 
@@ -235,11 +265,15 @@ if __name__ == '__main__':
                 exit(1)
 
     plt.tight_layout()
-    with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-        if args.png:
-            plt.savefig(out, format='png')
-        else:
-            plt.savefig(out, format='pdf')
+    if not args.split_subfigures:
+        with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
+            if args.png:
+                plt.savefig(out, format='png')
+            else:
+                plt.savefig(out, format='pdf')
+    else:
+        save_split_figures(axs, f)
+
     plt.close()
 
 
