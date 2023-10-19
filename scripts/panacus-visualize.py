@@ -24,6 +24,7 @@ import seaborn as sns
 
 PAT_PANACUS = re.compile('^#.+panacus (\S+) (.+)')
 N_HEADERS = 4
+SUPPORTED_FILE_FORMATS = plt.gcf().canvas.get_supported_filetypes().keys()
 
 ids = pd.IndexSlice
 
@@ -57,7 +58,7 @@ def clean_multicolumn_labels(df):
 
 def humanize_number(i, precision=0):
 
-    #assert i >= 0, f'non-negative number assumed, but received "{i}"'
+    #assert i >= 0, f'non-negative number assumed, but received '{i}''
 
     order = 0
     x = i
@@ -193,25 +194,26 @@ def save_split_figures(ax, f, format, prefix):
 
 if __name__ == '__main__':
     description='''
-    Visualize growth stats. PDF file will be plotted to stdout.
+    Visualize growth stats. Figures in given (output) format will be plotted to stdout, or optionally splitted into in individual files that start
+    with a given prefix.
     '''
     parser = ArgumentParser(formatter_class=ADHF, description=description)
     parser.add_argument('stats', type=open,
             help='Growth/Histogram table computed by panacus')
     parser.add_argument('-e', '--estimate_growth_params', action='store_true',
             help='Estimate growth parameters based on least-squares fit')
-    parser.add_argument('-l', '--legend_location', 
-            choices = ['lower left', 'lower right', 'upper left', 'upper right'], 
+    parser.add_argument('-l', '--legend_location',
+            choices = ['lower left', 'lower right', 'upper left', 'upper right'],
             default = 'upper left',
             help='Estimate growth parameters based on least-squares fit')
     parser.add_argument('-s', '--figsize', nargs=2, type=int, default=[10, 6],
             help='Set size of figure canvas')
-    parser.add_argument('-f', '--format', default='pdf', choices=['eps', 'jpeg', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'tif', 'webp'],
-            help='Specify the format of the output (default: %(default)s)')
+    parser.add_argument('-f', '--format', default='pdf' in SUPPORTED_FILE_FORMATS and 'pdf' or SUPPORTED_FILE_FORMATS[0], choices=SUPPORTED_FILE_FORMATS,
+            help='Specify the format of the output')
     parser.add_argument('--split_subfigures', action='store_true',
             help='Split output into multiple files')
-    parser.add_argument('--output_prefix', default="out_",
-            help="Prefix given to the files generated when splitting into subfigures")
+    parser.add_argument('--output_prefix', default='out_',
+            help='Prefix given to the files generated when splitting into subfigures')
 
     args = parser.parse_args()
 
