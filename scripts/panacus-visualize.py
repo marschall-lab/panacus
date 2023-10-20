@@ -212,7 +212,7 @@ if __name__ == '__main__':
             help='Specify the format of the output')
     parser.add_argument('--split_subfigures', action='store_true',
             help='Split output into multiple files')
-    parser.add_argument('--output_prefix', default='out_',
+    parser.add_argument('--split_prefix', default='out_',
             help='Prefix given to the files generated when splitting into subfigures')
 
     args = parser.parse_args()
@@ -267,7 +267,7 @@ if __name__ == '__main__':
         with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
             plt.savefig(out, format=args.format)
     else:
-        save_split_figures(axs, f, args.format, args.output_prefix)
+        save_split_figures(axs, f, args.format, args.split_prefix)
 
     plt.close()
 
