@@ -575,6 +575,7 @@ pub fn parse_graph_aux<R: Read>(
     node_len.push(ItemIdSize::MAX);
 
     let mut buf = vec![];
+    let mut i = 1;
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         // really really make sure that we hit a new line, which is not guaranteed when reading
         // from a compressed buffer
@@ -587,7 +588,15 @@ pub fn parse_graph_aux<R: Read>(
         }
         if buf[0] == b'S' {
             let mut iter = buf[2..].iter();
-            let offset = iter.position(|&x| x == b'\t').unwrap();
+            let offset = iter.position(|&x| x == b'\t').ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "segment in line {} stops prematurely before declaration of identifier: {}",
+                        i, str::from_utf8(&buf).unwrap()
+                    ),
+                )
+            })?;
             if node2id
                 .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
                 .is_some()
@@ -616,6 +625,7 @@ pub fn parse_graph_aux<R: Read>(
         }
 
         buf.clear();
+        i += 1;
     }
 
     Ok((node2id, node_len, edges, path_segments))
