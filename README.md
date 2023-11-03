@@ -49,11 +49,11 @@ mamba install -c conda-forge -c bioconda panacus
 ### From binary release 
 #### Linux x86\_64
 ```shell
-wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.2/panacus-0.2.2_linux_x86_64.tar.gz
-tar -xzvf panacus-0.2.2_linux_x86_64.tar.gz
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.3/panacus-0.2.3_linux_x86_64.tar.gz
+tar -xzvf panacus-0.2.3_linux_x86_64.tar.gz
 
 # suggestion: add tool to path in your ~/.bashrc
-export PATH="$(readlink -f panacus-0.2.2_linux_x86_64/bin)":$PATH
+export PATH="$(readlink -f panacus-0.2.3_linux_x86_64/bin)":$PATH
 
 # you are ready to go! 
 panacus --help
@@ -61,11 +61,11 @@ panacus --help
 
 #### Mac OSX arm64
 ```shell
-wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.2/panacus-0.2.2_macos_arm64.tar.gz
-tar -xzvf panacus-0.2.2_macos_arm64.tar.gz
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.3/panacus-0.2.3_macos_arm64.tar.gz
+tar -xzvf panacus-0.2.3_macos_arm64.tar.gz
 
 # suggestion: add tool to path in your ~/.bashrc
-export PATH="$(readlink -f panacus-0.2.2_macos_arm64/bin)":$PATH
+export PATH="$(readlink -f panacus-0.2.3_macos_arm64/bin)":$PATH
 
 # you are ready to go! 
 panacus --help

@@ -13,6 +13,7 @@ import re
 # third party packages
 #
 
+from matplotlib.transforms import Bbox
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,6 +24,7 @@ import seaborn as sns
 
 PAT_PANACUS = re.compile('^#.+panacus (\S+) (.+)')
 N_HEADERS = 4
+SUPPORTED_FILE_FORMATS = plt.gcf().canvas.get_supported_filetypes().keys()
 
 ids = pd.IndexSlice
 
@@ -56,7 +58,7 @@ def clean_multicolumn_labels(df):
 
 def humanize_number(i, precision=0):
 
-    #assert i >= 0, f'non-negative number assumed, but received "{i}"'
+    #assert i >= 0, f'non-negative number assumed, but received '{i}''
 
     order = 0
     x = i
@@ -169,21 +171,49 @@ def get_subplot_dim(df):
 
     return len(df.columns.levels[1]), len(df.columns.levels[0]) + non_cum, non_cum
 
+def full_extent(ax, pad=0.0):
+    '''
+    Gets the full extent of a given axes including labels, axis and
+    titles.
+    '''
+    ax.figure.canvas.draw()
+    items = ax.get_xticklabels() + ax.get_yticklabels()
+    items += [ax, ax.title, ax.xaxis.label, ax.yaxis.label]
+    items += [ax, ax.title]
+    bbox = Bbox.union([item.get_window_extent() for item in items])
+    return bbox.expanded(1.0 + pad, 1.0 + pad)
+
+def save_split_figures(ax, f, format, prefix):
+    for i, ax_row in enumerate(axs):
+        for j, ax in enumerate(ax_row):
+            extent = full_extent(ax).transformed(
+                    f.dpi_scale_trans.inverted())
+            with open(f'{prefix}{i}_{j}.{format}', 'wb+') as out:
+                plt.savefig(out, bbox_inches=extent, format=format)
+
+
 if __name__ == '__main__':
     description='''
-    Visualize growth stats. PDF file will be plotted to stdout.
+    Visualize growth stats. Figures in given (output) format will be plotted to stdout, or optionally splitted into in individual files that start
+    with a given prefix.
     '''
     parser = ArgumentParser(formatter_class=ADHF, description=description)
     parser.add_argument('stats', type=open,
             help='Growth/Histogram table computed by panacus')
     parser.add_argument('-e', '--estimate_growth_params', action='store_true',
             help='Estimate growth parameters based on least-squares fit')
-    parser.add_argument('-l', '--legend_location', 
-            choices = ['lower left', 'lower right', 'upper left', 'upper right'], 
+    parser.add_argument('-l', '--legend_location',
+            choices = ['lower left', 'lower right', 'upper left', 'upper right'],
             default = 'upper left',
             help='Estimate growth parameters based on least-squares fit')
     parser.add_argument('-s', '--figsize', nargs=2, type=int, default=[10, 6],
             help='Set size of figure canvas')
+    parser.add_argument('-f', '--format', default='pdf' in SUPPORTED_FILE_FORMATS and 'pdf' or SUPPORTED_FILE_FORMATS[0], choices=SUPPORTED_FILE_FORMATS,
+            help='Specify the format of the output')
+    parser.add_argument('--split_subfigures', action='store_true',
+            help='Split output into multiple files')
+    parser.add_argument('--split_prefix', default='out_',
+            help='Prefix given to the files generated when splitting into subfigures')
 
     args = parser.parse_args()
 
@@ -233,8 +263,12 @@ if __name__ == '__main__':
                 exit(1)
 
     plt.tight_layout()
-    with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
-        plt.savefig(out, format='pdf')
+    if not args.split_subfigures:
+        with fdopen(stdout.fileno(), 'wb', closefd=False) as out:
+            plt.savefig(out, format=args.format)
+    else:
+        save_split_figures(axs, f, args.format, args.split_prefix)
+
     plt.close()
 
 
