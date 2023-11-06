@@ -283,6 +283,7 @@ impl GraphAuxilliary {
             "\tAverage Number of Nodes in Paths/Walks: {}",
             average(&paths_len)
         );
+
         //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
     }
 

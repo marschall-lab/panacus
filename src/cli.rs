@@ -269,8 +269,61 @@ pub enum Params {
         threads: usize,
     },
 
-    #[clap(alias = "H", about = "Return general graph and paths statistics")]
+    #[clap(alias = "S", about = "Return general graph and paths statistics")]
     Stats {
+        #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)]
+        gfa_file: String,
+
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
+            default_value = ""
+        )]
+        negative_list: String,
+
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
+        )]
+        threads: usize,
+    },
+    #[clap(alias = "s", about = "Subsets the paths")]
+    Subset {
         #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)]
         gfa_file: String,
 
@@ -555,6 +608,7 @@ pub fn set_number_of_threads(params: &Params) {
     if let Params::Histgrowth { threads, .. }
          | Params::Hist { threads, .. }
          | Params::Stats { threads, .. }
+         | Params::Subset { threads, .. }
          | Params::OrderedHistgrowth { threads, .. }
          | Params::Table { threads, .. } = params {
         if *threads > 0 {
@@ -590,6 +644,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
     if let Params::Histgrowth { ref groupby, groupby_haplotype, groupby_sample, .. }
          | Params::Hist { ref groupby, groupby_haplotype, groupby_sample, .. }
          | Params::Stats { ref groupby, groupby_haplotype, groupby_sample, .. }
+         | Params::Subset { ref groupby, groupby_haplotype, groupby_sample, .. }
          | Params::OrderedHistgrowth { ref groupby, groupby_haplotype, groupby_sample, .. }
          | Params::Table { ref groupby, groupby_haplotype, groupby_sample, .. } = params {
         validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)?;
@@ -693,10 +748,15 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                                         &abacus_aux, &graph_aux, &CountType::Node);
 
             graph_aux.path_info(&paths_len);
-            //IDEAS:
-            //Biological Insights:
-            //  - Conserved Regions
-            //  - Variant Regions
+        }
+        Params::Subset { ref gfa_file, ..} => {
+            let mut data = bufreader_from_compressed_gfa(gfa_file)?;
+            let graph_aux = GraphAuxilliary::from_gfa(&mut data, CountType::Node)?;
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            data = bufreader_from_compressed_gfa(gfa_file)?;
+            let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node)?;
+            //println!("{}", abacus.countable.len()-1);
+            
         }
         Params::OrderedHistgrowth {ref gfa_file, count, output_format, ..} => {
             let mut data = bufreader_from_compressed_gfa(gfa_file)?;
