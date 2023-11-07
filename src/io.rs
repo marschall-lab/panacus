@@ -505,6 +505,44 @@ fn parse_path_seq_to_item_vec(
     sids
 }
 
+pub fn subset_path_gfa<R: Read>(
+    data: &mut BufReader<R>,
+    abacus: &AbacusByTotal,
+    flt_quorum: u32,
+    flt_length: u32,
+) {
+    let mut buf = vec![];
+    let graph_aux = abacus.graph_aux;
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'P' {
+            let mut comma: bool = false;
+            let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
+            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &abacus.graph_aux);
+            print!("P\t{}\t", path_seg);
+            for i in 0..sids.len() {
+                let sid = sids[i].0.0 as usize;
+                let ori = sids[i].1;
+                let counts = abacus.countable[sid];
+                if counts >= flt_quorum && graph_aux.node_len_ary[sid] >= flt_length {
+                    if comma { print!(","); }
+                    comma = true;
+                    print!("{}{}", sid, ori.to_pm() as char);
+                }
+            }
+            println!("\t*");
+        } 
+        //NOT-TESTED
+        //if buf[0] == b'W' {
+        //    let (path_seg, buf_path_seg) = parse_walk_identifier(&buf);
+        //    let sids = parse_walk_seq_to_item_vec(&buf_path_seg, &graph_aux);
+        //    for sid in sids.iter() {
+        //        println!("{}{}",sid.0,sid.1);
+        //    }
+        //} 
+        buf.clear();
+    }
+}
+
 fn parse_path_seq_update_tables(
     data: &[u8],
     graph_aux: &GraphAuxilliary,
@@ -850,6 +888,7 @@ pub fn parse_gfa_itemcount<R: Read>(
     }
     (item_table, exclude_table, subset_covered_bps, paths_len)
 }
+
 
 fn update_tables(
     item_table: &mut ItemTable,

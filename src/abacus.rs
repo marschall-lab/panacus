@@ -120,16 +120,16 @@ impl AbacusAuxilliary {
                     None
                 };
 
-                let n_groups = HashSet::<&String>::from_iter(groups.values()).len();
-                if n_groups > 65534 {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        format!(
-                            "data has {} path groups, but command is not supported for more than 65534",
-                            n_groups
-                        ),
-                    ));
-                }
+                //let n_groups = HashSet::<&String>::from_iter(groups.values()).len();
+                //if n_groups > 65534 {
+                //    return Err(Error::new(
+                //        ErrorKind::Unsupported,
+                //        format!(
+                //            "data has {} path groups, but command is not supported for more than 65534",
+                //            n_groups
+                //        ),
+                //    ));
+                //}
 
                 Ok(AbacusAuxilliary {
                     groups: groups,
@@ -529,9 +529,9 @@ impl<'a> AbacusByGroup<'a> {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
-            if groups.len() > 65534 {
-                panic!("data has more than 65534 path groups, but command is not supported for more than 65534");
-            }
+            //if groups.len() > 65534 {
+            //    panic!("data has more than 65534 path groups, but command is not supported for more than 65534");
+            //}
             path_order.push((path_id, (groups.len() - 1) as GroupSize));
         }
 

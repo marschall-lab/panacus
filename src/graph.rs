@@ -124,10 +124,17 @@ impl Orientation {
     }
 
     #[allow(dead_code)]
-    pub fn to_lg(&self) -> u8 {
+    pub fn to_lg(&self) -> char {
         match self {
-            &Orientation::Forward => b'>',
-            &Orientation::Backward => b'<',
+            &Orientation::Forward => '>',
+            &Orientation::Backward => '<',
+        }
+    }
+
+    pub fn to_pm(&self) -> char {
+        match self {
+            &Orientation::Forward => '+',
+            &Orientation::Backward => '-',
         }
     }
 
