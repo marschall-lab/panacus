@@ -166,8 +166,12 @@ impl IntervalContainer {
                 let i = x
                     .binary_search_by_key(&start, |&(y, _)| y)
                     .unwrap_or_else(|z| z);
-                if i > 0 && x[i - 1].1 >= start && x[i - 1].1 <= end {
-                    x[i - 1].1 = end;
+                if i > 0 && x[i - 1].1 >= start {
+                    if x[i - 1].1 <= end {
+                        x[i - 1].1 = end;
+                    }
+                    // else do nothing, because the new interval is fully enclosed in the previous
+                    // interval
                 } else if i < x.len() && x[i].1 >= start && x[i].1 < end {
                     x[i].1 = end;
                 } else if i < x.len() && x[i].0 <= end {

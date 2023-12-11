@@ -593,7 +593,8 @@ pub fn parse_graph_aux<R: Read>(
                     std::io::ErrorKind::InvalidData,
                     format!(
                         "segment in line {} stops prematurely before declaration of identifier: {}",
-                        i, str::from_utf8(&buf).unwrap()
+                        i,
+                        str::from_utf8(&buf).unwrap()
                     ),
                 )
             })?;

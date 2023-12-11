@@ -46,13 +46,18 @@ impl Hist {
 
     pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
         let n = self.coverage.len() - 1;
-        let quorum = usize::max(1, t_quorum.to_absolute(n));
-        if quorum == 1 {
-            self.calc_growth_union(t_coverage)
-        } else if quorum >= n {
-            self.calc_growth_core(t_coverage)
+
+        if n > 0 {
+            let quorum = usize::max(1, t_quorum.to_absolute(n));
+            if quorum == 1 {
+                self.calc_growth_union(t_coverage)
+            } else if quorum >= n {
+                self.calc_growth_core(t_coverage)
+            } else {
+                self.calc_growth_quorum(t_coverage, t_quorum)
+            }
         } else {
-            self.calc_growth_quorum(t_coverage, t_quorum)
+            Vec::new()
         }
     }
 
