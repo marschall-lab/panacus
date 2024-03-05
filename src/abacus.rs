@@ -352,14 +352,11 @@ impl<'a> AbacusByTotal<'a> {
             parse_gfa_itemcount(data, abacus_aux, graph_aux, &count);
         log::info!("counting abacus entries..");
         
-        // first element in countable is the "zero" element--which should be ignored in
-        // counting
+        // first element in countable is "zero" element. It is ignored in counting
         let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&count) + 1];
-        // countable with ID "0" is special and should not be considered in coverage 
-        // histogram
+        // countable with ID "0" is special and should not be considered in coverage histogram
         countable[0] = CountSize::MAX;
-        let mut last: Vec<ItemIdSize> =
-            vec![ItemIdSize::MAX; graph_aux.number_of_items(&count) + 1];
+        let mut last: Vec<ItemIdSize> = vec![ItemIdSize::MAX; graph_aux.number_of_items(&count) + 1];
 
         let mut groups = Vec::new();
         for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
@@ -452,7 +449,6 @@ impl<'a> AbacusByTotal<'a> {
         Ok(abaci)
     }
 
-    //Why &self and not self? we could destroy abacus at this point.
     pub fn construct_hist(&self) -> Vec<usize> {
         log::info!("constructing histogram..");
         // hist must be of size = num_groups + 1; having an index that starts 
@@ -462,7 +458,7 @@ impl<'a> AbacusByTotal<'a> {
         for (i, cov) in self.countable.iter().enumerate() {
             if *cov as usize >= hist.len() {
                 if i != 0 {
-                    log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
+                    log::warn!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
                 }
             } else {
                 hist[*cov as usize] += 1;

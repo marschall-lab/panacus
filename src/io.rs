@@ -348,7 +348,7 @@ fn parse_walk_seq_to_item_vec(
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
         .unwrap();
 
-    log::debug!("parsing path sequences of size {}..", end);
+    log::debug!("parsing walk sequences of size {}..", end);
 
     // ignore first > | < so that no empty is created for 1st node
     let sids: Vec<(ItemId, Orientation)> = data[..end]

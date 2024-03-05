@@ -434,24 +434,25 @@ impl GraphAuxilliary {
         )
     }
 
-    pub fn get_k_plus_one_mer_edge(edge: Edge, extremities: Vec<(Vec<u8>,Vec<u8>)>) {
+    pub fn get_k_plus_one_mer_edge(&self, edge: Edge) {
         let u = edge.0.0 as usize;
         let o1 = edge.1;
         let v = edge.2.0 as usize;
         let o2 = edge.3;
 
         let left = if o1 == Orientation::Forward  {
-            extremities[u].1.clone()
+            self.extremities[u].1.clone()
         } else {
-            reverse_complement(&extremities[u].0)
+            reverse_complement(&self.extremities[u].0)
         };
         let right = if o2 == Orientation::Forward {
-            extremities[v].0.clone()
+            self.extremities[v].0.clone()
         } else {
-            reverse_complement(&extremities[v].1)
+            reverse_complement(&self.extremities[v].1)
         };
         let right = [right[right.len()-1]];
 
+        //TEST
         let left = str::from_utf8(&left).unwrap();
         let right = str::from_utf8(&right).unwrap();
         let k_plus_one_mer = format!("{left}{right}");
