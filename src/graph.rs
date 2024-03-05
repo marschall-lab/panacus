@@ -2,6 +2,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read};
 use std::fmt;
 use std::str::{self, FromStr};
 use std::io::Error;
@@ -10,79 +11,10 @@ use std::io::Error;
 use crate::io;
 use crate::util::{CountType, ItemIdSize};
 use crate::util::*;
+use crate::io::bufreader_from_compressed_gfa;
 
 static PATHID_PANSN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#]+)?$").unwrap());
 static PATHID_COORDS: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+):([0-9]+)-([0-9]+)$").unwrap());
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ItemId(pub ItemIdSize);
-
-impl fmt::Display for ItemId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Edge(pub ItemId, pub Orientation, pub ItemId, pub Orientation);
-
-impl Edge {
-    pub fn from_link(data: &[u8], node2id: &HashMap<Vec<u8>, ItemId>, canonical: bool) -> Self {
-        let (start, mut iter) = match data[0] {
-            b'L' => (2, data[2..].iter()),
-            _ => (0, data.iter()),
-        };
-
-        let end = start + iter.position(|&x| x == b'\t').unwrap();
-        let u = node2id.get(&data[start..end]).expect(&format!(
-            "unknown node {}",
-            str::from_utf8(&data[start..end]).unwrap()
-        ));
-
-        // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
-        // need to advance in the buffer (and  therefore call iter.position(..))
-        iter.position(|&x| x == b'\t');
-        let o1 = Orientation::from_pm(data[end + 1]);
-
-        let start = end + 3;
-        let end = start + iter.position(|&x| x == b'\t').unwrap();
-
-        let v = node2id.get(&data[start..end]).expect(&format!(
-            "unknown node {}",
-            str::from_utf8(&data[start..end]).unwrap()
-        ));
-        let o2 = Orientation::from_pm(data[end + 1]);
-
-        if canonical {
-            Self::canonical(*u, o1, *v, o2)
-        } else {
-            Self(*u, o1, *v, o2)
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn normalize(&self) -> Self {
-        Self::canonical(self.0, self.1, self.2, self.3)
-    }
-
-    pub fn canonical(u: ItemId, o1: Orientation, v: ItemId, o2: Orientation) -> Self {
-        if u.0 > v.0 || (u.0 == v.0 && o1 == Orientation::Backward) {
-            Self(v, o2.flip(), u, o1.flip())
-        } else {
-            Self(u, o1, v, o2)
-        }
-    }
-
-    pub fn flip(&self) -> Self {
-        Self(self.2, self.3.flip(), self.0, self.1.flip())
-    }
-}
-
-impl fmt::Display for Edge {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}{}{}", self.1, self.0, self.3, self.2)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Orientation {
@@ -156,142 +88,218 @@ impl PartialEq<u8> for Orientation {
     }
 }
 
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ItemId(pub ItemIdSize);
+
+impl fmt::Display for ItemId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Edge(pub ItemId, pub Orientation, pub ItemId, pub Orientation);
+
+impl Edge {
+    pub fn from_link(data: &[u8], node2id: &HashMap<Vec<u8>, ItemId>, canonical: bool) -> Self {
+        let (start, mut iter) = match data[0] {
+            b'L' => (2, data[2..].iter()),
+            _ => (0, data.iter()),
+        };
+
+        let end = start + iter.position(|&x| x == b'\t').unwrap();
+        let u = node2id.get(&data[start..end]).expect(&format!(
+            "unknown node {}",
+            str::from_utf8(&data[start..end]).unwrap()
+        ));
+
+        // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
+        // need to advance in the buffer (and  therefore call iter.position(..))
+        iter.position(|&x| x == b'\t');
+        let o1 = Orientation::from_pm(data[end + 1]);
+
+        let start = end + 3;
+        let end = start + iter.position(|&x| x == b'\t').unwrap();
+
+        let v = node2id.get(&data[start..end]).expect(&format!(
+            "unknown node {}",
+            str::from_utf8(&data[start..end]).unwrap()
+        ));
+        let o2 = Orientation::from_pm(data[end + 1]);
+
+        if canonical {
+            Self::canonical(*u, o1, *v, o2)
+        } else {
+            Self(*u, o1, *v, o2)
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn normalize(&self) -> Self {
+        Self::canonical(self.0, self.1, self.2, self.3)
+    }
+
+    pub fn canonical(u: ItemId, o1: Orientation, v: ItemId, o2: Orientation) -> Self {
+        if u.0 > v.0 || (u.0 == v.0 && o1 == Orientation::Backward) {
+            Self(v, o2.flip(), u, o1.flip())
+        } else {
+            Self(u, o1, v, o2)
+        }
+    }
+
+    pub fn flip(&self) -> Self {
+        Self(self.2, self.3.flip(), self.0, self.1.flip())
+    }
+}
+
+impl fmt::Display for Edge {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}{}{}", self.1, self.0, self.3, self.2)
+    }
+}
+
+
+////let kmer = b"ACGTacgt";
+////let result = kmer_to_u64(kmer);
+//pub fn kmer_to_u64(kmer: Vec<u8>) -> u64 {
+//    let mut result: u64 = 0;
+//    for &nucleotide in kmer {
+//        let bits = NUCLEOTIDE_BITS[nucleotide as usize];
+//        if bits < 4 {
+//            result = (result << 2) | bits as u64;
+//        } else {
+//            panic!("Invalid nucleotide: {}", nucleotide as char);
+//        }
+//    }
+//    result
+//}
+
+pub fn get_extremities(node_dna: &[u8] , k: usize) -> (Vec<u8>, Vec<u8>) {
+    let left = node_dna[0..k].to_vec();
+    let right = node_dna[node_dna.len()-k..node_dna.len()].to_vec();
+    (left, right)
+}
+
 #[derive(Debug, Clone)]
 pub struct GraphAuxilliary {
     pub node2id: HashMap<Vec<u8>, ItemId>,
-    pub node_len_ary: Vec<ItemIdSize>,
+    pub node_lens: Vec<ItemIdSize>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
     pub node_count: usize,
     pub edge_count: usize,
     pub degree: Option<Vec<u32>>,
+    pub extremities: Option<Vec<(Vec<u8>, Vec<u8>)>>,
 }
 
 impl GraphAuxilliary {
-    pub fn new(
-        node2id: HashMap<Vec<u8>, ItemId>,
-        node_len_ary: Vec<ItemIdSize>,
-        edge2id: Option<HashMap<Edge, ItemId>>,
-        path_segments: Vec<PathSegment>,
-        node_count: usize,
-        edge_count: usize,
-        degree: Option<Vec<u32>>,
+    pub fn from_gfa(
+        gfa_file: &str,
+        count_type: CountType,
     ) -> Self {
+        let (node2id, path_segments, node_lens, extremities) = Self::parse_nodes_gfa(gfa_file, None);
+        let index_edges: bool = (count_type == CountType::Edge) | (count_type == CountType::All);
+        let (edge2id, edge_count, degree) = if index_edges { 
+            let (edge2id, edge_count, degree) = Self::parse_edge_gfa(gfa_file, &node2id);
+            (Some(edge2id), edge_count, Some(degree))
+        } else {
+            (None, 0, None)
+        };
+        let node_count = node2id.len();
+        
         Self {
             node2id,
-            node_len_ary,
+            node_lens,
             edge2id,
             path_segments,
             node_count,
             edge_count,
             degree,
+            extremities,
         }
     }
 
-    pub fn from_gfa<R: std::io::Read>(
-        data: &mut std::io::BufReader<R>,
-        count_type: CountType,
-    ) -> Result<Self, Error> {
-        log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
-        let (node2id, node_len_ary, edges, path_segments) = 
-            io::parse_graph_aux(data,(count_type == CountType::Edge) | (count_type == CountType::All))?;
+    pub fn from_cdbg_gfa(
+        gfa_file: &str,
+        k: usize,
+    ) -> Self {
+        let (node2id, path_segments, node_lens, extremities) = Self::parse_nodes_gfa(gfa_file, Some(k));
+        let (edge2id, edge_count, degree) = (None, 0, None);
         let node_count = node2id.len();
-        let (edge2id, edge_count, degree) = Self::construct_edgemap(edges, &node2id);
-
-        log::info!(
-            "found {} paths/walks and {} nodes{}",
-            path_segments.len(),
-            node_count,
-            if edge_count != 0{
-                format!(" {} edges", edge_count)
-            } else {
-                String::new()
-            }
-        );
-        if path_segments.len() == 0 {
-            log::warn!("graph does not contain any annotated paths (P/W lines)");
-        }
-
-        Ok(Self::new(
+        
+        Self {
             node2id,
-            node_len_ary,
+            node_lens,
             edge2id,
             path_segments,
             node_count,
             edge_count,
             degree,
-        ))
+            extremities,
+        }
     }
 
     pub fn node_len(&self, v: &ItemId) -> ItemIdSize {
-        self.node_len_ary[v.0 as usize]
+        self.node_lens[v.0 as usize]
     }
 
     pub fn graph_info(&self) {
         let degree = self.degree.as_ref().unwrap();
-        let mut node_len_sorted = self.node_len_ary[1..].to_vec();
-        node_len_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
-        println!("Graph Info:");
-        println!("\tNumber of Nodes: {}", self.node_count);
-        println!("\tNumber of Edges: {}", self.edge_count);
-        println!("\tAverage Degree (undirected): {}", average(&degree[1..]));
-        println!(
+        let mut node_lens_sorted = self.node_lens[1..].to_vec();
+        node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
+        log::info!("Graph Info:");
+        log::info!("\tNumber of Nodes: {}", self.node_count);
+        log::info!("\tNumber of Edges: {}", self.edge_count);
+        log::info!("\tAverage Degree (undirected): {}", average(&degree[1..]));
+        log::info!(
             "\tMax Degree (undirected): {}",
             degree[1..].iter().max().unwrap()
         );
-        println!(
+        log::info!(
             "\tMin Degree (undirected): {}",
             degree[1..].iter().min().unwrap()
         );
-        println!(
+        log::info!(
             "\tNumber 0-degree Nodes: {}",
             degree[1..].iter().filter(|&x| *x == 0).count()
         );
-        println!(
+        log::info!(
             "\tLargest Node (bp): {}",
-            node_len_sorted.iter().max().unwrap()
+            node_lens_sorted.iter().max().unwrap()
         );
-        println!(
+        log::info!(
             "\tShortest Node (bp): {}",
-            node_len_sorted.iter().min().unwrap()
+            node_lens_sorted.iter().min().unwrap()
         );
-        println!("\tAverage Node Length (bp): {}", average(&node_len_sorted));
-        println!(
+        log::info!("\tAverage Node Length (bp): {}", average(&node_lens_sorted));
+        log::info!(
             "\tMedian Node Length (bp): {}",
-            median_already_sorted(&node_len_sorted)
+            median_already_sorted(&node_lens_sorted)
         );
-        println!(
+        log::info!(
             "\tN50 Node Length (bp): {}",
-            n50_already_sorted(&node_len_sorted).unwrap()
+            n50_already_sorted(&node_lens_sorted).unwrap()
         );
-        //println!("Edge-level Metrics:");
-        //println!("\tEdge Length Distribution (bp): TODO");
-        // DISTRIBUTIONS
-        //println!("\tDegree Distribution:");
-        //if let Some(hist) = graph.degree_distribution() {
-        //    for i in 0..hist.len() {
-        //        println!("{}:{} ",i, hist[i]);
-        //    }
-        //}
     }
 
     pub fn path_info(&self, paths_len: &Vec<u32>) {
-        println!("Path/Walk Info:");
-        println!("\tNumber of Paths/Walks: {}", paths_len.len());
-        println!(
+        log::info!("Path/Walk Info:");
+        log::info!("\tNumber of Paths/Walks: {}", paths_len.len());
+        log::info!(
             "\tLongest Path/Walk (node): {}",
             paths_len.iter().max().unwrap()
         );
-        println!(
+        log::info!(
             "\tShortest Path/Walk (node): {}",
             paths_len.iter().min().unwrap()
         );
-        println!(
+        log::info!(
             "\tAverage Number of Nodes in Paths/Walks: {}",
             average(&paths_len)
         );
 
-        //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
+        //log::info!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
     }
 
     pub fn number_of_items(&self, c: &CountType) -> usize {
@@ -302,50 +310,170 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn construct_edgemap(
-        edges: Option<Vec<Vec<u8>>>,
+    pub fn parse_edge_gfa(
+        gfa_file: &str,
         node2id: &HashMap<Vec<u8>, ItemId>,
-    ) -> (Option<HashMap<Edge, ItemId>>, usize, Option<Vec<u32>>) {
+    ) -> (HashMap<Edge, ItemId>, usize, Vec<u32>) {
+
+        let mut edge2id = HashMap::default();
         let mut degree: Vec<u32> = vec![0; node2id.len()+1];
-        match edges {
-            Some(es) => {
-                let mut res = HashMap::default();
-                let mut c: ItemIdSize = 1;
-                for b in es {
-                    let e = Edge::from_link(&b[..], node2id, true);
-                    if res.contains_key(&e) {
-                        log::warn!("edge {} is duplicated in GFA", &e);
-                    } else {
-                        degree[e.0.0 as usize] += 1;
-                        //if e.0.0 != e.2.0 {
-                        degree[e.2.0 as usize] += 1;
-                        //}
-                        res.insert(e, ItemId(c));
-                        c += 1;
-                    }
+        let mut edge_id: ItemIdSize = 1;
+
+        let mut buf = vec![];
+        let mut data = bufreader_from_compressed_gfa(gfa_file);
+        while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+            if buf[0] == b'L' {
+                let edge = Edge::from_link(&buf[..], node2id, true);
+                if edge2id.contains_key(&edge) {
+                    log::warn!("edge {} is duplicated in GFA", &edge);
+                } else {
+                    degree[edge.0.0 as usize] += 1;
+                    //if e.0.0 != e.2.0 {
+                    degree[edge.2.0 as usize] += 1;
+                    //}
+                    edge2id.insert(edge, ItemId(edge_id));
+                    edge_id += 1;
                 }
-                (Some(res), c as usize, Some(degree))
-            }
-            None => (None, 0, None),
+            } 
+            buf.clear();
         }
+        let edge_count = edge2id.len() as usize;
+        log::info!("found: {} edges", edge_count);
+
+        (edge2id, edge_count, degree)
     }
 
-    #[allow(dead_code)]
-    pub fn degree_distribution(&self) -> Option<Vec<u32>> {
-        match &self.degree {
-            Some(degree) => {
-                let mut hist: Vec<u32> = vec![0,1];
-                for i in 1..self.node_count+1 {
-                    if degree[i] as usize >= hist.len() {
-                        hist.resize(degree[i] as usize +1, 0);
-                    }
-                    hist[degree[i] as usize] += 1
+    pub fn parse_nodes_gfa(
+        gfa_file: &str,
+        k: Option<usize>,
+    ) -> (HashMap<Vec<u8>, ItemId>,
+          Vec<PathSegment>,
+          Vec<ItemIdSize>,
+          Option<Vec<(Vec<u8>,Vec<u8>)>>,) {
+        let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
+        let mut path_segments: Vec<PathSegment> = Vec::new();
+        let mut node_lens: Vec<ItemIdSize> = Vec::new();
+        let mut extremities: Vec<(Vec<u8>,Vec<u8>)> = Vec::new();
+
+        log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
+        node_lens.push(ItemIdSize::MIN); // add empty element to node_lens to make it in sync with node_id
+        let mut node_id = 1; // important: id must be > 0, otherwise counting procedure will produce errors
+
+        let mut buf = vec![];
+        let mut data = bufreader_from_compressed_gfa(gfa_file);
+        while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+            if buf[0] == b'S' {
+                let mut iter = buf[2..].iter();
+                let offset = iter.position(|&x| x == b'\t').unwrap();
+                if node2id.insert(buf[2..offset + 2].to_vec(), ItemId(node_id)).is_some() {
+                    panic!("Segment with ID {} occurs multiple times in GFA", str::from_utf8(&buf[2..offset + 2]).unwrap())
                 }
-                Some(hist)
+                let start_sequence = offset + 3;
+                let offset = iter.position(|&x| x == b'\t' || x == b'\n' || x == b'\r').unwrap();
+                if k.is_some() {
+                    let (left, right) = get_extremities(&buf[start_sequence..start_sequence+offset], k.unwrap());
+                    extremities.push((left, right));
+                }
+                node_lens.push(offset as ItemIdSize);
+                node_id += 1;
+            } else if buf[0] == b'P' {
+                path_segments.push(Self::parse_path_segment(&buf));
+            } else if buf[0] == b'W' {
+                path_segments.push(Self::parse_walk_segment(&buf));
             }
-            None => None
+            buf.clear();
         }
+
+        log::info!(
+            "found: {} paths/walks, {} nodes",
+            path_segments.len(),
+            node2id.len()
+        );
+        if path_segments.len() == 0 {
+            log::warn!("graph does not contain any annotated paths (P/W lines)");
+        }
+
+        (node2id, path_segments, node_lens, if k.is_none() {None} else {Some(extremities)})
     }
+
+    pub fn parse_path_segment(data: &[u8]) -> PathSegment {
+        let mut iter = data.iter();
+        let start = iter.position(|&x| x == b'\t').unwrap() + 1;
+        let offset = iter.position(|&x| x == b'\t').unwrap();
+        let path_name = str::from_utf8(&data[start..start + offset]).unwrap();
+        PathSegment::from_str(path_name)
+    }
+
+    pub fn parse_walk_segment(data: &[u8]) -> PathSegment {
+        let mut six_col: Vec<&str> = Vec::with_capacity(6);
+
+        let mut it = data.iter();
+        let mut i = 0;
+        for _ in 0..6 {
+            let j = it.position(|x| x == &b'\t').unwrap();
+            six_col.push(&str::from_utf8(&data[i..i + j]).unwrap());
+            i += j + 1;
+        }
+
+        let seq_start = match six_col[4] {
+            "*" => None,
+            a => Some(usize::from_str(a).unwrap()),
+        };
+
+        let seq_end = match six_col[5] {
+            "*" => None,
+            a => Some(usize::from_str(a).unwrap()),
+        };
+
+        PathSegment::new(
+            six_col[1].to_string(),
+            six_col[2].to_string(),
+            six_col[3].to_string(),
+            seq_start,
+            seq_end,
+        )
+    }
+
+    pub fn get_k_plus_one_mer_edge(edge: Edge, extremities: Vec<(Vec<u8>,Vec<u8>)>) {
+        let u = edge.0.0 as usize;
+        let o1 = edge.1;
+        let v = edge.2.0 as usize;
+        let o2 = edge.3;
+
+        let left = if o1 == Orientation::Forward  {
+            extremities[u].1.clone()
+        } else {
+            reverse_complement(&extremities[u].0)
+        };
+        let right = if o2 == Orientation::Forward {
+            extremities[v].0.clone()
+        } else {
+            reverse_complement(&extremities[v].1)
+        };
+        let right = [right[right.len()-1]];
+
+        let left = str::from_utf8(&left).unwrap();
+        let right = str::from_utf8(&right).unwrap();
+        let k_plus_one_mer = format!("{left}{right}");
+        println!("{}", k_plus_one_mer);
+    }
+
+    //#[allow(dead_code)]
+    //pub fn degree_distribution(&self) -> Option<Vec<u32>> {
+    //    match &self.degree {
+    //        Some(degree) => {
+    //            let mut hist: Vec<u32> = vec![0,1];
+    //            for i in 1..self.node_count+1 {
+    //                if degree[i] as usize >= hist.len() {
+    //                    hist.resize(degree[i] as usize +1, 0);
+    //                }
+    //                hist[degree[i] as usize] += 1;
+    //            }
+    //            Some(hist)
+    //        }
+    //        None => None
+    //    }
+    //}
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Hash, Eq, Ord)]
@@ -476,23 +604,23 @@ impl PathSegment {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn covers(&self, other: &PathSegment) -> bool {
-        self.sample == other.sample
-            && (self.haplotype == other.haplotype
-                || (self.haplotype.is_none()
-                    && self.seqid.is_none()
-                    && self.start.is_none()
-                    && self.end.is_none()))
-            && (self.seqid == other.seqid
-                || (self.seqid.is_none() && self.start.is_none() && self.end.is_none()))
-            && (self.start == other.start
-                || self.start.is_none()
-                || (other.start.is_some() && self.start.unwrap() <= other.start.unwrap()))
-            && (self.end == other.end
-                || self.end.is_none()
-                || (other.end.is_some() && self.end.unwrap() >= other.end.unwrap()))
-    }
+    //#[allow(dead_code)]
+    //pub fn covers(&self, other: &PathSegment) -> bool {
+    //    self.sample == other.sample
+    //        && (self.haplotype == other.haplotype
+    //            || (self.haplotype.is_none()
+    //                && self.seqid.is_none()
+    //                && self.start.is_none()
+    //                && self.end.is_none()))
+    //        && (self.seqid == other.seqid
+    //            || (self.seqid.is_none() && self.start.is_none() && self.end.is_none()))
+    //        && (self.start == other.start
+    //            || self.start.is_none()
+    //            || (other.start.is_some() && self.start.unwrap() <= other.start.unwrap()))
+    //        && (self.end == other.end
+    //            || self.end.is_none()
+    //            || (other.end.is_some() && self.end.unwrap() >= other.end.unwrap()))
+    //}
 }
 
 impl fmt::Display for PathSegment {

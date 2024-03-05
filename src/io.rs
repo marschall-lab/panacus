@@ -28,16 +28,16 @@ pub enum OutputFormat {
     Html,
 }
 
-pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> Result<BufReader<Box<dyn Read>>,Error> {
+pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> BufReader<Box<dyn Read>> {
     log::info!("loading graph from {}", &gfa_file);
-    let f = std::fs::File::open(&gfa_file)?;
+    let f = std::fs::File::open(&gfa_file).expect("Error opening file");
     let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
         log::info!("assuming that {} is gzip compressed..", &gfa_file);
         Box::new(GzDecoder::new(f))
     } else {
         Box::new(f)
     };
-    Ok(BufReader::new(reader))
+    BufReader::new(reader)
 }
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
@@ -523,7 +523,7 @@ pub fn subset_path_gfa<R: Read>(
                 let sid = sids[i].0.0 as usize;
                 let ori = sids[i].1;
                 let counts = abacus.countable[sid];
-                if counts >= flt_quorum && graph_aux.node_len_ary[sid] >= flt_length {
+                if counts >= flt_quorum && graph_aux.node_lens[sid] >= flt_length {
                     if comma { print!(","); }
                     comma = true;
                     print!("{}{}", sid, ori.to_pm() as char);
@@ -616,65 +616,65 @@ fn parse_path_seq_update_tables(
     num_nodes_path
 }
 
-pub fn parse_graph_aux<R: Read>(
-    data: &mut BufReader<R>,
-    index_edges: bool,
-) -> Result<
-    (
-        HashMap<Vec<u8>, ItemId>,
-        Vec<ItemIdSize>,
-        Option<Vec<Vec<u8>>>,
-        Vec<PathSegment>,
-    ),
-    Error,
-> {
-    // let's start
-    // IMPORTANT: id must be > 0, otherwise counting procedure will produce errors
-    let mut node_id = 1;
-    let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
-    let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
-    let mut path_segments: Vec<PathSegment> = Vec::new();
-    let mut node_len: Vec<ItemIdSize> = Vec::new();
-    // add empty element to node_len to make it in sync with node_id
-    node_len.push(ItemIdSize::MIN);
-
-    let mut buf = vec![];
-    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-        if buf[0] == b'S' {
-            let mut iter = buf[2..].iter();
-            let offset = iter.position(|&x| x == b'\t').unwrap();
-            if node2id
-                .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
-                .is_some()
-            {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "segment with ID {} occurs multiple times in GFA",
-                        str::from_utf8(&buf[2..offset + 2]).unwrap()
-                    ),
-                ));
-            }
-            node_id += 1;
-            let offset = iter
-                .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
-                .unwrap();
-            node_len.push(offset as ItemIdSize);
-        } else if index_edges && buf[0] == b'L' {
-            edges.as_mut().unwrap().push(buf.to_vec());
-        } else if buf[0] == b'P' {
-            let (path_seg, _) = parse_path_identifier(&buf);
-            path_segments.push(path_seg);
-        } else if buf[0] == b'W' {
-            let (path_seg, _) = parse_walk_identifier(&buf);
-            path_segments.push(path_seg);
-        }
-
-        buf.clear();
-    }
-
-    Ok((node2id, node_len, edges, path_segments))
-}
+//pub fn parse_graph_aux<R: Read>(
+//    data: &mut BufReader<R>,
+//    index_edges: bool,
+//) -> Result<
+//    (
+//        HashMap<Vec<u8>, ItemId>,
+//        Vec<ItemIdSize>,
+//        Option<Vec<Vec<u8>>>,
+//        Vec<PathSegment>,
+//    ),
+//    Error,
+//> {
+//    // let's start
+//    // IMPORTANT: id must be > 0, otherwise counting procedure will produce errors
+//    let mut node_id = 1;
+//    let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
+//    let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
+//    let mut path_segments: Vec<PathSegment> = Vec::new();
+//    let mut node_len: Vec<ItemIdSize> = Vec::new();
+//    // add empty element to node_len to make it in sync with node_id
+//    node_len.push(ItemIdSize::MIN);
+//
+//    let mut buf = vec![];
+//    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+//        if buf[0] == b'S' {
+//            let mut iter = buf[2..].iter();
+//            let offset = iter.position(|&x| x == b'\t').unwrap();
+//            if node2id
+//                .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
+//                .is_some()
+//            {
+//                return Err(Error::new(
+//                    ErrorKind::InvalidData,
+//                    format!(
+//                        "segment with ID {} occurs multiple times in GFA",
+//                        str::from_utf8(&buf[2..offset + 2]).unwrap()
+//                    ),
+//                ));
+//            }
+//            node_id += 1;
+//            let offset = iter
+//                .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
+//                .unwrap();
+//            node_len.push(offset as ItemIdSize);
+//        } else if index_edges && buf[0] == b'L' {
+//            edges.as_mut().unwrap().push(buf.to_vec());
+//        } else if buf[0] == b'P' {
+//            let (path_seg, _) = parse_path_identifier(&buf);
+//            path_segments.push(path_seg);
+//        } else if buf[0] == b'W' {
+//            let (path_seg, _) = parse_walk_identifier(&buf);
+//            path_segments.push(path_seg);
+//        }
+//
+//        buf.clear();
+//    }
+//
+//    Ok((node2id, node_len, edges, path_segments))
+//}
 
 fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(usize, usize)>> {
     // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)

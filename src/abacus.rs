@@ -42,6 +42,8 @@ impl AbacusAuxilliary {
                                           groupby_sample, groupby_haplotype, .. } 
             | Params::Table             { positive_list, negative_list, groupby, 
                                           groupby_sample, groupby_haplotype, .. } 
+            | Params::Cdbg              { positive_list, negative_list, groupby, 
+                                          groupby_sample, groupby_haplotype, .. } 
             => {
                 let groups = AbacusAuxilliary::load_groups(
                     groupby,
@@ -427,7 +429,7 @@ impl<'a> AbacusByTotal<'a> {
             for count_type in CountType::iter() {
                 if let CountType::All = count_type { }
                 else {
-                    let mut data = bufreader_from_compressed_gfa(gfa_file)?;
+                    let mut data = bufreader_from_compressed_gfa(gfa_file);
                     let abacus = AbacusByTotal::from_gfa(
                         &mut data,
                         &abacus_aux,
@@ -438,7 +440,7 @@ impl<'a> AbacusByTotal<'a> {
                 }
             }
         } else {
-            let mut data = bufreader_from_compressed_gfa(gfa_file)?;
+            let mut data = bufreader_from_compressed_gfa(gfa_file);
             let abacus = AbacusByTotal::from_gfa(
                 &mut data,
                 &abacus_aux,
@@ -480,7 +482,7 @@ impl<'a> AbacusByTotal<'a> {
                     log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, id, self.groups.len());
                 }
             } else {
-                hist[*cov as usize] += self.graph_aux.node_len_ary[id] as usize;
+                hist[*cov as usize] += self.graph_aux.node_lens[id] as usize;
             }
         }
 
@@ -718,7 +720,7 @@ impl<'a> AbacusByGroup<'a> {
                             CountType::Bp => {
                                 let uncovered =
                                     self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0);
-                                let covered = self.graph_aux.node_len_ary[i] as usize;
+                                let covered = self.graph_aux.node_lens[i] as usize;
                                 if uncovered > &covered {
                                     log::error!("oops, #uncovered bps ({}) is larger than #coverd bps ({}) for node with sid {})", &uncovered, &covered, i);
                                 } else {
@@ -786,7 +788,7 @@ impl<'a> AbacusByGroup<'a> {
                 it.next();
                 for (i, (&start, &end)) in it {
                     let bp = if self.count == CountType::Bp {
-                        self.graph_aux.node_len_ary[i] as usize
+                        self.graph_aux.node_lens[i] as usize
                             - *self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0)
                     } else {
                         1

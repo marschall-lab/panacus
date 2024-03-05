@@ -356,6 +356,36 @@ pub fn n50_already_sorted(v: &[u32]) -> Option<u32> {
     None
 }
 
+pub fn reverse_complement(dna: &[u8]) -> Vec<u8> {
+    dna.iter()
+        .rev() // Reverse the sequence
+        .map(|&b| match b {
+            b'A' => b'T',
+            b'T' => b'A',
+            b'C' => b'G',
+            b'G' => b'C',
+            b'a' => b't', // Handle lowercase
+            b't' => b'a',
+            b'c' => b'g',
+            b'g' => b'c',
+            _ => panic!("Invalid nucleotide: {}", b as char),
+        })
+        .collect()
+}
+
+//const NUCLEOTIDE_BITS: [u8; 256] = {
+//    let mut map = [4; 256];
+//    map[b'A' as usize] = 0;
+//    map[b'C' as usize] = 1;
+//    map[b'G' as usize] = 2;
+//    map[b'T' as usize] = 3;
+//    map[b'a' as usize] = 0;
+//    map[b'c' as usize] = 1;
+//    map[b'g' as usize] = 2;
+//    map[b't' as usize] = 3;
+//    map
+//}
+
 //pub fn log2_add(a: f64, b: f64) -> f64 {
 //    // we assume both a and b are log2'd
 //    let (a, b) = if a < b { (a, b) } else { (b, a) };
