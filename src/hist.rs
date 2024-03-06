@@ -7,6 +7,7 @@ use rayon::prelude::*;
 
 /* private use */
 use crate::abacus::AbacusByTotal;
+use crate::graph::GraphAuxilliary;
 use crate::cli;
 use crate::util::{CountType, Threshold};
 
@@ -34,12 +35,12 @@ pub fn choose(n: usize, k: usize) -> f64 {
 }
 
 impl Hist {
-    pub fn from_abacus(abacus: &AbacusByTotal) -> Self {
+    pub fn from_abacus(abacus: &AbacusByTotal, graph_aux: Option<&GraphAuxilliary>) -> Self {
         Self {
             count: abacus.count,
             coverage: match abacus.count {
                 CountType::Node | CountType::Edge => abacus.construct_hist(),
-                CountType::Bp => abacus.construct_hist_bps(),
+                CountType::Bp => abacus.construct_hist_bps(graph_aux.expect("Graph auxiliary is needed for Bps hist")),
                 CountType::All => unreachable!("inadmissable count type"),
             },
         }

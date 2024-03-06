@@ -352,7 +352,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
             let mut hists = Vec::new();
             for abacus in abaci {
-                hists.push(Hist::from_abacus(&abacus));
+                hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
             }
             //Growth
             let hist_aux = HistAuxilliary::from_params(&params)?;
@@ -385,7 +385,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
             let mut hists = Vec::new();
             for abacus in abaci {
-                hists.push(Hist::from_abacus(&abacus));
+                hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
             }
 
             let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
@@ -435,7 +435,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let (_, _, _, paths_len) = parse_gfa_itemcount(&mut data, 
+            let (_, _, _, paths_len) = parse_gfa_paths_walks(&mut data, 
                                         &abacus_aux, &graph_aux, &CountType::Node);
 
             graph_aux.path_info(&paths_len);
@@ -444,10 +444,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::Node);
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node)?;
+            let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node);
             data = bufreader_from_compressed_gfa(gfa_file);
 
-            subset_path_gfa(&mut data, &abacus, flt_quorum, flt_length);
+            subset_path_gfa(&mut data, &abacus, &graph_aux, flt_quorum, flt_length);
             //println!("{}", abacus.countable.len()-1);
         }
         Params::OrderedHistgrowth {ref gfa_file, count, output_format, ..} => {
@@ -492,8 +492,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let mut hists = Vec::new();
             let abaci_node = AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
             let abaci_bp = AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
-            hists.push(Hist::from_abacus(&abaci_node[0]));
-            hists.push(Hist::from_abacus(&abaci_bp[0]));
+            hists.push(Hist::from_abacus(&abaci_node[0], None));
+            hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
 
             // k-mers and unimer
             let n = hists[0].coverage.len();
@@ -504,6 +504,9 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 kmer[i] = hists[1].coverage[i] - (k-1)*hists[0].coverage[i];
                 unimer[i] = hists[1].coverage[i] - k*hists[0].coverage[i];
             }
+
+            let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+            AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k);
 
             println!("kmer\t{:?}", kmer);
             println!("unimer\t{:?}", unimer);

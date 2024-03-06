@@ -160,37 +160,22 @@ impl fmt::Display for Edge {
 }
 
 
-////let kmer = b"ACGTacgt";
-////let result = kmer_to_u64(kmer);
-//pub fn kmer_to_u64(kmer: Vec<u8>) -> u64 {
-//    let mut result: u64 = 0;
-//    for &nucleotide in kmer {
-//        let bits = NUCLEOTIDE_BITS[nucleotide as usize];
-//        if bits < 4 {
-//            result = (result << 2) | bits as u64;
-//        } else {
-//            panic!("Invalid nucleotide: {}", nucleotide as char);
-//        }
-//    }
-//    result
-//}
-
-pub fn get_extremities(node_dna: &[u8] , k: usize) -> (Vec<u8>, Vec<u8>) {
-    let left = node_dna[0..k].to_vec();
-    let right = node_dna[node_dna.len()-k..node_dna.len()].to_vec();
+pub fn get_extremities(node_dna: &[u8] , k: usize) -> (u64, u64) {
+    let left  = kmer_u8_to_u64(&node_dna[0..k]);
+    let right = kmer_u8_to_u64(&node_dna[node_dna.len()-k..node_dna.len()]);
     (left, right)
 }
 
 #[derive(Debug, Clone)]
 pub struct GraphAuxilliary {
     pub node2id: HashMap<Vec<u8>, ItemId>,
-    pub node_lens: Vec<ItemIdSize>,
+    pub node_lens: Vec<u32>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
     pub node_count: usize,
     pub edge_count: usize,
     pub degree: Option<Vec<u32>>,
-    pub extremities: Option<Vec<(Vec<u8>, Vec<u8>)>>,
+    pub extremities: Option<Vec<(u64, u64)>>,
 }
 
 impl GraphAuxilliary {
@@ -240,7 +225,7 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn node_len(&self, v: &ItemId) -> ItemIdSize {
+    pub fn node_len(&self, v: &ItemId) -> u32 {
         self.node_lens[v.0 as usize]
     }
 
@@ -251,7 +236,7 @@ impl GraphAuxilliary {
         log::info!("Graph Info:");
         log::info!("\tNumber of Nodes: {}", self.node_count);
         log::info!("\tNumber of Edges: {}", self.edge_count);
-        log::info!("\tAverage Degree (undirected): {}", average(&degree[1..]));
+        log::info!("\tAverage Degree (undirected): {}", averageu32(&degree[1..]));
         log::info!(
             "\tMax Degree (undirected): {}",
             degree[1..].iter().max().unwrap()
@@ -272,7 +257,7 @@ impl GraphAuxilliary {
             "\tShortest Node (bp): {}",
             node_lens_sorted.iter().min().unwrap()
         );
-        log::info!("\tAverage Node Length (bp): {}", average(&node_lens_sorted));
+        log::info!("\tAverage Node Length (bp): {}", averageu32(&node_lens_sorted));
         log::info!(
             "\tMedian Node Length (bp): {}",
             median_already_sorted(&node_lens_sorted)
@@ -296,7 +281,7 @@ impl GraphAuxilliary {
         );
         log::info!(
             "\tAverage Number of Nodes in Paths/Walks: {}",
-            average(&paths_len)
+            averageu32(&paths_len)
         );
 
         //log::info!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
@@ -348,15 +333,15 @@ impl GraphAuxilliary {
         k: Option<usize>,
     ) -> (HashMap<Vec<u8>, ItemId>,
           Vec<PathSegment>,
-          Vec<ItemIdSize>,
-          Option<Vec<(Vec<u8>,Vec<u8>)>>,) {
+          Vec<u32>,
+          Option<Vec<(u64, u64)>>,) {
         let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
         let mut path_segments: Vec<PathSegment> = Vec::new();
-        let mut node_lens: Vec<ItemIdSize> = Vec::new();
-        let mut extremities: Vec<(Vec<u8>,Vec<u8>)> = Vec::new();
+        let mut node_lens: Vec<u32> = Vec::new();
+        let mut extremities: Vec<(u64, u64)> = Vec::new();
 
         log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
-        node_lens.push(ItemIdSize::MIN); // add empty element to node_lens to make it in sync with node_id
+        node_lens.push(u32::MIN); // add empty element to node_lens to make it in sync with node_id
         let mut node_id = 1; // important: id must be > 0, otherwise counting procedure will produce errors
 
         let mut buf = vec![];
@@ -374,7 +359,7 @@ impl GraphAuxilliary {
                     let (left, right) = get_extremities(&buf[start_sequence..start_sequence+offset], k.unwrap());
                     extremities.push((left, right));
                 }
-                node_lens.push(offset as ItemIdSize);
+                node_lens.push(offset as u32);
                 node_id += 1;
             } else if buf[0] == b'P' {
                 path_segments.push(Self::parse_path_segment(&buf));
@@ -434,29 +419,21 @@ impl GraphAuxilliary {
         )
     }
 
-    pub fn get_k_plus_one_mer_edge(&self, edge: Edge) {
-        let u = edge.0.0 as usize;
-        let o1 = edge.1;
-        let v = edge.2.0 as usize;
-        let o2 = edge.3;
+    pub fn get_k_plus_one_mer_edge(&self, u: usize, o1: Orientation, v: usize, o2: Orientation, k: usize) -> u64 {
+        let extremities = self.extremities.as_ref().unwrap();
 
         let left = if o1 == Orientation::Forward  {
-            self.extremities[u].1.clone()
+            extremities[u].1
         } else {
-            reverse_complement(&self.extremities[u].0)
+            revcmp(extremities[u].0, k)
         };
         let right = if o2 == Orientation::Forward {
-            self.extremities[v].0.clone()
+            extremities[v].0 & 1
         } else {
-            reverse_complement(&self.extremities[v].1)
+            revcmp(extremities[v].1 & 1, 1)
         };
-        let right = [right[right.len()-1]];
 
-        //TEST
-        let left = str::from_utf8(&left).unwrap();
-        let right = str::from_utf8(&right).unwrap();
-        let k_plus_one_mer = format!("{left}{right}");
-        println!("{}", k_plus_one_mer);
+        (left << 2) | right
     }
 
     //#[allow(dead_code)]

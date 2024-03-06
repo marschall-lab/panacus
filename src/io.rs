@@ -470,8 +470,7 @@ fn parse_walk_seq_update_tables(
     }
 
     log::debug!("..done");
-
-    num_nodes_path
+    num_nodes_path as u32
 }
 
 fn parse_path_seq_to_item_vec(
@@ -508,16 +507,17 @@ fn parse_path_seq_to_item_vec(
 pub fn subset_path_gfa<R: Read>(
     data: &mut BufReader<R>,
     abacus: &AbacusByTotal,
+    graph_aux: &GraphAuxilliary,
     flt_quorum: u32,
     flt_length: u32,
 ) {
     let mut buf = vec![];
-    let graph_aux = abacus.graph_aux;
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' {
             let mut comma: bool = false;
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
-            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &abacus.graph_aux);
+            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
+            //parse_path_seq_update_tables
             print!("P\t{}\t", path_seg);
             for i in 0..sids.len() {
                 let sid = sids[i].0.0 as usize;
@@ -555,7 +555,7 @@ fn parse_path_seq_update_tables(
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
         .unwrap();
 
-    log::debug!("parsing path sequences of size {}..", end);
+    log::debug!("parsing path sequences of size {} bytes..", end);
 
     let items_ptr = Wrap(&mut item_table.items);
     let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
@@ -571,16 +571,9 @@ fn parse_path_seq_update_tables(
         let sid = *graph_aux
             .node2id
             .get(&node[0..node.len() - 1])
-            .expect(&format!(
-                "unknown node {}",
-                &str::from_utf8(node).unwrap()[..]
-            ));
+            .expect(&format!("unknown node {}", &str::from_utf8(node).unwrap()[..]));
         let o = node[node.len() - 1];
-        assert!(
-            o == b'-' || o == b'+',
-            "unknown orientation of segment {}",
-            str::from_utf8(&node).unwrap()
-        );
+        assert!(o == b'-' || o == b'+',"unknown orientation of segment {}", str::from_utf8(&node).unwrap());
         //plus_strands[rayon::current_thread_index().unwrap()] += (o == b'+') as u32;
 
         let idx = (sid.0 as usize) % SIZE_T;
@@ -613,148 +606,68 @@ fn parse_path_seq_update_tables(
     }
 
     log::debug!("..done");
-    num_nodes_path
+    num_nodes_path as u32
 }
 
-//pub fn parse_graph_aux<R: Read>(
-//    data: &mut BufReader<R>,
-//    index_edges: bool,
-//) -> Result<
-//    (
-//        HashMap<Vec<u8>, ItemId>,
-//        Vec<ItemIdSize>,
-//        Option<Vec<Vec<u8>>>,
-//        Vec<PathSegment>,
-//    ),
-//    Error,
-//> {
-//    // let's start
-//    // IMPORTANT: id must be > 0, otherwise counting procedure will produce errors
-//    let mut node_id = 1;
-//    let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
-//    let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
-//    let mut path_segments: Vec<PathSegment> = Vec::new();
-//    let mut node_len: Vec<ItemIdSize> = Vec::new();
-//    // add empty element to node_len to make it in sync with node_id
-//    node_len.push(ItemIdSize::MIN);
-//
-//    let mut buf = vec![];
-//    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-//        if buf[0] == b'S' {
-//            let mut iter = buf[2..].iter();
-//            let offset = iter.position(|&x| x == b'\t').unwrap();
-//            if node2id
-//                .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
-//                .is_some()
-//            {
-//                return Err(Error::new(
-//                    ErrorKind::InvalidData,
-//                    format!(
-//                        "segment with ID {} occurs multiple times in GFA",
-//                        str::from_utf8(&buf[2..offset + 2]).unwrap()
-//                    ),
-//                ));
-//            }
-//            node_id += 1;
-//            let offset = iter
-//                .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
-//                .unwrap();
-//            node_len.push(offset as ItemIdSize);
-//        } else if index_edges && buf[0] == b'L' {
-//            edges.as_mut().unwrap().push(buf.to_vec());
-//        } else if buf[0] == b'P' {
-//            let (path_seg, _) = parse_path_identifier(&buf);
-//            path_segments.push(path_seg);
-//        } else if buf[0] == b'W' {
-//            let (path_seg, _) = parse_walk_identifier(&buf);
-//            path_segments.push(path_seg);
-//        }
-//
-//        buf.clear();
-//    }
-//
-//    Ok((node2id, node_len, edges, path_segments))
-//}
+pub fn parse_cdbg_gfa_paths_walks<R: Read>(
+    data: &mut BufReader<R>,
+    abacus_aux: &AbacusAuxilliary,
+    graph_aux: &GraphAuxilliary,
+    k: usize,) -> ItemTable {
 
-fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(usize, usize)>> {
-    // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
-    let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
+    let mut item_table = ItemTable::new(graph_aux.path_segments.len());
+    let mut k_count = 0;
+    //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
 
-    path_segments.into_iter().for_each(|x| {
-        res.entry(x.id())
-            .or_insert(HashSet::default())
-            .insert(match x.coords() {
-                None => (0, usize::MAX),
-                Some((i, j)) => (i, j),
-            });
-    });
+    let mut num_path = 0;
+    let mut buf = vec![];
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'P' {
+            let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
+            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
+            let mut u_sid = sids[0].0.0 as usize - 1;
+            let mut u_ori = sids[0].1;
+            for i in 1..sids.len() {
+                let v_sid = sids[i].0.0 as usize - 1;
+                let v_ori = sids[i].1;
+                let k_plus_one = graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
+                println!("{}", bits2kmer(k_plus_one, k+1));
+                u_sid = v_sid;
+                u_ori = v_ori;
 
-    HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
-        let mut v: Vec<(usize, usize)> = coords.into_iter().collect();
-        v.sort();
-        let mut i = 1;
-        // remove overlaps
-        while i < v.len() {
-            if v[i - 1].1 >= v[i].0 {
-                let x = v.remove(i);
-                v[i - 1].1 = x.1;
-            } else {
-                i += 1
+                let idx = (k_plus_one as usize) % SIZE_T;
+                item_table.items[idx].push(k_plus_one);
+                item_table.id_prefsum[idx][num_path + 1] += 1;
             }
-        }
-        (pid, v)
-    }))
+            
+            // compute prefix sum
+            for i in 0..SIZE_T {
+                item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+            }
+
+            num_path += 1;
+        } 
+        buf.clear();
+    }
+
+    item_table
 }
 
-pub fn parse_gfa_itemcount<R: Read>(
+pub fn parse_gfa_paths_walks<R: Read>(
     data: &mut BufReader<R>,
     abacus_aux: &AbacusAuxilliary,
     graph_aux: &GraphAuxilliary,
     count: &CountType,
 ) -> (ItemTable, Option<ActiveTable>, Option<IntervalContainer>, Vec<u32>) {
+    log::info!("parsing path + walk sequences");
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
+    let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
 
-    //
-    // *only relevant for bps count in combination with subset option*
-    //
-    // this table stores the number of bps of nodes that are *partially* uncovered by subset
-    // coodinates
-    //
-    let mut subset_covered_bps: Option<IntervalContainer> =
-        if count == &CountType::Bp && abacus_aux.include_coords.is_some() {
-            Some(IntervalContainer::new())
-        } else {
-            None
-        };
-
-    //
-    // this table stores information about excluded nodes *if* the exclude setting is used
-    //
-    let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
-        ActiveTable::new(
-            graph_aux.number_of_items(count) + 1,
-            count == &CountType::Bp,
-        )
-    });
-
-    // build "include" lookup table
-    let include_map = match &abacus_aux.include_coords {
-        None => HashMap::default(),
-        Some(coords) => build_subpath_map(coords),
-    };
-
-    // build "exclude" lookup table
-    let exclude_map = match &abacus_aux.exclude_coords {
-        None => HashMap::default(),
-        Some(coords) => build_subpath_map(coords),
-    };
-
-    // reading GFA file searching for (P)aths and (W)alks
-    let mut buf = vec![];
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
     let mut paths_len: Vec<u32> = Vec::new();
 
+    let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' || buf[0] == b'W' {
             let (path_seg, buf_path_seg) = match buf[0] {
@@ -801,9 +714,9 @@ pub fn parse_gfa_itemcount<R: Read>(
             // do not process the path sequence if path is neither part of subset nor exclude
             if abacus_aux.include_coords.is_some()
                 && !intersects(include_coords, &(start, end))
-                && !intersects(exclude_coords, &(start, end))
-            {
-                log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", &path_seg, &include_coords, &exclude_coords);
+                && !intersects(exclude_coords, &(start, end)) {
+                log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", 
+                    &path_seg, &include_coords, &exclude_coords);
 
                 // update prefix sum
                 for i in 0..SIZE_T {
@@ -815,12 +728,9 @@ pub fn parse_gfa_itemcount<R: Read>(
                 continue;
             }
 
-            if count != &CountType::Edge
-                && (abacus_aux.include_coords.is_none()
-                    || is_contained(include_coords, &(start, end)))
-                && (abacus_aux.exclude_coords.is_none()
-                    || is_contained(exclude_coords, &(start, end)))
-            {
+            if count != &CountType::Edge && 
+                (abacus_aux.include_coords.is_none() || is_contained(include_coords, &(start, end))) && 
+                (abacus_aux.exclude_coords.is_none() || is_contained(exclude_coords, &(start, end))) {
                 log::debug!("path {} is fully contained within subset coordinates {:?} and is eligible for full parallel processing", path_seg, include_coords);
                 let ex = if exclude_coords.is_empty() {
                     None
@@ -828,7 +738,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                     exclude_table.as_mut()
                 };
 
-                let new_nodes = match buf[0] {
+                let num_added_nodes = match buf[0] {
                     b'P' => parse_path_seq_update_tables(
                         &buf_path_seg,
                         &graph_aux,
@@ -846,7 +756,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                     _ => unreachable!(),
                 };
 
-                paths_len.push(new_nodes as u32);
+                paths_len.push(num_added_nodes as u32);
 
             } else {
                 let sids = match buf[0] {
