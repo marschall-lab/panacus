@@ -506,7 +506,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             }
 
             let mut data = BufReader::new(fs::File::open(&gfa_file)?);
-            let abaci_infix_eq = AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k);
+            let abaci_infix_eq = AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
 
             println!("# infix_eq");
             for v in abaci_infix_eq.countable.iter() {
@@ -516,11 +516,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             println!("# kmer");
             for i in 1..kmer.len() {
                 println!("{}",kmer[i]);
-            }
-
-            println!("# unimer");
-            for i in 1..unimer.len() {
-                println!("{}",unimer[i]);
             }
 
             write_hist_table(&hists, out)?;

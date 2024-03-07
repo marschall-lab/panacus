@@ -233,58 +233,58 @@ impl GraphAuxilliary {
         let degree = self.degree.as_ref().unwrap();
         let mut node_lens_sorted = self.node_lens[1..].to_vec();
         node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
-        log::info!("Graph Info:");
-        log::info!("\tNumber of Nodes: {}", self.node_count);
-        log::info!("\tNumber of Edges: {}", self.edge_count);
-        log::info!("\tAverage Degree (undirected): {}", averageu32(&degree[1..]));
-        log::info!(
+        println!("Graph Info:");
+        println!("\tNumber of Nodes: {}", self.node_count);
+        println!("\tNumber of Edges: {}", self.edge_count);
+        println!("\tAverage Degree (undirected): {}", averageu32(&degree[1..]));
+        println!(
             "\tMax Degree (undirected): {}",
             degree[1..].iter().max().unwrap()
         );
-        log::info!(
+        println!(
             "\tMin Degree (undirected): {}",
             degree[1..].iter().min().unwrap()
         );
-        log::info!(
+        println!(
             "\tNumber 0-degree Nodes: {}",
             degree[1..].iter().filter(|&x| *x == 0).count()
         );
-        log::info!(
+        println!(
             "\tLargest Node (bp): {}",
             node_lens_sorted.iter().max().unwrap()
         );
-        log::info!(
+        println!(
             "\tShortest Node (bp): {}",
             node_lens_sorted.iter().min().unwrap()
         );
-        log::info!("\tAverage Node Length (bp): {}", averageu32(&node_lens_sorted));
-        log::info!(
+        println!("\tAverage Node Length (bp): {}", averageu32(&node_lens_sorted));
+        println!(
             "\tMedian Node Length (bp): {}",
             median_already_sorted(&node_lens_sorted)
         );
-        log::info!(
+        println!(
             "\tN50 Node Length (bp): {}",
             n50_already_sorted(&node_lens_sorted).unwrap()
         );
     }
 
     pub fn path_info(&self, paths_len: &Vec<u32>) {
-        log::info!("Path/Walk Info:");
-        log::info!("\tNumber of Paths/Walks: {}", paths_len.len());
-        log::info!(
+        println!("Path/Walk Info:");
+        println!("\tNumber of Paths/Walks: {}", paths_len.len());
+        println!(
             "\tLongest Path/Walk (node): {}",
             paths_len.iter().max().unwrap()
         );
-        log::info!(
+        println!(
             "\tShortest Path/Walk (node): {}",
             paths_len.iter().min().unwrap()
         );
-        log::info!(
+        println!(
             "\tAverage Number of Nodes in Paths/Walks: {}",
             averageu32(&paths_len)
         );
 
-        //log::info!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
+        //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
     }
 
     pub fn number_of_items(&self, c: &CountType) -> usize {
@@ -428,9 +428,9 @@ impl GraphAuxilliary {
             revcmp(extremities[u].0, k)
         };
         let right = if o2 == Orientation::Forward {
-            extremities[v].0 & 1
+            extremities[v].0 & 0b11
         } else {
-            revcmp(extremities[v].1 & 1, 1)
+            revcmp(extremities[v].1, k) & 0b11
         };
 
         (left << 2) | right

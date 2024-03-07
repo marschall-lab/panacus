@@ -464,10 +464,14 @@ pub fn revcmp(kmer: u64, k: usize) -> u64 {
      LOOKUP_RC[((kmer >> 56) & 0xff) as usize]) >> (64 - k as u64 * 2)
 }
 
-
 pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
     let mask: u64 = (1 << (2 * (k-1))) - 1;
     (kmer_bits >> 2) & mask
+}
+
+pub fn canonical(kmer_bits: u64, k: usize) -> u64{
+    let kmer_bits_rc = revcmp(kmer_bits, k);
+    if kmer_bits < kmer_bits_rc { kmer_bits } else { kmer_bits_rc }
 }
 
 //pub fn log2_add(a: f64, b: f64) -> f64 {

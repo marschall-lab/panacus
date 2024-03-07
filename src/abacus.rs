@@ -462,9 +462,11 @@ impl AbacusByTotal {
         data: &mut BufReader<R>,
         abacus_aux: &AbacusAuxilliary,
         graph_aux: &GraphAuxilliary,
-        k: usize,) -> Self {
+        k: usize,
+        unimer: &Vec<usize>,
+    ) -> Self {
         let item_table = parse_cdbg_gfa_paths_walks(data, abacus_aux, graph_aux, k);
-        Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k)
+        Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k, unimer)
     }
 
     pub fn k_plus_one_mer_table_to_abacus(
@@ -472,6 +474,7 @@ impl AbacusByTotal {
         abacus_aux: &AbacusAuxilliary,
         graph_aux: &GraphAuxilliary,
         k: usize,
+        unimer: &Vec<usize>,
     ) -> Self {
         log::info!("counting abacus entries..");
 
@@ -492,11 +495,11 @@ impl AbacusByTotal {
             );
         }
         ////DEBUG
-        //for i in 0..SIZE_T {
-        //    for (_, v) in &infix_eq_tables[i] {
-        //        println!("{:?} {} {} {}", v.edges, v.last_edge, v.last_group, v.sigma);
-        //    }
-        //}
+        for i in 0..SIZE_T {
+            for (key, v) in &infix_eq_tables[i] {
+                println!("{}: {:?} {} {} {}", bits2kmer(*key, k-1), v.edges, v.last_edge, v.last_group, v.sigma);
+            }
+        }
 
         let m = (groups.len()+1)*groups.len()/2;
         let mut countable: Vec<CountSize> = vec![0; m];
@@ -514,6 +517,10 @@ impl AbacusByTotal {
         }
         //DEBUG
         //println!("{:?}", countable);
+
+        for i in 1..unimer.len() {
+            countable[((i+1)*i/2) - 1] += unimer[i] as u32;
+        }
 
         Self {
             count: CountType::Node,
@@ -543,14 +550,16 @@ impl AbacusByTotal {
                 let last_nt = k_plus_one_mer & 0b11;
                 //println!("{}", bits2kmer(infix, k)); // Be sure that the first is an A
                 //println!("{}", bits2kmer(infix, k-1));
+                let combined_nt = ((first_nt << 2) | last_nt) as u8;
                 unsafe {
                     (*infix_eq_tables_ptr.0)[i].entry(infix)
                         .and_modify(|infix_storage| {
-                            if infix_storage.last_group == group_id && infix_storage.last_edge != 255 {
+                            if infix_storage.last_group == group_id && infix_storage.last_edge != combined_nt && infix_storage.last_edge != 255 {
+                            //if infix_storage.last_group == group_id && infix_storage.last_edge != 255 {
                                 infix_storage.edges[infix_storage.last_edge as usize] -= 1;
                                 infix_storage.last_edge = 255;
-                            } else if infix_storage.last_group != group_id{
-                                infix_storage.last_edge = ((first_nt << 2) | last_nt) as u8;
+                            } else if infix_storage.last_group != group_id {
+                                infix_storage.last_edge = combined_nt;
                                 infix_storage.edges[infix_storage.last_edge as usize] += 1;
                                 infix_storage.last_group = group_id;
                                 infix_storage.sigma += 1;
@@ -558,7 +567,7 @@ impl AbacusByTotal {
                         })
                         .or_insert_with(|| {
                             let mut infix_storage = InfixEqStorage::new();
-                            infix_storage.last_edge = ((first_nt << 2) | last_nt) as u8;
+                            infix_storage.last_edge = combined_nt;
                             infix_storage.edges[infix_storage.last_edge as usize] += 1;
                             infix_storage.last_group = group_id;
                             infix_storage.sigma = 1;

@@ -632,13 +632,20 @@ pub fn parse_cdbg_gfa_paths_walks<R: Read>(
                 let v_ori = sids[i].1;
                 let k_plus_one_mer = graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
                 //println!("{}", bits2kmer(k_plus_one_mer, k+1));
+                let infix = get_infix(k_plus_one_mer, k);
+                let infix_rc = revcmp(infix, k-1);
+                if infix < infix_rc {
+                    let idx = (infix as usize) % SIZE_T;
+                    item_table.items[idx].push(k_plus_one_mer);
+                    item_table.id_prefsum[idx][num_path + 1] += 1;
+                } else if infix > infix_rc{
+                    let idx = (infix_rc as usize) % SIZE_T;
+                    item_table.items[idx].push(revcmp(k_plus_one_mer,k+1));
+                    item_table.id_prefsum[idx][num_path + 1] += 1;
+                } // else ignore palindrome, since it always breaks the node
+
                 u_sid = v_sid;
                 u_ori = v_ori;
-
-                let infix = get_infix(k_plus_one_mer, k);
-                let idx = (infix as usize) % SIZE_T;
-                item_table.items[idx].push(k_plus_one_mer);
-                item_table.id_prefsum[idx][num_path + 1] += 1;
             }
             
             // compute prefix sum
