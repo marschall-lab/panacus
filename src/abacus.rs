@@ -402,7 +402,7 @@ impl AbacusAuxilliary {
 pub struct AbacusByTotal {
     pub count: CountType,
     pub countable: Vec<CountSize>,
-    pub uncovered_bps: HashMap<ItemIdSize, usize>,
+    pub uncovered_bps: Option<HashMap<ItemIdSize, usize>>,
     pub groups: Vec<String>,
 }
 
@@ -453,7 +453,7 @@ impl AbacusByTotal {
         Self {
             count: count,
             countable: countable,
-            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
+            uncovered_bps: Some(quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux)),
             groups: groups,
         }
     }
@@ -462,9 +462,9 @@ impl AbacusByTotal {
         data: &mut BufReader<R>,
         abacus_aux: &AbacusAuxilliary,
         graph_aux: &GraphAuxilliary,
-        k: usize,) {
+        k: usize,) -> Self {
         let item_table = parse_cdbg_gfa_paths_walks(data, abacus_aux, graph_aux, k);
-        Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k);
+        Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k)
     }
 
     pub fn k_plus_one_mer_table_to_abacus(
@@ -472,7 +472,7 @@ impl AbacusByTotal {
         abacus_aux: &AbacusAuxilliary,
         graph_aux: &GraphAuxilliary,
         k: usize,
-    ) {
+    ) -> Self {
         log::info!("counting abacus entries..");
 
         let mut infix_eq_tables: [HashMap<u64,InfixEqStorage>; SIZE_T] = [(); SIZE_T].map(|_| HashMap::default());
@@ -491,19 +491,36 @@ impl AbacusByTotal {
                 k,
             );
         }
+        ////DEBUG
+        //for i in 0..SIZE_T {
+        //    for (_, v) in &infix_eq_tables[i] {
+        //        println!("{:?} {} {} {}", v.edges, v.last_edge, v.last_group, v.sigma);
+        //    }
+        //}
+
+        let m = (groups.len()+1)*groups.len()/2;
+        let mut countable: Vec<CountSize> = vec![0; m];
 
         for i in 0..SIZE_T {
-            for (_, v) in &infix_eq_tables[i] {
-                println!("{:?} {} {} {}", v.edges, v.last_edge, v.last_group, v.sigma);
+            for (_, infix_storage) in &infix_eq_tables[i] {
+                for edge_count in infix_storage.edges.iter() {
+                    if *edge_count != 0 {
+                        //println!("{:?} {} {} {} ", infix_storage.edges, infix_storage.last_edge, infix_storage.last_group, infix_storage.sigma);
+                        let idx = ((infix_storage.sigma)*(infix_storage.sigma-1)/2 + edge_count-1) as usize;
+                        countable[idx] += 1;
+                    }
+                }
             }
         }
+        //DEBUG
+        //println!("{:?}", countable);
 
-        //Self {
-        //    count: count,
-        //    countable: countable,
-        //    uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
-        //    groups: groups,
-        //}
+        Self {
+            count: CountType::Node,
+            countable: countable,
+            uncovered_bps: None,
+            groups: groups,
+        }
     }
 
     fn create_infix_eq_table(
@@ -514,8 +531,6 @@ impl AbacusByTotal {
         group_id: u32,
         k: usize,
     ) {
-        let mask_infix: u64 = (1 << (2 * k)) - 1;
-
         let infix_eq_tables_ptr = Wrap(infix_eq_tables);
 
         (0..SIZE_T).into_par_iter().for_each(|i| {
@@ -523,16 +538,18 @@ impl AbacusByTotal {
             let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
             for j in start..end {
                 let k_plus_one_mer = item_table.items[i][j];
-                let infix = (k_plus_one_mer >> 2) & mask_infix; 
+                let infix = get_infix(k_plus_one_mer, k);
                 let first_nt = (k_plus_one_mer >> (2 * k)) as u64;
                 let last_nt = k_plus_one_mer & 0b11;
+                //println!("{}", bits2kmer(infix, k)); // Be sure that the first is an A
+                //println!("{}", bits2kmer(infix, k-1));
                 unsafe {
                     (*infix_eq_tables_ptr.0)[i].entry(infix)
                         .and_modify(|infix_storage| {
-                            if infix_storage.last_group == group_id {
+                            if infix_storage.last_group == group_id && infix_storage.last_edge != 255 {
                                 infix_storage.edges[infix_storage.last_edge as usize] -= 1;
-                                infix_storage.sigma += 1;
-                            } else {
+                                infix_storage.last_edge = 255;
+                            } else if infix_storage.last_group != group_id{
                                 infix_storage.last_edge = ((first_nt << 2) | last_nt) as u8;
                                 infix_storage.edges[infix_storage.last_edge as usize] += 1;
                                 infix_storage.last_group = group_id;
@@ -645,7 +662,8 @@ impl AbacusByTotal {
         }
 
         // subtract uncovered bps
-        for (id, uncov) in self.uncovered_bps.iter() {
+        let uncovered_bps = self.uncovered_bps.as_ref().unwrap();
+        for (id, uncov) in uncovered_bps.iter() {
             hist[self.countable[*id as usize] as usize] -= uncov;
             // add uncovered bps to 0-coverage count
             hist[0] += uncov;

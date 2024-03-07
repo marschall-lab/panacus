@@ -346,9 +346,9 @@ pub fn averageu32 (v: &[u32]) -> f32 {
     v.iter().sum::<u32>() as f32 / v.len() as f32
 }
 
-pub fn averageu64 (v: &[u64]) -> f64 {
-    v.iter().sum::<u64>() as f64 / v.len() as f64
-}
+//pub fn averageu64 (v: &[u64]) -> f64 {
+//    v.iter().sum::<u64>() as f64 / v.len() as f64
+//}
 
 pub fn median_already_sorted(v: &[u32]) -> f64 {
     //v.sort(); this has been done before
@@ -376,6 +376,7 @@ pub fn n50_already_sorted(v: &[u32]) -> Option<u32> {
     None
 }
 
+#[allow(dead_code)]
 pub fn reverse_complement(dna: &[u8]) -> Vec<u8> {
     dna.iter()
         .rev() // Reverse the sequence
@@ -391,6 +392,18 @@ pub fn reverse_complement(dna: &[u8]) -> Vec<u8> {
             _ => panic!("Invalid nucleotide: {}", b as char),
         })
         .collect()
+}
+
+#[allow(dead_code)]
+pub fn bits2kmer(kmer_bits: u64, k: usize) -> String {
+    let nucleotides = ['A', 'C', 'G', 'T'];
+    let mut kmer_str = String::with_capacity(k);
+
+    for i in 0..k {
+        let index = ((kmer_bits >> (2 * (k - i - 1))) & 3) as usize;
+        kmer_str.push(nucleotides[index]);
+    }
+    kmer_str
 }
 
 const NUCLEOTIDE_BITS: [u8; 256] = {
@@ -441,8 +454,8 @@ const LOOKUP_RC: [u64; 256] = [
 ];
 
 pub fn revcmp(kmer: u64, k: usize) -> u64 {
-    (LOOKUP_RC[  kmer                as usize] << 56 |
-     LOOKUP_RC[((kmer >> 8) & 0xff)  as usize] << 48 |
+    (LOOKUP_RC[ (kmer        & 0xff) as usize] << 56 |
+     LOOKUP_RC[((kmer >> 8)  & 0xff) as usize] << 48 |
      LOOKUP_RC[((kmer >> 16) & 0xff) as usize] << 40 |
      LOOKUP_RC[((kmer >> 24) & 0xff) as usize] << 32 |
      LOOKUP_RC[((kmer >> 32) & 0xff) as usize] << 24 |
@@ -451,21 +464,11 @@ pub fn revcmp(kmer: u64, k: usize) -> u64 {
      LOOKUP_RC[((kmer >> 56) & 0xff) as usize]) >> (64 - k as u64 * 2)
 }
 
-pub fn bits2kmer(kmer_bits: u64, k: usize) -> String {
-    let nucleotides = ['A', 'C', 'G', 'T'];
-    let mut kmer_str = String::with_capacity(k);
 
-    for i in 0..k {
-        let index = ((kmer_bits >> (2 * (k - i - 1))) & 3) as usize;
-        kmer_str.push(nucleotides[index]);
-    }
-    kmer_str
+pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
+    let mask: u64 = (1 << (2 * (k-1))) - 1;
+    (kmer_bits >> 2) & mask
 }
-
-//fn get_infix(kmer_bits: u64, k: usize) -> u64 {
-//    let mask: u64 = (1 << (2 * k)) - 1;
-//    (kmer_bits >> 2) & mask;
-//}
 
 //pub fn log2_add(a: f64, b: f64) -> f64 {
 //    // we assume both a and b are log2'd

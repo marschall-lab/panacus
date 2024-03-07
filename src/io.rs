@@ -630,13 +630,14 @@ pub fn parse_cdbg_gfa_paths_walks<R: Read>(
             for i in 1..sids.len() {
                 let v_sid = sids[i].0.0 as usize - 1;
                 let v_ori = sids[i].1;
-                let k_plus_one = graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
-                println!("{}", bits2kmer(k_plus_one, k+1));
+                let k_plus_one_mer = graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
+                //println!("{}", bits2kmer(k_plus_one_mer, k+1));
                 u_sid = v_sid;
                 u_ori = v_ori;
 
-                let idx = (k_plus_one as usize) % SIZE_T;
-                item_table.items[idx].push(k_plus_one);
+                let infix = get_infix(k_plus_one_mer, k);
+                let idx = (infix as usize) % SIZE_T;
+                item_table.items[idx].push(k_plus_one_mer);
                 item_table.id_prefsum[idx][num_path + 1] += 1;
             }
             
