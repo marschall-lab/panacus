@@ -1095,6 +1095,35 @@ pub fn write_table<W: Write>(
     Ok(())
 }
 
+pub fn write_ordered_table<W: Write>(
+    headers: &Vec<Vec<String>>,
+    columns: &Vec<Vec<f64>>,
+    index: &Vec<String>,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let n = headers.first().unwrap_or(&Vec::new()).len();
+
+    for i in 0..n {
+        for j in 0..headers.len() {
+            if j > 0 {
+                write!(out, "\t")?;
+            }
+            write!(out, "{:0}", headers[j][i])?;
+        }
+        writeln!(out, "")?;
+    }
+    let n = columns.first().unwrap_or(&Vec::new()).len();
+    for i in 1..n {
+        write!(out, "{}", index[i-1])?;
+        for j in 0..columns.len() {
+            write!(out, "\t{:0}", columns[j][i].floor())?;
+        }
+        writeln!(out, "")?;
+    }
+
+    Ok(())
+}
+
 pub fn write_hist_table<W: Write>(
     hists: &Vec<Hist>,
     out: &mut BufWriter<W>,
@@ -1184,6 +1213,8 @@ pub fn write_ordered_histgrowth_table<W: Write>(
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
 
+    log::info!("abacus_group: {:?}", abacus_group.groups);
+
     let mut output_columns: Vec<Vec<f64>> = hist_aux
         .coverage
         .par_iter()
@@ -1220,5 +1251,5 @@ pub fn write_ordered_histgrowth_table<W: Write>(
             })
             .collect::<Vec<Vec<String>>>(),
     );
-    write_table(&header_cols, &output_columns, out)
+    write_ordered_table(&header_cols, &output_columns, &abacus_group.groups, out)
 }
