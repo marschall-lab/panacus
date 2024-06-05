@@ -1114,7 +1114,7 @@ pub fn write_ordered_table<W: Write>(
     }
     let n = columns.first().unwrap_or(&Vec::new()).len();
     for i in 1..n {
-        write!(out, "{}", index[i-1])?;
+        write!(out, "{}", index[i - 1])?;
         for j in 0..columns.len() {
             write!(out, "\t{:0}", columns[j][i].floor())?;
         }
@@ -1212,8 +1212,6 @@ pub fn write_ordered_histgrowth_table<W: Write>(
         "# {}",
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
-
-    log::info!("abacus_group: {:?}", abacus_group.groups);
 
     let mut output_columns: Vec<Vec<f64>> = hist_aux
         .coverage
