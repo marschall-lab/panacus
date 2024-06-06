@@ -52,6 +52,9 @@ mamba install -c conda-forge -c bioconda panacus
 wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.3/panacus-0.2.3_linux_x86_64.tar.gz
 tar -xzvf panacus-0.2.3_linux_x86_64.tar.gz
 
+# install the Python libraries necessary for panacus-visualize
+pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
+
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f panacus-0.2.3_linux_x86_64/bin)":$PATH
 
@@ -63,6 +66,9 @@ panacus --help
 ```shell
 wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.3/panacus-0.2.3_macos_arm64.tar.gz
 tar -xzvf panacus-0.2.3_macos_arm64.tar.gz
+
+# install the Python libraries necessary for panacus-visualize
+pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f panacus-0.2.3_macos_arm64/bin)":$PATH
@@ -81,6 +87,9 @@ cargo build --release
 mkdir bin
 ln -s ../target/release/panacus bin/
 ln -s ../scripts/panacus-visualize.py bin/panacus-visualize
+
+# install the Python libraries necessary for panacus-visualize
+pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f bin)":$PATH
