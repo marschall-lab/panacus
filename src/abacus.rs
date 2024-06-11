@@ -478,7 +478,7 @@ impl AbacusByTotal {
     ) -> Self {
         log::info!("counting abacus entries..");
 
-        let mut infix_eq_tables: [HashMap<u64,InfixEqStorage>; SIZE_T] = [(); SIZE_T].map(|_| HashMap::default());
+        let mut infix_eq_tables: [HashMap<u64, InfixEqStorage>; SIZE_T] = [(); SIZE_T].map(|_| HashMap::default());
         
         let mut groups = Vec::new();
         for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
@@ -495,22 +495,25 @@ impl AbacusByTotal {
             );
         }
         ////DEBUG
-        for i in 0..SIZE_T {
-            for (key, v) in &infix_eq_tables[i] {
-                println!("{}: {:?} {} {} {}", bits2kmer(*key, k-1), v.edges, v.last_edge, v.last_group, v.sigma);
-            }
-        }
+        //for i in 0..SIZE_T {
+        //    for (key, v) in &infix_eq_tables[i] {
+        //        println!("{}: {:?} {} {} {}", bits2kmer(*key, k-1), v.edges, v.last_edge, v.last_group, v.sigma);
+        //    }
+        //}
 
         let m = (groups.len()+1)*groups.len()/2;
         let mut countable: Vec<CountSize> = vec![0; m];
 
         for i in 0..SIZE_T {
-            for (_, infix_storage) in &infix_eq_tables[i] {
+            for (k_minus_one_mer, infix_storage) in &infix_eq_tables[i] {
                 for edge_count in infix_storage.edges.iter() {
                     if *edge_count != 0 {
                         //println!("{:?} {} {} {} ", infix_storage.edges, infix_storage.last_edge, infix_storage.last_group, infix_storage.sigma);
                         let idx = ((infix_storage.sigma)*(infix_storage.sigma-1)/2 + edge_count-1) as usize;
                         countable[idx] += 1;
+                        //if infix_storage.sigma == 1 {
+                        //    println!("{}",bits2kmer(*k_minus_one_mer, k-1));
+                        //}
                     }
                 }
             }
@@ -520,6 +523,7 @@ impl AbacusByTotal {
 
         for i in 1..unimer.len() {
             countable[((i+1)*i/2) - 1] += unimer[i] as u32;
+            //countable[((i+1)*i/2) - 1] = unimer[i] as u32;
         }
 
         Self {

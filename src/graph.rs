@@ -436,6 +436,18 @@ impl GraphAuxilliary {
         (left << 2) | right
     }
 
+    pub fn get_k_plus_one_mer_right_telomer(&self, u: usize, o1: Orientation, k: usize) -> u64 {
+        let extremities = self.extremities.as_ref().unwrap();
+
+        let left = if o1 == Orientation::Forward  {
+            extremities[u].1
+        } else {
+            revcmp(extremities[u].0, k)
+        };
+
+        (left << 2) | right
+    }
+
     //#[allow(dead_code)]
     //pub fn degree_distribution(&self) -> Option<Vec<u32>> {
     //    match &self.degree {

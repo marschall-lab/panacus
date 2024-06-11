@@ -141,7 +141,7 @@ impl Hist {
 
         let mut perc_mult: Vec<f64> = vec![0.0; n + 1];
         let mut q: Vec<Vec<f64>> = vec![vec![0.0; n + 1]; n + 1];
-
+        
         for m in 1..n + 1 {
             m_fact += (m as f64).log2();
             let m_quorum = (m as f64 * quorum).ceil() as usize;
@@ -166,13 +166,12 @@ impl Hist {
                         }
                         q[i][j] += (n as f64 - i as f64 - m as f64 + 1.0 + j as f64).log2();
                         q[i][j] -= (m as f64 - j as f64).log2();
-                        sum_q += q[i][j].exp2();
+                        sum_q += (q[i][j] + m_fact - n_fall_m).exp2();
                         add = true;
                     }
                 }
                 if add {
-                    yr += ((self.coverage[i] as f64).log2() + sum_q.log2() + m_fact - n_fall_m)
-                        .exp2();
+                    yr += ((self.coverage[i] as f64).log2() + sum_q.log2()).exp2();
                 }
             }
             pangrowth[m - 1] = yl + yr;

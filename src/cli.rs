@@ -145,10 +145,14 @@ pub enum Params {
 
     #[clap(alias = "s", about = "Subsets the paths")]
     Subset {
-        #[clap(short='q', long, help = "Report nodes only if present at least in flt_quorum groups", default_value = "0")] 
-        flt_quorum: u32,
-        #[clap(short='l', long, help = "Report nodes only if their length is at least flt_length", default_value = "0")] 
-        flt_length: u32,
+        #[clap(short='q', long, help = "Report nodes only if present at least in flt_quorum_min groups", default_value = "0")] 
+        flt_quorum_min: u32,
+        #[clap(short='Q', long, help = "Report nodes only if present at most in flt_quorum_max groups", default_value = "4294967295")] 
+        flt_quorum_max: u32,
+        #[clap(short='l', long, help = "Report nodes only if their length is at least flt_length_min base pairs", default_value = "0")] 
+        flt_length_min: u32,
+        #[clap(short='L', long, help = "Report nodes only if their length is at most flt_length_max base pairs", default_value = "4294967295")] 
+        flt_length_max: u32,
         #[clap(index = 1, help = "graph in GFA1 format, accepts also compressed (.gz) file", required = true)] 
         gfa_file: String,
         #[clap(name = "subset", short, long, help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)", default_value = "")] 
@@ -440,14 +444,14 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 
             graph_aux.path_info(&paths_len);
         }
-        Params::Subset { ref gfa_file, flt_quorum, flt_length, ..} => {
+        Params::Subset { ref gfa_file, flt_quorum_min, flt_quorum_max, flt_length_min, flt_length_max, ..} => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::Node);
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
             let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node);
             data = bufreader_from_compressed_gfa(gfa_file);
 
-            subset_path_gfa(&mut data, &abacus, &graph_aux, flt_quorum, flt_length);
+            subset_path_gfa(&mut data, &abacus, &graph_aux, flt_quorum_min, flt_quorum_max, flt_length_min, flt_length_max);
             //println!("{}", abacus.countable.len()-1);
         }
         Params::OrderedHistgrowth {ref gfa_file, count, output_format, ..} => {
@@ -517,7 +521,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             for i in 1..kmer.len() {
                 println!("{}",kmer[i]);
             }
-
             write_hist_table(&hists, out)?;
         }
     }

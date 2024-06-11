@@ -183,15 +183,16 @@ fn transpose_table<'a>(table: &'a Vec<Vec<Vec<u8>>>) -> Vec<Vec<&'a [u8]>> {
 }
 
 fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, Error> {
-    let mut res = vec![0; col.len() - 4];
+    let skip_lines = 2;
+    let mut res = vec![0; col.len() - skip_lines];
 
-    for (i, e) in col[4..].iter().enumerate() {
+    for (i, e) in col[skip_lines..].iter().enumerate() {
         if let Ok(val) = usize::from_str(&str::from_utf8(e).unwrap()) {
             res[i] = val;
         } else {
             let msg = format!(
                 "error in line {}: value must be integer, but is '{}'",
-                i + 4 + offset,
+                i + 3 + offset,
                 &str::from_utf8(e).unwrap()
             );
             log::error!("{}", &msg);
@@ -508,8 +509,10 @@ pub fn subset_path_gfa<R: Read>(
     data: &mut BufReader<R>,
     abacus: &AbacusByTotal,
     graph_aux: &GraphAuxilliary,
-    flt_quorum: u32,
-    flt_length: u32,
+    flt_quorum_min: u32,
+    flt_quorum_max: u32,
+    flt_length_min: u32,
+    flt_length_max: u32,
 ) {
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -518,18 +521,18 @@ pub fn subset_path_gfa<R: Read>(
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
             let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
             //parse_path_seq_update_tables
-            print!("P\t{}\t", path_seg);
             for i in 0..sids.len() {
                 let sid = sids[i].0.0 as usize;
                 let ori = sids[i].1;
                 let counts = abacus.countable[sid];
-                if counts >= flt_quorum && graph_aux.node_lens[sid] >= flt_length {
+                if counts >= flt_quorum_min && counts <= flt_quorum_max && graph_aux.node_lens[sid] >= flt_length_min && graph_aux.node_lens[sid] <= flt_length_max {
                     if comma { print!(","); }
+                    else { print!("P\t{}\t", path_seg); }
                     comma = true;
                     print!("{}{}", sid, ori.to_pm() as char);
                 }
             }
-            println!("\t*");
+            if comma { println!("\t*"); }
         } 
         //NOT-TESTED
         //if buf[0] == b'W' {
