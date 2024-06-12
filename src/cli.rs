@@ -1,12 +1,12 @@
 /* standard crate */
 use std::fs;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, BufWriter, Write};
+use std::io::{Error, ErrorKind};
 use std::path::Path;
 use std::str::FromStr;
 
 /* external crate */
 use clap::{crate_version, Parser, Subcommand};
-use flate2::read::GzDecoder;
 use rayon::prelude::*;
 use strum::VariantNames;
 
@@ -25,12 +25,10 @@ pub enum RequireThreshold {
     Either,
 }
 
-//
-// Credit: Johan Andersson (https://github.com/repi)
-// Code from https://github.com/clap-rs/clap/discussions/4264
-//
 #[macro_export]
 macro_rules! clap_enum_variants {
+    // Credit: Johan Andersson (https://github.com/repi)
+    // Code from https://github.com/clap-rs/clap/discussions/4264
     ($e: ty) => {{
         use clap::builder::TypedValueParser;
         clap::builder::PossibleValuesParser::new(<$e>::VARIANTS).map(|s| s.parse::<$e>().unwrap())
@@ -60,10 +58,7 @@ struct Command {
 
 #[derive(Subcommand, Debug)]
 pub enum Params {
-    #[clap(
-        alias = "hg",
-        about = "Run in default mode, i.e., run hist and growth successively and output the results of the latter"
-    )]
+    #[clap(alias = "hg", about = "Run hist and growth. Return the growth curve")]
     Histgrowth {
         #[clap(
             index = 1,
@@ -71,15 +66,8 @@ pub enum Params {
             required = true
         )]
         gfa_file: String,
-
-        #[clap(short, long,
-        help = "Graph quantity to be counted",
-        default_value = "node",
-        ignore_case = true,
-        value_parser = clap_enum_variants!(CountType),
-    )]
+        #[clap(short, long, help = "Graph quantity to be counted", default_value = "node", ignore_case = true, value_parser = clap_enum_variants!(CountType),)]
         count: CountType,
-
         #[clap(
             name = "subset",
             short,
@@ -88,7 +76,6 @@ pub enum Params {
             default_value = ""
         )]
         positive_list: String,
-
         #[clap(
             name = "exclude",
             short,
@@ -97,7 +84,6 @@ pub enum Params {
             default_value = ""
         )]
         negative_list: String,
-
         #[clap(
             short,
             long,
@@ -105,21 +91,18 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
-
         #[clap(
             short = 'H',
             long,
             help = "Merge counts from paths belonging to same haplotype"
         )]
         groupby_haplotype: bool,
-
         #[clap(
             short = 'S',
             long,
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
-
         #[clap(
             short,
             long,
@@ -127,7 +110,6 @@ pub enum Params {
             default_value = "0"
         )]
         quorum: String,
-
         #[clap(
             short = 'l',
             long,
@@ -135,29 +117,20 @@ pub enum Params {
             default_value = "1"
         )]
         coverage: String,
-
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
-
-        #[clap(
-            short,
-            long,
-            help = "Choose output format: table (tab-separated-values) or html report",
-            default_value = "table",
-            ignore_case = true,
-            value_parser = clap_enum_variants!(OutputFormat),
-        )]
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
-
         #[clap(
             short,
             long,
-            help = "Run in parallel on N threads",
-            default_value = "1"
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
         )]
         threads: usize,
     },
-    #[clap(alias = "h", about = "Calculate coverage histogram from GFA file")]
+
+    #[clap(alias = "h", about = "Calculate coverage histogram")]
     Hist {
         #[clap(
             index = 1,
@@ -165,15 +138,8 @@ pub enum Params {
             required = true
         )]
         gfa_file: String,
-
-        #[clap(short, long,
-        help = "Graph quantity to be counted",
-        default_value = "node",
-        ignore_case = true,
-        value_parser = clap_enum_variants!(CountType),
-    )]
+        #[clap(short, long, help = "Graph quantity to be counted", default_value = "node", ignore_case = true, value_parser = clap_enum_variants!(CountType),)]
         count: CountType,
-
         #[clap(
             name = "subset",
             short,
@@ -182,7 +148,6 @@ pub enum Params {
             default_value = ""
         )]
         positive_list: String,
-
         #[clap(
             name = "exclude",
             short,
@@ -191,7 +156,6 @@ pub enum Params {
             default_value = ""
         )]
         negative_list: String,
-
         #[clap(
             short,
             long,
@@ -199,41 +163,30 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
-
         #[clap(
             short = 'H',
             long,
             help = "Merge counts from paths belonging to same haplotype"
         )]
         groupby_haplotype: bool,
-
         #[clap(
             short = 'S',
             long,
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
-
-        #[clap(
-            short,
-            long,
-            help = "Choose output format: table (tab-separated-values) or html report",
-            default_value = "table",
-            ignore_case = true,
-            value_parser = clap_enum_variants!(OutputFormat),
-        )]
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
-
         #[clap(
             short,
             long,
-            help = "Run in parallel on N threads",
-            default_value = "1"
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
         )]
         threads: usize,
     },
 
-    #[clap(alias = "g", about = "Construct growth table from coverage histogram")]
+    #[clap(alias = "g", about = "Calculate growth curve from coverage histogram")]
     Growth {
         #[clap(
             index = 1,
@@ -241,7 +194,6 @@ pub enum Params {
             required = true
         )]
         hist_file: String,
-
         #[clap(
             short,
             long,
@@ -249,7 +201,6 @@ pub enum Params {
             default_value = "0"
         )]
         quorum: String,
-
         #[clap(
             short = 'l',
             long,
@@ -257,32 +208,154 @@ pub enum Params {
             default_value = "1"
         )]
         coverage: String,
-
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
-
-        #[clap(
-            short,
-            long,
-            help = "Choose output format: table (tab-separated-values) or html report",
-            default_value = "table",
-            ignore_case = true,
-            value_parser = clap_enum_variants!(OutputFormat),
-        )]
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
-
         #[clap(
             short,
             long,
-            help = "Run in parallel on N threads",
-            default_value = "1"
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
+        )]
+        threads: usize,
+    },
+
+    #[clap(alias = "S", about = "Return general graph and paths statistics")]
+    Stats {
+        #[clap(
+            index = 1,
+            help = "graph in GFA1 format, accepts also compressed (.gz) file",
+            required = true
+        )]
+        gfa_file: String,
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
+            default_value = ""
+        )]
+        negative_list: String,
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
+        )]
+        threads: usize,
+    },
+
+    #[clap(alias = "s", about = "Subsets the paths")]
+    Subset {
+        #[clap(
+            short = 'q',
+            long,
+            help = "Report nodes only if present at least in flt_quorum_min groups",
+            default_value = "0"
+        )]
+        flt_quorum_min: u32,
+        #[clap(
+            short = 'Q',
+            long,
+            help = "Report nodes only if present at most in flt_quorum_max groups",
+            default_value = "4294967295"
+        )]
+        flt_quorum_max: u32,
+        #[clap(
+            short = 'l',
+            long,
+            help = "Report nodes only if their length is at least flt_length_min base pairs",
+            default_value = "0"
+        )]
+        flt_length_min: u32,
+        #[clap(
+            short = 'L',
+            long,
+            help = "Report nodes only if their length is at most flt_length_max base pairs",
+            default_value = "4294967295"
+        )]
+        flt_length_max: u32,
+        #[clap(
+            index = 1,
+            help = "graph in GFA1 format, accepts also compressed (.gz) file",
+            required = true
+        )]
+        gfa_file: String,
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
+            default_value = ""
+        )]
+        negative_list: String,
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
         )]
         threads: usize,
     },
 
     #[clap(
         alias = "o",
-        about = "Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)"
+        about = "Calculate growth curve based on group file order (if order is unspecified, use path order in GFA)"
     )]
     OrderedHistgrowth {
         #[clap(
@@ -291,23 +364,16 @@ pub enum Params {
             required = true
         )]
         gfa_file: String,
-
-        #[clap(short, long,
-        help = "Graph quantity to be counted",
-        default_value = "node",
-        ignore_case = true,
-        value_parser = clap_enum_variants_no_all!(CountType),
-    )]
+        #[clap(short, long, help = "Graph quantity to be counted", default_value = "node", ignore_case = true, value_parser = clap_enum_variants_no_all!(CountType),)]
         count: CountType,
-
         #[clap(
+            name = "order",
             short = 'O',
             long,
             help = "The ordered histogram will be produced according to order of paths/groups in the supplied file (1-column list). If this option is not used, the order is determined by the rank of paths/groups in the subset list, and if that option is not used, the order is determined by the rank of paths/groups in the GFA file.",
             default_value = ""
         )]
         order: String,
-
         #[clap(
             name = "subset",
             short,
@@ -316,7 +382,6 @@ pub enum Params {
             default_value = ""
         )]
         positive_list: String,
-
         #[clap(
             name = "exclude",
             short,
@@ -325,7 +390,6 @@ pub enum Params {
             default_value = ""
         )]
         negative_list: String,
-
         #[clap(
             short,
             long,
@@ -333,21 +397,18 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
-
         #[clap(
             short = 'H',
             long,
             help = "Merge counts from paths belonging to same haplotype"
         )]
         groupby_haplotype: bool,
-
         #[clap(
             short = 'S',
             long,
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
-
         #[clap(
             short,
             long,
@@ -355,7 +416,6 @@ pub enum Params {
             default_value = "0"
         )]
         quorum: String,
-
         #[clap(
             short = 'l',
             long,
@@ -363,22 +423,13 @@ pub enum Params {
             default_value = "1"
         )]
         coverage: String,
-
-        #[clap(
-            short,
-            long,
-            help = "Choose output format: table (tab-separated-values) or html report",
-            default_value = "table",
-            ignore_case = true,
-            value_parser = clap_enum_variants!(OutputFormat),
-        )]
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
-
         #[clap(
             short,
             long,
-            help = "Run in parallel on N threads",
-            default_value = "1"
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
         )]
         threads: usize,
     },
@@ -391,15 +442,8 @@ pub enum Params {
             required = true
         )]
         gfa_file: String,
-
-        #[clap(short, long,
-            help = "Graph quantity to be counted",
-            default_value = "node",
-            ignore_case = true,
-            value_parser = clap_enum_variants_no_all!(CountType),
-        )]
+        #[clap(short, long, help = "Graph quantity to be counted", default_value = "node", ignore_case = true, value_parser = clap_enum_variants_no_all!(CountType),)]
         count: CountType,
-
         #[clap(
             name = "total",
             short = 'a',
@@ -407,7 +451,6 @@ pub enum Params {
             help = "Summarize by totaling presence/absence over all groups"
         )]
         total: bool,
-
         #[clap(
             name = "subset",
             short,
@@ -416,7 +459,6 @@ pub enum Params {
             default_value = ""
         )]
         positive_list: String,
-
         #[clap(
             name = "exclude",
             short,
@@ -425,7 +467,6 @@ pub enum Params {
             default_value = ""
         )]
         negative_list: String,
-
         #[clap(
             short,
             long,
@@ -433,35 +474,99 @@ pub enum Params {
             default_value = ""
         )]
         groupby: String,
-
         #[clap(
             short = 'H',
             long,
             help = "Merge counts from paths belonging to same haplotype"
         )]
         groupby_haplotype: bool,
-
         #[clap(
             short = 'S',
             long,
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
-
         #[clap(
             short,
             long,
-            help = "Run in parallel on N threads",
-            default_value = "1"
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
+        )]
+        threads: usize,
+    },
+
+    #[clap(
+        alias = "C",
+        about = "Calculate the histogram and growth of a Compacted de Bruijn Graph"
+    )]
+    Cdbg {
+        #[clap(
+            index = 1,
+            help = "graph in GFA1 format, accepts also compressed (.gz) file representing a compacted de Bruijn graph",
+            required = true
+        )]
+        gfa_file: String,
+        #[clap(short, long, help = "Value of k for cdBG", default_value = "")]
+        k: usize,
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+            default_value = ""
+        )]
+        negative_list: String,
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
         )]
         threads: usize,
     },
 }
 
+pub fn read_params() -> Params {
+    Command::parse().cmd
+}
+
 pub fn parse_threshold_cli(
     threshold_str: &str,
     require: RequireThreshold,
-) -> Result<Vec<Threshold>, std::io::Error> {
+) -> Result<Vec<Threshold>, Error> {
     let mut thresholds = Vec::new();
 
     for (i, el) in threshold_str.split(',').enumerate() {
@@ -470,8 +575,8 @@ pub fn parse_threshold_cli(
                 if 0.0 <= t && t <= 1.0 {
                     Ok(t)
                 } else {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
+                    Err(Error::new(
+                        ErrorKind::InvalidData,
                         format!(
                             "relative threshold \"{}\" ({}. element in list) must be within [0,1].",
                             &threshold_str,
@@ -480,8 +585,8 @@ pub fn parse_threshold_cli(
                     ))
                 }
             }
-            Err(_) => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
+            Err(_) => Err(Error::new(
+                ErrorKind::InvalidData,
                 format!(
                     "threshold \"{}\" ({}. element in list) is required to be float, but isn't.",
                     &threshold_str,
@@ -493,8 +598,8 @@ pub fn parse_threshold_cli(
         thresholds.push(
             match require {
                 RequireThreshold::Absolute => Threshold::Absolute(usize::from_str(el.trim()).map_err(|_|
-                    std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
+                    Error::new(
+                            ErrorKind::InvalidData,
                             format!("threshold \"{}\" ({}. element in list) is required to be integer, but isn't.",
                     &threshold_str,
                     i + 1)))?),
@@ -511,21 +616,19 @@ pub fn parse_threshold_cli(
     Ok(thresholds)
 }
 
-pub fn read_params() -> Params {
-    Command::parse().cmd
-}
-
-pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
-    // set the number of threads used in parallel computation
+pub fn set_number_of_threads(params: &Params) {
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
+    | Params::Stats { threads, .. }
+    | Params::Subset { threads, .. }
     | Params::OrderedHistgrowth { threads, .. }
-    | Params::Table { threads, .. } = params
+    | Params::Table { threads, .. }
+    | Params::Cdbg { threads, .. } = params
     {
-        if threads > 0 {
+        if *threads > 0 {
             log::info!("running panacus on {} threads", &threads);
             rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
+                .num_threads(*threads)
                 .build_global()
                 .unwrap();
         } else {
@@ -533,405 +636,266 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), std::
             rayon::ThreadPoolBuilder::new().build_global().unwrap();
         }
     }
+}
 
-    // make sure either group, groupby-sample, or groupby-haplotype is set
+// make sure either group, groupby-sample, or groupby-haplotype is set
+pub fn validate_single_groupby_option(
+    groupby: &str,
+    groupby_haplotype: bool,
+    groupby_sample: bool,
+) -> Result<(), Error> {
+    let mut c = 0;
+    c += (!groupby.is_empty()) as u8;
+    c += (groupby_haplotype) as u8;
+    c += (groupby_sample) as u8;
+    if c > 1 {
+        let msg = "At most one option of groupby, groupby-haplotype, and groupby-sample can be set at once, but at least two are given.";
+        log::error!("{}", &msg);
+        return Err(Error::new(ErrorKind::InvalidInput, msg));
+    }
+    Ok(())
+}
+
+pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error> {
+    set_number_of_threads(&params);
+
     if let Params::Histgrowth {
-        groupby,
+        ref groupby,
         groupby_haplotype,
         groupby_sample,
         ..
     }
     | Params::Hist {
-        groupby,
+        ref groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    }
+    | Params::Stats {
+        ref groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    }
+    | Params::Subset {
+        ref groupby,
         groupby_haplotype,
         groupby_sample,
         ..
     }
     | Params::OrderedHistgrowth {
-        groupby,
+        ref groupby,
         groupby_haplotype,
         groupby_sample,
         ..
     }
     | Params::Table {
-        groupby,
+        ref groupby,
         groupby_haplotype,
         groupby_sample,
         ..
-    } = &params
+    }
+    | Params::Cdbg {
+        ref groupby,
+        groupby_haplotype,
+        groupby_sample,
+        ..
+    } = params
     {
-        let mut c = 0;
-        if !groupby.is_empty() {
-            c += 1;
-        }
-        if *groupby_haplotype {
-            c += 1;
-        }
-        if *groupby_sample {
-            c += 1
-        }
-        if c > 1 {
-            let msg = "At most one option of groupby, groupby-haplotype, and groupby-sample can be set at once, but at least two are given.";
-            log::error!("{}", &msg);
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, msg));
-        }
+        validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)?;
     }
 
-    //
-    // 1st step: loading data from group / subset / exclude files and indexing graph
-    //
-    //
-    // graph_aux and abacus_aux do not make use of count type information, so they don't need to be
-    // adjusted
-    let (graph_aux, abacus_aux) = match &params {
+    match params {
         Params::Histgrowth {
-            gfa_file, count, ..
-        }
-        | Params::Hist {
-            gfa_file, count, ..
-        }
-        | Params::OrderedHistgrowth {
-            gfa_file, count, ..
-        }
-        | Params::Table {
-            gfa_file, count, ..
+            ref gfa_file,
+            count,
+            output_format,
+            ..
         } => {
-            log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
-            let f = std::fs::File::open(&gfa_file)?;
-            let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
-                log::info!("assuming that {} is gzip compressed..", &gfa_file);
-                Box::new(GzDecoder::new(f))
-            } else {
-                Box::new(f)
-            };
-            let mut data = BufReader::new(reader);
-            let graph_aux = GraphAuxilliary::from_gfa(
-                &mut data,
-                (count == &CountType::Edge) | (count == &CountType::All),
-            )?;
-            log::info!(
-                "..done; found {} paths/walks and {} nodes{}",
-                graph_aux.path_segments.len(),
-                graph_aux.node2id.len(),
-                if let Some(edge2id) = &graph_aux.edge2id {
-                    format!(" {} edges", edge2id.len())
-                } else {
-                    String::new()
-                }
-            );
-
-            if graph_aux.path_segments.len() == 0 {
-                log::error!("there's nothing to do--graph does not contain any annotated paths (P/W lines), exiting");
-                return Ok(());
-            }
-
-            log::info!("loading data from group / subset / exclude files");
+            //Hist
+            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-
-            (Some(graph_aux), Some(abacus_aux))
-        }
-        _ => (None, None),
-    };
-
-    //
-    // 2nd step: build abacus or calculate coverage table
-    //
-
-    let mut abaci: Vec<Abacus> = match &params {
-        Params::Histgrowth {
-            gfa_file, count, ..
-        }
-        | Params::Hist {
-            gfa_file, count, ..
-        } => {
-            // creating the abacus from the gfa
-
-            let n_groups = abacus_aux.as_ref().unwrap().count_groups();
-            if n_groups > 65534 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    format!(
-                        "data has {} path groups, but command is not supported for more than 65534",
-                        n_groups
-                    ),
-                ));
-            }
-
-            let mut abaci = Vec::new();
-            if matches!(count, CountType::All | CountType::Node | CountType::Bp) {
-                // unless we specifically count only nodes, let's ignore bps stuff...
-                let mycount = match count {
-                    CountType::Node => CountType::Node,
-                    _ => CountType::Bp,
-                };
-                let f = std::fs::File::open(&gfa_file)?;
-                let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
-                    log::info!("assuming that {} is gzip compressed..", &gfa_file);
-                    Box::new(GzDecoder::new(f))
-                } else {
-                    Box::new(f)
-                };
-                let mut data = BufReader::new(reader);
-
-                log::info!("loading graph from {}", &gfa_file);
-                let abacus = AbacusByTotal::from_gfa(
-                    &mut data,
-                    abacus_aux.as_ref().unwrap(),
-                    graph_aux.as_ref().unwrap(),
-                    mycount,
-                )?;
-                log::info!(
-                    "abacus has {} path groups and {} countables",
-                    abacus.groups.len(),
-                    abacus.countable.len()
-                );
-                abaci.push(Abacus::Total(abacus));
-            }
-            if matches!(count, CountType::All | CountType::Edge) {
-                let f = std::fs::File::open(&gfa_file)?;
-                let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
-                    Box::new(GzDecoder::new(f))
-                } else {
-                    Box::new(f)
-                };
-                let mut data = BufReader::new(reader);
-
-                log::info!("loading graph from {}", &gfa_file);
-                let abacus = AbacusByTotal::from_gfa(
-                    &mut data,
-                    abacus_aux.as_ref().unwrap(),
-                    graph_aux.as_ref().unwrap(),
-                    CountType::Edge,
-                )?;
-                log::info!(
-                    "abacus has {} path groups and {} countables",
-                    abacus.groups.len(),
-                    abacus.countable.len()
-                );
-                abaci.push(Abacus::Total(abacus));
-            }
-            abaci
-        }
-        Params::Table {
-            gfa_file, count, ..
-        }
-        | Params::OrderedHistgrowth {
-            gfa_file, count, ..
-        } => {
-            log::info!("loading graph from {}", &gfa_file);
-            let f = std::fs::File::open(&gfa_file)?;
-            let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
-                Box::new(GzDecoder::new(f))
-            } else {
-                Box::new(f)
-            };
-            let mut data = BufReader::new(reader);
-            let abacus = AbacusByGroup::from_gfa(
-                &mut data,
-                abacus_aux.as_ref().unwrap(),
-                graph_aux.as_ref().unwrap(),
-                *count,
-                if let Params::Table { total, .. } = params {
-                    !total
-                } else {
-                    false
-                },
-            )?;
-            log::info!(
-                "abacus has {} path groups and {} countables",
-                abacus.groups.len(),
-                abacus.r.len()
-            );
-            vec![Abacus::Group(abacus)]
-        }
-        _ => vec![Abacus::Nil],
-    };
-
-    //
-    // 3rd step: build histograam
-    //
-
-    let hists: Option<Vec<Hist>> = match &params {
-        Params::Histgrowth { count, .. } | Params::Hist { count, .. } => {
+            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
             let mut hists = Vec::new();
-
-            if matches!(count, CountType::All) {
-                // by construction, node/bp abacus comes first, then edge abacus
-                if let Some(Abacus::Total(ref mut abacus_total)) = abaci.first_mut() {
-                    // constructing histogram
-                    log::info!("constructing bp histogram..");
-                    hists.push(Hist::from_abacus(&abacus_total));
-                    log::info!("constructing node histogram..");
-                    abacus_total.count = CountType::Node;
-                    hists.push(Hist::from_abacus(&abacus_total));
-                    // revert back
-                    abacus_total.count = CountType::Bp;
+            for abacus in abaci {
+                hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
+            }
+            //Growth
+            let hist_aux = HistAuxilliary::from_params(&params)?;
+            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+            let growths: Vec<(CountType, Vec<Vec<f64>>)> = hists
+                .par_iter()
+                .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
+                .collect();
+            log::info!("reporting histgrowth table");
+            match output_format {
+                OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
+                OutputFormat::Html => {
+                    write_histgrowth_html(&Some(hists), &growths, &hist_aux, &filename, None, out)?
                 }
-            }
-            if let Some(Abacus::Total(abacus_total)) = &abaci.last() {
-                // constructing histogram
-                log::info!("constructing histogram..");
-                hists.push(Hist::from_abacus(abacus_total));
-            }
-            Some(hists)
+            };
         }
-        Params::Growth { hist_file, .. } => {
+        Params::Hist {
+            ref gfa_file,
+            count,
+            output_format,
+            ..
+        } => {
+            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
+            let mut hists = Vec::new();
+            for abacus in abaci {
+                hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
+            }
+
+            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+            match output_format {
+                OutputFormat::Table => write_hist_table(&hists, out)?,
+                OutputFormat::Html => write_hist_html(&hists, &filename, out)?,
+            };
+        }
+        Params::Growth {
+            ref hist_file,
+            output_format,
+            ..
+        } => {
+            let hist_aux = HistAuxilliary::from_params(&params)?;
             log::info!("loading coverage histogram from {}", hist_file);
-            let mut data = std::io::BufReader::new(fs::File::open(&hist_file)?);
+            let mut data = BufReader::new(fs::File::open(&hist_file)?);
             let (coverages, comments) = parse_hists(&mut data)?;
             for c in comments {
                 out.write(&c[..])?;
                 out.write(b"\n")?;
             }
-            Some(
-                coverages
-                    .into_iter()
-                    .map(|(count, coverage)| Hist { count, coverage })
-                    .collect(),
-            )
-        }
-        Params::OrderedHistgrowth { .. } | Params::Table { .. } => {
-            // do nothing
-            None
-        }
-    };
+            let hists: Vec<Hist> = coverages
+                .into_iter()
+                .map(|(count, coverage)| Hist { count, coverage })
+                .collect();
 
-    //
-    // 4th step: calculation & output of growth curve / output of histogram
-    //
-    //
-    //    if let Abacus::Group(abacus_group) = &abacus {
-    //        abacus_group.write_rcv(out)?;
-    //        out.flush()?;
-    //        std::process::exit(0x0100);
-    //    }
+            let filename = Path::new(&hist_file).file_name().unwrap().to_str().unwrap();
+            let growths: Vec<(CountType, Vec<Vec<f64>>)> = hists
+                .par_iter()
+                .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
+                .collect();
+            log::info!("reporting histgrowth table");
+            match output_format {
+                OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
+                OutputFormat::Html => {
+                    write_histgrowth_html(&Some(hists), &growths, &hist_aux, &filename, None, out)?
+                }
+            };
+        }
+        Params::Stats { ref gfa_file, .. } => {
+            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
+            graph_aux.graph_info();
 
-    match &params {
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let mut data = bufreader_from_compressed_gfa(gfa_file);
+            let (_, _, _, paths_len) =
+                parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+
+            graph_aux.path_info(&paths_len);
+        }
+        Params::Subset {
+            ref gfa_file,
+            flt_quorum_min,
+            flt_quorum_max,
+            flt_length_min,
+            flt_length_max,
+            ..
+        } => {
+            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::Node);
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let mut data = bufreader_from_compressed_gfa(gfa_file);
+            let abacus =
+                AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node);
+            data = bufreader_from_compressed_gfa(gfa_file);
+
+            subset_path_gfa(
+                &mut data,
+                &abacus,
+                &graph_aux,
+                flt_quorum_min,
+                flt_quorum_max,
+                flt_length_min,
+                flt_length_max,
+            );
+            //println!("{}", abacus.countable.len()-1);
+        }
         Params::OrderedHistgrowth {
-            gfa_file,
+            ref gfa_file,
             count,
             output_format,
             ..
         } => {
+            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let mut data = bufreader_from_compressed_gfa(gfa_file);
+            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, false)?;
             let hist_aux = HistAuxilliary::from_params(&params)?;
-            match &abaci.last() {
-                Some(Abacus::Group(abacus_group)) => {
-                    log::info!("reporting ordered-growth table");
-                    match output_format {
-                        OutputFormat::Table => {
-                            write_ordered_histgrowth_table(abacus_group, &hist_aux, out)?
-                        }
-                        OutputFormat::Html => {
-                            let mut growths: Vec<Vec<f64>> = hist_aux
-                                .coverage
-                                .par_iter()
-                                .zip(&hist_aux.quorum)
-                                .map(|(c, q)| {
-                                    log::info!(
-                                        "calculating ordered growth for coverage >= {} and quorum >= {}",
-                                        &c,
-                                        &q
-                                    );
-                                    abacus_group.calc_growth(&c, &q)
-                                })
-                                .collect();
-                            // insert empty row for 0 element
-                            for c in &mut growths {
-                                c.insert(0, std::f64::NAN);
-                            }
-                            log::info!("reporting (hist-)growth table");
-
-                            write_histgrowth_html(
-                                &None,
-                                &vec![(*count, growths)],
-                                &hist_aux,
-                                &Path::new(&gfa_file)
-                                    .file_name()
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string(),
-                                Some(&abacus_group.groups),
-                                out,
-                            )?
-                        }
-                    }
+            match output_format {
+                OutputFormat::Table => {
+                    write_ordered_histgrowth_table(&abacus, &hist_aux, out)?;
                 }
-                _ => unreachable!(),
+                OutputFormat::Html => {
+                    write_ordered_histgrowth_html(&abacus, &hist_aux, &gfa_file, count, out)?;
+                }
             }
         }
-        Params::Histgrowth {
-            hist,
-            output_format,
-            ..
-        }
-        | Params::Growth {
-            hist,
-            output_format,
+        Params::Table {
+            ref gfa_file,
+            count,
+            total,
             ..
         } => {
-            let hist_aux = HistAuxilliary::from_params(&params)?;
-            let filename = match &params {
-                Params::Histgrowth { gfa_file, .. } => Path::new(&gfa_file)
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                Params::Growth { hist_file, .. } => Path::new(&hist_file)
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                _ => unreachable!(),
-            };
+            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, total)?;
 
-            if let Some(hs) = &hists {
-                let growths: Vec<(CountType, Vec<Vec<f64>>)> = hs
-                    .par_iter()
-                    .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
-                    .collect();
-                log::info!("reporting (hist-)growth table");
-                match output_format {
-                    OutputFormat::Table => write_histgrowth_table(
-                        &if *hist { hists } else { None },
-                        &growths,
-                        &hist_aux,
-                        out,
-                    )?,
-                    OutputFormat::Html => write_histgrowth_html(
-                        &if *hist { hists } else { None },
-                        &growths,
-                        &hist_aux,
-                        &filename,
-                        None,
-                        out,
-                    )?,
-                };
-            }
+            abacus.to_tsv(total, out)?;
         }
-        Params::Hist {
-            gfa_file,
-            output_format,
-            ..
+        Params::Cdbg {
+            ref gfa_file, k, ..
         } => {
-            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-            if let Some(hs) = hists {
-                log::info!("reporting hist table");
-                match output_format {
-                    OutputFormat::Table => write_hist_table(&hs, out)?,
-                    OutputFormat::Html => write_hist_html(&hs, &filename, out)?,
-                };
+            let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
+            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+
+            let mut hists = Vec::new();
+            let abaci_node =
+                AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
+            let abaci_bp =
+                AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
+            hists.push(Hist::from_abacus(&abaci_node[0], None));
+            hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
+
+            // k-mers and unimer
+            let n = hists[0].coverage.len();
+            let mut kmer: Vec<usize> = vec![0; n];
+            let mut unimer: Vec<usize> = vec![0; n];
+
+            for i in 0..n {
+                kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
+                unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
             }
-        }
-        Params::Table { total, .. } => {
-            if let Some(Abacus::Group(abacus_group)) = abaci.last() {
-                log::info!("reporting coverage table");
-                abacus_group.to_tsv(*total, out)?;
+
+            let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+            let abaci_infix_eq =
+                AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
+
+            println!("# infix_eq");
+            for v in abaci_infix_eq.countable.iter() {
+                println!("{}", v);
             }
+
+            println!("# kmer");
+            for i in 1..kmer.len() {
+                println!("{}", kmer[i]);
+            }
+            write_hist_table(&hists, out)?;
         }
-    };
+    }
 
     Ok(())
 }
