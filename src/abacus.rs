@@ -1,6 +1,7 @@
 /* standard use */
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::{BufReader, BufWriter, Write};
+use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
 //use std::sync::{Arc, Mutex};
 
@@ -8,10 +9,12 @@ use std::iter::FromIterator;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+use strum::IntoEnumIterator;
+
 /* private use */
 use crate::cli::Params;
 use crate::graph::*;
-use crate::io;
+use crate::io::*;
 use crate::util::*;
 
 pub struct AbacusAuxilliary {
@@ -22,10 +25,7 @@ pub struct AbacusAuxilliary {
 }
 
 impl AbacusAuxilliary {
-    pub fn from_params(
-        params: &Params,
-        graph_aux: &GraphAuxilliary,
-    ) -> Result<Self, std::io::Error> {
+    pub fn from_params(params: &Params, graph_aux: &GraphAuxilliary) -> Result<Self, Error> {
         match params {
             Params::Histgrowth {
                 positive_list,
@@ -43,6 +43,22 @@ impl AbacusAuxilliary {
                 groupby_haplotype,
                 ..
             }
+            | Params::Stats {
+                positive_list,
+                negative_list,
+                groupby,
+                groupby_sample,
+                groupby_haplotype,
+                ..
+            }
+            | Params::Subset {
+                positive_list,
+                negative_list,
+                groupby,
+                groupby_sample,
+                groupby_haplotype,
+                ..
+            }
             | Params::OrderedHistgrowth {
                 positive_list,
                 negative_list,
@@ -52,6 +68,14 @@ impl AbacusAuxilliary {
                 ..
             }
             | Params::Table {
+                positive_list,
+                negative_list,
+                groupby,
+                groupby_sample,
+                groupby_haplotype,
+                ..
+            }
+            | Params::Cdbg {
                 positive_list,
                 negative_list,
                 groupby,
@@ -111,10 +135,7 @@ impl AbacusAuxilliary {
                                 );
                                 log::error!("{}", &msg);
                                 // let's not be that harsh, shall we?
-                                //                                return Err(std::io::Error::new(
-                                //                                    std::io::ErrorKind::InvalidData,
-                                //                                    msg,
-                                //                                ));
+                                // return Err(Error::new( ErrorKind::InvalidData, msg));
                             }
                         }
 
@@ -126,10 +147,7 @@ impl AbacusAuxilliary {
                             if cur != g && !visited.insert(g) {
                                 let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
                                 log::error!("{}", &msg);
-                                return Err(std::io::Error::new(
-                                    std::io::ErrorKind::InvalidData,
-                                    msg,
-                                ));
+                                return Err(Error::new(ErrorKind::InvalidData, msg));
                             }
                             cur = g;
                         }
@@ -139,6 +157,17 @@ impl AbacusAuxilliary {
                     None
                 };
 
+                //let n_groups = HashSet::<&String>::from_iter(groups.values()).len();
+                //if n_groups > 65534 {
+                //    return Err(Error::new(
+                //        ErrorKind::Unsupported,
+                //        format!(
+                //            "data has {} path groups, but command is not supported for more than 65534",
+                //            n_groups
+                //        ),
+                //    ));
+                //}
+
                 Ok(AbacusAuxilliary {
                     groups: groups,
                     include_coords: include_coords,
@@ -146,9 +175,9 @@ impl AbacusAuxilliary {
                     order: order,
                 })
             }
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "cannot produce AbausData from other Param items",
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "cannot produce AbacusData from other Param items",
             )),
         }
     }
@@ -156,7 +185,7 @@ impl AbacusAuxilliary {
     fn complement_with_group_assignments(
         coords: Option<Vec<PathSegment>>,
         groups: &HashMap<PathSegment, String>,
-    ) -> Result<Option<Vec<PathSegment>>, std::io::Error> {
+    ) -> Result<Option<Vec<PathSegment>>, Error> {
         //
         // We allow coords to be defined via groups; the following code
         // 1. complements coords with path segments from group assignments
@@ -187,7 +216,7 @@ impl AbacusAuxilliary {
                             if p.coords().is_some() {
                                 let msg = format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p);
                                 log::error!("{}", &msg);
-                                Err(std::io::Error::new( std::io::ErrorKind::InvalidData, msg))
+                                Err(Error::new( ErrorKind::InvalidData, msg))
                             } else {
                                 let paths = group2paths.get(&p.id()).unwrap().clone();
                                 log::debug!("complementing coordinate list with {} paths associted with group {}", paths.len(), p.id());
@@ -197,23 +226,23 @@ impl AbacusAuxilliary {
                             let msg = format!("unknown path/group {}", &p);
                             log::error!("{}", &msg);
                             // let's not be so harsh as to throw an error, ok?
-                            // Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+                            // Err(Error::new(ErrorKind::InvalidData, msg))
                             Ok(Vec::new())
                         }
                     })
-                    .collect::<Result<Vec<Vec<PathSegment>>, std::io::Error>>().map(|x| Some(x[..]
+                    .collect::<Result<Vec<Vec<PathSegment>>, Error>>().map(|x| Some(x[..]
                     .concat()))
             }
         }
     }
 
-    fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, std::io::Error> {
+    fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
         Ok(if file_name.is_empty() {
             None
         } else {
             log::info!("loading coordinates from {}", file_name);
-            let mut data = std::io::BufReader::new(fs::File::open(file_name)?);
-            let coords = io::parse_bed(&mut data);
+            let mut data = BufReader::new(fs::File::open(file_name)?);
+            let coords = parse_bed(&mut data);
             log::debug!("loaded {} coordinates", coords.len());
             Some(coords)
         })
@@ -224,7 +253,7 @@ impl AbacusAuxilliary {
         groupby_haplotype: bool,
         groupby_sample: bool,
         graph_aux: &GraphAuxilliary,
-    ) -> Result<HashMap<PathSegment, String>, std::io::Error> {
+    ) -> Result<HashMap<PathSegment, String>, Error> {
         if groupby_haplotype {
             Ok(graph_aux
                 .path_segments
@@ -248,8 +277,8 @@ impl AbacusAuxilliary {
                 .collect())
         } else if !file_name.is_empty() {
             log::info!("loading groups from {}", file_name);
-            let mut data = std::io::BufReader::new(fs::File::open(file_name)?);
-            let group_assignments = io::parse_groups(&mut data)?;
+            let mut data = BufReader::new(fs::File::open(file_name)?);
+            let group_assignments = parse_groups(&mut data)?;
             let mut path_to_group = HashMap::default();
             for (i, (path, group)) in group_assignments.into_iter().enumerate() {
                 let path_nocoords = path.clear_coords();
@@ -261,7 +290,7 @@ impl AbacusAuxilliary {
                                 i, &path_nocoords, &g, &group
                             );
                             log::error!("{}", &msg);
-                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+                            return Err(Error::new(ErrorKind::InvalidData, msg));
                         }
                     }
                     None => {
@@ -292,7 +321,7 @@ impl AbacusAuxilliary {
     fn get_path_order<'a>(
         &'a self,
         path_segments: &Vec<PathSegment>,
-    ) -> Result<Vec<(ItemIdSize, &'a str)>, std::io::Error> {
+    ) -> Vec<(ItemIdSize, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.include; the returned vector
         // maps indices of path_segments to the group identifier
 
@@ -320,7 +349,7 @@ impl AbacusAuxilliary {
                 .filter_map(|x| if !exclude.contains(x) { Some(x) } else { None })
                 .collect::<Vec<&PathSegment>>()
         };
-        Ok(order
+        order
             .into_iter()
             .map(|p| {
                 group_to_paths
@@ -328,36 +357,127 @@ impl AbacusAuxilliary {
                     .unwrap_or(Vec::new())
             })
             .collect::<Vec<Vec<(ItemIdSize, &'a str)>>>()
-            .concat())
+            .concat()
     }
 
+    #[allow(dead_code)]
     pub fn count_groups(&self) -> usize {
         HashSet::<&String>::from_iter(self.groups.values()).len()
+    }
+
+    pub fn build_subpath_map(
+        path_segments: &Vec<PathSegment>,
+    ) -> HashMap<String, Vec<(usize, usize)>> {
+        // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
+        let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
+
+        path_segments.into_iter().for_each(|x| {
+            res.entry(x.id())
+                .or_insert(HashSet::default())
+                .insert(match x.coords() {
+                    None => (0, usize::MAX),
+                    Some((i, j)) => (i, j),
+                });
+        });
+
+        HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
+            let mut v: Vec<(usize, usize)> = coords.into_iter().collect();
+            v.sort();
+            let mut i = 1;
+            // remove overlaps
+            while i < v.len() {
+                if v[i - 1].1 >= v[i].0 {
+                    let x = v.remove(i);
+                    v[i - 1].1 = x.1;
+                } else {
+                    i += 1
+                }
+            }
+            (pid, v)
+        }))
+    }
+
+    pub fn load_optional_subsetting(
+        &self,
+        graph_aux: &GraphAuxilliary,
+        count: &CountType,
+    ) -> (
+        Option<IntervalContainer>,
+        Option<ActiveTable>,
+        HashMap<String, Vec<(usize, usize)>>,
+        HashMap<String, Vec<(usize, usize)>>,
+    ) {
+        // *only relevant for bps count in combination with subset option*
+        // this table stores the number of bps of nodes that are *partially* uncovered by subset
+        // coodinates
+        let subset_covered_bps: Option<IntervalContainer> =
+            if count == &CountType::Bp && self.include_coords.is_some() {
+                Some(IntervalContainer::new())
+            } else {
+                None
+            };
+
+        // this table stores information about excluded nodes *if* the exclude setting is used
+        let exclude_table = self.exclude_coords.as_ref().map(|_| {
+            ActiveTable::new(
+                graph_aux.number_of_items(count) + 1,
+                count == &CountType::Bp,
+            )
+        });
+
+        // build "include" lookup table
+        let include_map = match &self.include_coords {
+            None => HashMap::default(),
+            Some(coords) => Self::build_subpath_map(coords),
+        };
+
+        // build "exclude" lookup table
+        let exclude_map = match &self.exclude_coords {
+            None => HashMap::default(),
+            Some(coords) => Self::build_subpath_map(coords),
+        };
+
+        (subset_covered_bps, exclude_table, include_map, exclude_map)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct AbacusByTotal<'a> {
+pub struct AbacusByTotal {
     pub count: CountType,
     pub countable: Vec<CountSize>,
-    pub uncovered_bps: HashMap<ItemIdSize, usize>,
+    pub uncovered_bps: Option<HashMap<ItemIdSize, usize>>,
     pub groups: Vec<String>,
-    pub graph_aux: &'a GraphAuxilliary,
 }
 
-impl<'a> AbacusByTotal<'a> {
+impl AbacusByTotal {
     pub fn from_gfa<R: std::io::Read>(
-        data: &mut std::io::BufReader<R>,
+        data: &mut BufReader<R>,
         abacus_aux: &AbacusAuxilliary,
-        graph_aux: &'a GraphAuxilliary,
+        graph_aux: &GraphAuxilliary,
         count: CountType,
-    ) -> Result<Self, std::io::Error> {
-        log::info!("parsing path + walk sequences");
-        let (item_table, exclude_table, subset_covered_bps) =
-            io::parse_gfa_itemcount(data, abacus_aux, graph_aux, &count);
+    ) -> Self {
+        let (item_table, exclude_table, subset_covered_bps, _paths_len) =
+            parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
+        Self::item_table_to_abacus(
+            abacus_aux,
+            graph_aux,
+            count,
+            item_table,
+            exclude_table,
+            subset_covered_bps,
+        )
+    }
+
+    pub fn item_table_to_abacus(
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &GraphAuxilliary,
+        count: CountType,
+        item_table: ItemTable,
+        exclude_table: Option<ActiveTable>,
+        subset_covered_bps: Option<IntervalContainer>,
+    ) -> Self {
         log::info!("counting abacus entries..");
-        // first element in countable is the "zero" element--which should be ignored in
-        // counting
+        // first element in countable is "zero" element. It is ignored in counting
         let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&count) + 1];
         // countable with ID "0" is special and should not be considered in coverage histogram
         countable[0] = CountSize::MAX;
@@ -365,7 +485,7 @@ impl<'a> AbacusByTotal<'a> {
             vec![ItemIdSize::MAX; graph_aux.number_of_items(&count) + 1];
 
         let mut groups = Vec::new();
-        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
@@ -379,13 +499,153 @@ impl<'a> AbacusByTotal<'a> {
             );
         }
 
-        Ok(Self {
+        log::info!(
+            "abacus has {} path groups and {} countables",
+            groups.len(),
+            countable.len() - 1
+        );
+
+        Self {
             count: count,
             countable: countable,
-            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, &graph_aux),
+            uncovered_bps: Some(quantify_uncovered_bps(
+                &exclude_table,
+                &subset_covered_bps,
+                &graph_aux,
+            )),
             groups: groups,
-            graph_aux: graph_aux,
-        })
+        }
+    }
+
+    pub fn from_cdbg_gfa<R: std::io::Read>(
+        data: &mut BufReader<R>,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &GraphAuxilliary,
+        k: usize,
+        unimer: &Vec<usize>,
+    ) -> Self {
+        let item_table = parse_cdbg_gfa_paths_walks(data, abacus_aux, graph_aux, k);
+        Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k, unimer)
+    }
+
+    pub fn k_plus_one_mer_table_to_abacus(
+        item_table: ItemTable,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &GraphAuxilliary,
+        k: usize,
+        unimer: &Vec<usize>,
+    ) -> Self {
+        log::info!("counting abacus entries..");
+
+        let mut infix_eq_tables: [HashMap<u64, InfixEqStorage>; SIZE_T] =
+            [(); SIZE_T].map(|_| HashMap::default());
+
+        let mut groups = Vec::new();
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+            if groups.is_empty() || groups.last().unwrap() != group_id {
+                groups.push(group_id.to_string());
+            }
+            AbacusByTotal::create_infix_eq_table(
+                &item_table,
+                &graph_aux,
+                &mut infix_eq_tables,
+                path_id,
+                groups.len() as u32 - 1,
+                k,
+            );
+        }
+        ////DEBUG
+        //for i in 0..SIZE_T {
+        //    for (key, v) in &infix_eq_tables[i] {
+        //        println!("{}: {:?} {} {} {}", bits2kmer(*key, k-1), v.edges, v.last_edge, v.last_group, v.sigma);
+        //    }
+        //}
+
+        let m = (groups.len() + 1) * groups.len() / 2;
+        let mut countable: Vec<CountSize> = vec![0; m];
+
+        for i in 0..SIZE_T {
+            for (k_minus_one_mer, infix_storage) in &infix_eq_tables[i] {
+                for edge_count in infix_storage.edges.iter() {
+                    if *edge_count != 0 {
+                        //println!("{:?} {} {} {} ", infix_storage.edges, infix_storage.last_edge, infix_storage.last_group, infix_storage.sigma);
+                        let idx = ((infix_storage.sigma) * (infix_storage.sigma - 1) / 2
+                            + edge_count
+                            - 1) as usize;
+                        countable[idx] += 1;
+                        //if infix_storage.sigma == 1 {
+                        //    println!("{}",bits2kmer(*k_minus_one_mer, k-1));
+                        //}
+                    }
+                }
+            }
+        }
+        //DEBUG
+        //println!("{:?}", countable);
+
+        for i in 1..unimer.len() {
+            countable[((i + 1) * i / 2) - 1] += unimer[i] as u32;
+            //countable[((i+1)*i/2) - 1] = unimer[i] as u32;
+        }
+
+        Self {
+            count: CountType::Node,
+            countable: countable,
+            uncovered_bps: None,
+            groups: groups,
+        }
+    }
+
+    fn create_infix_eq_table(
+        item_table: &ItemTable,
+        graph_aux: &GraphAuxilliary,
+        infix_eq_tables: &mut [HashMap<u64, InfixEqStorage>; SIZE_T],
+        path_id: ItemIdSize,
+        group_id: u32,
+        k: usize,
+    ) {
+        let infix_eq_tables_ptr = Wrap(infix_eq_tables);
+
+        (0..SIZE_T).into_par_iter().for_each(|i| {
+            let start = item_table.id_prefsum[i][path_id as usize] as usize;
+            let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
+            for j in start..end {
+                let k_plus_one_mer = item_table.items[i][j];
+                let infix = get_infix(k_plus_one_mer, k);
+                let first_nt = (k_plus_one_mer >> (2 * k)) as u64;
+                let last_nt = k_plus_one_mer & 0b11;
+                //println!("{}", bits2kmer(infix, k)); // Be sure that the first is an A
+                //println!("{}", bits2kmer(infix, k-1));
+                let combined_nt = ((first_nt << 2) | last_nt) as u8;
+                unsafe {
+                    (*infix_eq_tables_ptr.0)[i]
+                        .entry(infix)
+                        .and_modify(|infix_storage| {
+                            if infix_storage.last_group == group_id
+                                && infix_storage.last_edge != combined_nt
+                                && infix_storage.last_edge != 255
+                            {
+                                //if infix_storage.last_group == group_id && infix_storage.last_edge != 255 {
+                                infix_storage.edges[infix_storage.last_edge as usize] -= 1;
+                                infix_storage.last_edge = 255;
+                            } else if infix_storage.last_group != group_id {
+                                infix_storage.last_edge = combined_nt;
+                                infix_storage.edges[infix_storage.last_edge as usize] += 1;
+                                infix_storage.last_group = group_id;
+                                infix_storage.sigma += 1;
+                            }
+                        })
+                        .or_insert_with(|| {
+                            let mut infix_storage = InfixEqStorage::new();
+                            infix_storage.last_edge = combined_nt;
+                            infix_storage.edges[infix_storage.last_edge as usize] += 1;
+                            infix_storage.last_group = group_id;
+                            infix_storage.sigma = 1;
+                            infix_storage
+                        });
+                }
+            }
+        });
     }
 
     fn coverage(
@@ -417,16 +677,41 @@ impl<'a> AbacusByTotal<'a> {
         });
     }
 
-    //Why &self and not self? we could destroy abacus at this point.
+    pub fn abaci_from_gfa(
+        gfa_file: &str,
+        count: CountType,
+        graph_aux: &GraphAuxilliary,
+        abacus_aux: &AbacusAuxilliary,
+    ) -> Result<Vec<Self>, Error> {
+        let mut abaci = Vec::new();
+        if let CountType::All = count {
+            for count_type in CountType::iter() {
+                if let CountType::All = count_type {
+                } else {
+                    let mut data = bufreader_from_compressed_gfa(gfa_file);
+                    let abacus =
+                        AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, count_type);
+                    abaci.push(abacus);
+                }
+            }
+        } else {
+            let mut data = bufreader_from_compressed_gfa(gfa_file);
+            let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, count);
+            abaci.push(abacus);
+        }
+        Ok(abaci)
+    }
+
     pub fn construct_hist(&self) -> Vec<usize> {
-        // hist must be of size = num_groups + 1; having an index that starts from 1, instead of 0,
-        // makes easier the calculation in hist2pangrowth.
+        log::info!("constructing histogram..");
+        // hist must be of size = num_groups + 1; having an index that starts
+        // from 1, instead of 0, makes easier the calculation in hist2pangrowth.
         let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
 
         for (i, cov) in self.countable.iter().enumerate() {
             if *cov as usize >= hist.len() {
                 if i != 0 {
-                    log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
+                    log::warn!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, i, self.groups.len());
                 }
             } else {
                 hist[*cov as usize] += 1;
@@ -435,9 +720,10 @@ impl<'a> AbacusByTotal<'a> {
         hist
     }
 
-    pub fn construct_hist_bps(&self) -> Vec<usize> {
-        // hist must be of size = num_groups + 1; having an index that starts from 1, instead of 0,
-        // makes easier the calculation in hist2pangrowth.
+    pub fn construct_hist_bps(&self, graph_aux: &GraphAuxilliary) -> Vec<usize> {
+        log::info!("constructing bp histogram..");
+        // hist must be of size = num_groups + 1; having an index that starts
+        // from 1, instead of 0, makes easier the calculation in hist2pangrowth.
         let mut hist: Vec<usize> = vec![0; self.groups.len() + 1];
         for (id, cov) in self.countable.iter().enumerate() {
             if *cov as usize >= hist.len() {
@@ -445,12 +731,13 @@ impl<'a> AbacusByTotal<'a> {
                     log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, id, self.groups.len());
                 }
             } else {
-                hist[*cov as usize] += self.graph_aux.node_len_ary[id] as usize;
+                hist[*cov as usize] += graph_aux.node_lens[id] as usize;
             }
         }
 
         // subtract uncovered bps
-        for (id, uncov) in self.uncovered_bps.iter() {
+        let uncovered_bps = self.uncovered_bps.as_ref().unwrap();
+        for (id, uncov) in uncovered_bps.iter() {
             hist[self.countable[*id as usize] as usize] -= uncov;
             // add uncovered bps to 0-coverage count
             hist[0] += uncov;
@@ -477,14 +764,15 @@ impl<'a> AbacusByGroup<'a> {
         graph_aux: &'a GraphAuxilliary,
         count: CountType,
         report_values: bool,
-    ) -> Result<Self, std::io::Error> {
+    ) -> Result<Self, Error> {
         log::info!("parsing path + walk sequences");
-        let (item_table, exclude_table, subset_covered_bps) =
-            io::parse_gfa_itemcount(data, abacus_aux, graph_aux, &count);
+        let (item_table, exclude_table, subset_covered_bps, _paths_len) =
+            parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
 
         let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
-        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments)? {
+
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
             log::debug!(
                 "processing path {} (group {})",
                 &graph_aux.path_segments[path_id as usize],
@@ -493,9 +781,9 @@ impl<'a> AbacusByGroup<'a> {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
-            if groups.len() > 65534 {
-                panic!("data has more than 65534 path groups, but command is not supported for more than 65534");
-            }
+            //if groups.len() > 65534 {
+            //    panic!("data has more than 65534 path groups, but command is not supported for more than 65534");
+            //}
             path_order.push((path_id, (groups.len() - 1) as GroupSize));
         }
 
@@ -507,6 +795,11 @@ impl<'a> AbacusByGroup<'a> {
         );
         let (v, c) =
             AbacusByGroup::compute_column_values(&item_table, &path_order, &r, report_values);
+        log::info!(
+            "abacus has {} path groups and {} countables",
+            groups.len(),
+            r.len()
+        );
 
         Ok(Self {
             count: count,
@@ -677,7 +970,7 @@ impl<'a> AbacusByGroup<'a> {
                             CountType::Bp => {
                                 let uncovered =
                                     self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0);
-                                let covered = self.graph_aux.node_len_ary[i] as usize;
+                                let covered = self.graph_aux.node_lens[i] as usize;
                                 if uncovered > &covered {
                                     log::error!("oops, #uncovered bps ({}) is larger than #coverd bps ({}) for node with sid {})", &uncovered, &covered, i);
                                 } else {
@@ -694,7 +987,7 @@ impl<'a> AbacusByGroup<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn write_rcv<W: Write>(&self, out: &mut BufWriter<W>) -> Result<(), std::io::Error> {
+    pub fn write_rcv<W: Write>(&self, out: &mut BufWriter<W>) -> Result<(), Error> {
         write!(out, "{}", self.r[0])?;
         for x in self.r[1..].iter() {
             write!(out, "\t{}", x)?;
@@ -715,14 +1008,11 @@ impl<'a> AbacusByGroup<'a> {
         Ok(())
     }
 
-    pub fn to_tsv<W: Write>(
-        &self,
-        total: bool,
-        out: &mut BufWriter<W>,
-    ) -> Result<(), std::io::Error> {
+    pub fn to_tsv<W: Write>(&self, total: bool, out: &mut BufWriter<W>) -> Result<(), Error> {
         // create mapping from numerical node ids to original node identifiers
+        log::info!("reporting coverage table");
         let dummy = Vec::new();
-        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; self.graph_aux.number_of_nodes() + 1];
+        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; self.graph_aux.node_count + 1];
         for (node, id) in self.graph_aux.node2id.iter() {
             id2node[id.0 as usize] = node;
         }
@@ -744,7 +1034,7 @@ impl<'a> AbacusByGroup<'a> {
                 it.next();
                 for (i, (&start, &end)) in it {
                     let bp = if self.count == CountType::Bp {
-                        self.graph_aux.node_len_ary[i] as usize
+                        self.graph_aux.node_lens[i] as usize
                             - *self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0)
                     } else {
                         1
@@ -779,8 +1069,7 @@ impl<'a> AbacusByGroup<'a> {
                         ItemId(0),
                         Orientation::default(),
                     );
-                    let mut id2edge: Vec<&Edge> =
-                        vec![&dummy_edge; self.graph_aux.number_of_edges() + 1];
+                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; self.graph_aux.edge_count + 1];
                     for (edge, id) in edge2id.iter() {
                         id2edge[id.0 as usize] = edge;
                     }
@@ -839,11 +1128,11 @@ impl<'a> AbacusByGroup<'a> {
     }
 }
 
-pub enum Abacus<'a> {
-    Total(AbacusByTotal<'a>),
-    Group(AbacusByGroup<'a>),
-    Nil,
-}
+//pub enum Abacus<'a> {
+//    Total(AbacusByTotal<'a>),
+//    Group(AbacusByGroup<'a>),
+//    Nil,
+//}
 
 fn quantify_uncovered_bps(
     exclude_table: &Option<ActiveTable>,

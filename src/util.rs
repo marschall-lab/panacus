@@ -4,19 +4,17 @@ use std::collections::HashMap;
 use std::fmt;
 
 /* external use */
-use strum_macros::{EnumString, EnumVariantNames};
+use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
 /* internal use */
 use crate::graph::ItemId;
 
-//
 // storage space for item IDs
-//
-pub type ItemIdSize = u32;
+pub type ItemIdSize = u64;
 pub type CountSize = u32;
 pub type GroupSize = u16;
 
-pub const SIZE_T: usize = 1024;
+pub const SIZE_T: usize = 2048;
 pub struct Wrap<T>(pub *mut T);
 unsafe impl Sync for Wrap<Vec<usize>> {}
 unsafe impl Sync for Wrap<Vec<u64>> {}
@@ -26,8 +24,9 @@ unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
 unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
+unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
 #[strum(serialize_all = "lowercase")]
 pub enum CountType {
     Node,
@@ -65,9 +64,31 @@ impl ItemTable {
     }
 }
 
+pub struct InfixEqStorage {
+    pub edges: [u32; 16],
+    pub last_edge: u8,
+    pub last_group: u32,
+    pub sigma: u32, //#edges + psi
+}
+
+impl InfixEqStorage {
+    pub fn new() -> Self {
+        let edges = [0; 16];
+        let last_edge = 0;
+        let last_group = 0;
+        let sigma = 0;
+        Self {
+            edges,
+            last_edge,
+            last_group,
+            sigma,
+        }
+    }
+}
+
 pub struct ActiveTable {
     pub items: Vec<bool>,
-    // intervall container + item length vector
+    // intervall container + item len vector
     annotation: Option<IntervalContainer>,
 }
 
@@ -330,9 +351,146 @@ pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
     .is_ok()
 }
 
-pub fn log2_add(a: f64, b: f64) -> f64 {
-    // we assume both a and b are log2'd
-    let (a, b) = if a < b { (a, b) } else { (b, a) };
-
-    b + (1.0 + (a - b).exp2()).log2()
+pub fn averageu32(v: &[u32]) -> f32 {
+    v.iter().sum::<u32>() as f32 / v.len() as f32
 }
+
+//pub fn averageu64 (v: &[u64]) -> f64 {
+//    v.iter().sum::<u64>() as f64 / v.len() as f64
+//}
+
+pub fn median_already_sorted(v: &[u32]) -> f64 {
+    //v.sort(); this has been done before
+    let n = v.len();
+    let mid = n / 2;
+    if n % 2 == 1 {
+        v[mid] as f64
+    } else {
+        (v[mid - 1] as f64 + v[mid] as f64) / 2.0
+    }
+}
+
+pub fn n50_already_sorted(v: &[u32]) -> Option<u32> {
+    //v.sort(); this has been done before
+    let total_length: u32 = v.iter().sum();
+
+    let mut running_sum = 0;
+    for &len in v.iter() {
+        running_sum += len;
+        if running_sum * 2 >= total_length {
+            return Some(len);
+        }
+    }
+
+    None
+}
+
+#[allow(dead_code)]
+pub fn reverse_complement(dna: &[u8]) -> Vec<u8> {
+    dna.iter()
+        .rev() // Reverse the sequence
+        .map(|&b| match b {
+            b'A' => b'T',
+            b'T' => b'A',
+            b'C' => b'G',
+            b'G' => b'C',
+            b'a' => b't', // Handle lowercase
+            b't' => b'a',
+            b'c' => b'g',
+            b'g' => b'c',
+            _ => panic!("Invalid nucleotide: {}", b as char),
+        })
+        .collect()
+}
+
+#[allow(dead_code)]
+pub fn bits2kmer(kmer_bits: u64, k: usize) -> String {
+    let nucleotides = ['A', 'C', 'G', 'T'];
+    let mut kmer_str = String::with_capacity(k);
+
+    for i in 0..k {
+        let index = ((kmer_bits >> (2 * (k - i - 1))) & 3) as usize;
+        kmer_str.push(nucleotides[index]);
+    }
+    kmer_str
+}
+
+const NUCLEOTIDE_BITS: [u8; 256] = {
+    let mut map = [4; 256];
+    map[b'A' as usize] = 0;
+    map[b'C' as usize] = 1;
+    map[b'G' as usize] = 2;
+    map[b'T' as usize] = 3;
+    map[b'a' as usize] = 0;
+    map[b'c' as usize] = 1;
+    map[b'g' as usize] = 2;
+    map[b't' as usize] = 3;
+    map
+};
+
+//let kmer = b"ACGTacgt";
+//let result = kmer_u8_to_u64(kmer);
+pub fn kmer_u8_to_u64(kmer: &[u8]) -> u64 {
+    let mut result: u64 = 0;
+    for &nucleotide in kmer {
+        let bits = NUCLEOTIDE_BITS[nucleotide as usize];
+        if bits < 4 {
+            result = (result << 2) | bits as u64;
+        } else {
+            panic!("Invalid nucleotide: {}", nucleotide as char);
+        }
+    }
+    result
+}
+
+const LOOKUP_RC: [u64; 256] = [
+    0xff, 0xbf, 0x7f, 0x3f, 0xef, 0xaf, 0x6f, 0x2f, 0xdf, 0x9f, 0x5f, 0x1f, 0xcf, 0x8f, 0x4f, 0x0f,
+    0xfb, 0xbb, 0x7b, 0x3b, 0xeb, 0xab, 0x6b, 0x2b, 0xdb, 0x9b, 0x5b, 0x1b, 0xcb, 0x8b, 0x4b, 0x0b,
+    0xf7, 0xb7, 0x77, 0x37, 0xe7, 0xa7, 0x67, 0x27, 0xd7, 0x97, 0x57, 0x17, 0xc7, 0x87, 0x47, 0x07,
+    0xf3, 0xb3, 0x73, 0x33, 0xe3, 0xa3, 0x63, 0x23, 0xd3, 0x93, 0x53, 0x13, 0xc3, 0x83, 0x43, 0x03,
+    0xfe, 0xbe, 0x7e, 0x3e, 0xee, 0xae, 0x6e, 0x2e, 0xde, 0x9e, 0x5e, 0x1e, 0xce, 0x8e, 0x4e, 0x0e,
+    0xfa, 0xba, 0x7a, 0x3a, 0xea, 0xaa, 0x6a, 0x2a, 0xda, 0x9a, 0x5a, 0x1a, 0xca, 0x8a, 0x4a, 0x0a,
+    0xf6, 0xb6, 0x76, 0x36, 0xe6, 0xa6, 0x66, 0x26, 0xd6, 0x96, 0x56, 0x16, 0xc6, 0x86, 0x46, 0x06,
+    0xf2, 0xb2, 0x72, 0x32, 0xe2, 0xa2, 0x62, 0x22, 0xd2, 0x92, 0x52, 0x12, 0xc2, 0x82, 0x42, 0x02,
+    0xfd, 0xbd, 0x7d, 0x3d, 0xed, 0xad, 0x6d, 0x2d, 0xdd, 0x9d, 0x5d, 0x1d, 0xcd, 0x8d, 0x4d, 0x0d,
+    0xf9, 0xb9, 0x79, 0x39, 0xe9, 0xa9, 0x69, 0x29, 0xd9, 0x99, 0x59, 0x19, 0xc9, 0x89, 0x49, 0x09,
+    0xf5, 0xb5, 0x75, 0x35, 0xe5, 0xa5, 0x65, 0x25, 0xd5, 0x95, 0x55, 0x15, 0xc5, 0x85, 0x45, 0x05,
+    0xf1, 0xb1, 0x71, 0x31, 0xe1, 0xa1, 0x61, 0x21, 0xd1, 0x91, 0x51, 0x11, 0xc1, 0x81, 0x41, 0x01,
+    0xfc, 0xbc, 0x7c, 0x3c, 0xec, 0xac, 0x6c, 0x2c, 0xdc, 0x9c, 0x5c, 0x1c, 0xcc, 0x8c, 0x4c, 0x0c,
+    0xf8, 0xb8, 0x78, 0x38, 0xe8, 0xa8, 0x68, 0x28, 0xd8, 0x98, 0x58, 0x18, 0xc8, 0x88, 0x48, 0x08,
+    0xf4, 0xb4, 0x74, 0x34, 0xe4, 0xa4, 0x64, 0x24, 0xd4, 0x94, 0x54, 0x14, 0xc4, 0x84, 0x44, 0x04,
+    0xf0, 0xb0, 0x70, 0x30, 0xe0, 0xa0, 0x60, 0x20, 0xd0, 0x90, 0x50, 0x10, 0xc0, 0x80, 0x40, 0x00,
+];
+
+pub fn revcmp(kmer: u64, k: usize) -> u64 {
+    (LOOKUP_RC[(kmer & 0xff) as usize] << 56
+        | LOOKUP_RC[((kmer >> 8) & 0xff) as usize] << 48
+        | LOOKUP_RC[((kmer >> 16) & 0xff) as usize] << 40
+        | LOOKUP_RC[((kmer >> 24) & 0xff) as usize] << 32
+        | LOOKUP_RC[((kmer >> 32) & 0xff) as usize] << 24
+        | LOOKUP_RC[((kmer >> 40) & 0xff) as usize] << 16
+        | LOOKUP_RC[((kmer >> 48) & 0xff) as usize] << 8
+        | LOOKUP_RC[((kmer >> 56) & 0xff) as usize])
+        >> (64 - k as u64 * 2)
+}
+
+pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
+    let mask: u64 = (1 << (2 * (k - 1))) - 1;
+    (kmer_bits >> 2) & mask
+}
+
+pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
+    let kmer_bits_rc = revcmp(kmer_bits, k);
+    if kmer_bits < kmer_bits_rc {
+        kmer_bits
+    } else {
+        kmer_bits_rc
+    }
+}
+
+//pub fn log2_add(a: f64, b: f64) -> f64 {
+//    // we assume both a and b are log2'd
+//    let (a, b) = if a < b { (a, b) } else { (b, a) };
+//
+//    b + (1.0 + (a - b).exp2()).log2()
+//}

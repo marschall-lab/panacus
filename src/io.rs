@@ -1,11 +1,14 @@
 /* standard use */
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
+use std::path::Path;
 use std::str::{self, FromStr};
 use std::sync::{Arc, Mutex};
 
 /* external use */
+use flate2::read::GzDecoder;
 use itertools::Itertools;
 use quick_csv::Csv;
 use rayon::prelude::*;
@@ -15,6 +18,7 @@ use strum_macros::{EnumString, EnumVariantNames};
 use crate::abacus::*;
 use crate::graph::*;
 use crate::hist::*;
+use crate::html::*;
 use crate::util::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
@@ -22,6 +26,18 @@ use crate::util::*;
 pub enum OutputFormat {
     Table,
     Html,
+}
+
+pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> BufReader<Box<dyn Read>> {
+    log::info!("loading graph from {}", &gfa_file);
+    let f = std::fs::File::open(&gfa_file).expect("Error opening file");
+    let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
+        log::info!("assuming that {} is gzip compressed..", &gfa_file);
+        Box::new(GzDecoder::new(f))
+    } else {
+        Box::new(f)
+    };
+    BufReader::new(reader)
 }
 
 pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
@@ -90,9 +106,7 @@ pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     res
 }
 
-pub fn parse_groups<R: Read>(
-    data: &mut BufReader<R>,
-) -> Result<Vec<(PathSegment, String)>, std::io::Error> {
+pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment, String)>, Error> {
     let mut res: Vec<(PathSegment, String)> = Vec::new();
 
     let reader = Csv::from_reader(data)
@@ -109,7 +123,7 @@ pub fn parse_groups<R: Read>(
         } else {
             let msg = format!("error in line {}: table must have two columns", i);
             log::error!("{}", &msg);
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+            return Err(Error::new(ErrorKind::InvalidData, msg));
         }
     }
 
@@ -118,7 +132,7 @@ pub fn parse_groups<R: Read>(
 
 pub fn parse_tsv<R: Read>(
     data: &mut BufReader<R>,
-) -> Result<(Vec<Vec<u8>>, Vec<Vec<Vec<u8>>>), std::io::Error> {
+) -> Result<(Vec<Vec<u8>>, Vec<Vec<Vec<u8>>>), Error> {
     let mut comments = Vec::new();
     let mut table = Vec::new();
     let reader = Csv::from_reader(data)
@@ -132,7 +146,7 @@ pub fn parse_tsv<R: Read>(
             .map_err(|_| {
                 let msg = format!("unable to parse row {}", i);
                 log::error!("{}", &msg);
-                std::io::Error::new(std::io::ErrorKind::Other, msg)
+                Error::new(ErrorKind::Other, msg)
             })?
             .bytes_columns()
             .map(|x| x.to_vec())
@@ -166,20 +180,21 @@ fn transpose_table<'a>(table: &'a Vec<Vec<Vec<u8>>>) -> Vec<Vec<&'a [u8]>> {
     res
 }
 
-fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, std::io::Error> {
-    let mut res = vec![0; col.len() - 4];
+fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, Error> {
+    let skip_lines = 2;
+    let mut res = vec![0; col.len() - skip_lines];
 
-    for (i, e) in col[4..].iter().enumerate() {
+    for (i, e) in col[skip_lines..].iter().enumerate() {
         if let Ok(val) = usize::from_str(&str::from_utf8(e).unwrap()) {
             res[i] = val;
         } else {
             let msg = format!(
                 "error in line {}: value must be integer, but is '{}'",
-                i + 4 + offset,
+                i + 3 + offset,
                 &str::from_utf8(e).unwrap()
             );
             log::error!("{}", &msg);
-            Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))?
+            Err(Error::new(ErrorKind::InvalidData, msg))?
         }
     }
 
@@ -188,7 +203,8 @@ fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, std::io::
 
 pub fn parse_hists<R: Read>(
     data: &mut BufReader<R>,
-) -> Result<(Vec<(CountType, Vec<usize>)>, Vec<Vec<u8>>), std::io::Error> {
+) -> Result<(Vec<(CountType, Vec<usize>)>, Vec<Vec<u8>>), Error> {
+    log::info!("loading coverage histogram from");
     let (comments, raw_table) = parse_tsv(data)?;
     let raw_table = transpose_table(&raw_table);
     if raw_table.len() < 4 && b"panacus" != &raw_table[0][0][..] {
@@ -197,7 +213,7 @@ pub fn parse_hists<R: Read>(
             comments.len()
         );
         log::error!("{}", &msg);
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg));
+        return Err(Error::new(ErrorKind::InvalidData, msg));
     }
 
     let mut res = Vec::new();
@@ -213,7 +229,7 @@ pub fn parse_hists<R: Read>(
                     &str::from_utf8(&col[1]).unwrap()
                 );
                 log::error!("{}", &msg);
-                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+                Err(Error::new(ErrorKind::InvalidData, msg))
             })?;
             let mut cov = vec![0; mx + 1];
             for (i, c) in index.iter().zip(parse_column(&col, comments.len())?) {
@@ -227,16 +243,14 @@ pub fn parse_hists<R: Read>(
     if res.is_empty() {
         let msg = "table does not contain hist columns";
         log::error!("{}", msg);
-        Err(std::io::Error::new(std::io::ErrorKind::InvalidData, msg))
+        Err(Error::new(ErrorKind::InvalidData, msg))
     } else {
         Ok((res, comments))
     }
 }
 
 #[allow(dead_code)]
-pub fn parse_threshold_file<R: Read>(
-    data: &mut BufReader<R>,
-) -> Result<Vec<Threshold>, std::io::Error> {
+pub fn parse_threshold_file<R: Read>(data: &mut BufReader<R>) -> Result<Vec<Threshold>, Error> {
     let mut res = Vec::new();
 
     let reader = Csv::from_reader(data)
@@ -253,8 +267,8 @@ pub fn parse_threshold_file<R: Read>(
             } else if let Ok(t) = f64::from_str(threshold_str) {
                 res.push(Threshold::Relative(t));
             } else {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
                     &format!(
                         "threshold \"{}\" (line {}) is neither an integer nor a float",
                         &threshold_str,
@@ -306,7 +320,6 @@ pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
     let start = iter.position(|&x| x == b'\t').unwrap() + 1;
     let offset = iter.position(|&x| x == b'\t').unwrap();
     let path_name = str::from_utf8(&data[start..start + offset]).unwrap();
-
     (
         PathSegment::from_str(path_name),
         &data[start + offset + 1..],
@@ -332,7 +345,7 @@ fn parse_walk_seq_to_item_vec(
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
         .unwrap();
 
-    log::debug!("parsing path sequences of size {}..", end);
+    log::debug!("parsing walk sequences of size {}..", end);
 
     // ignore first > | < so that no empty is created for 1st node
     let sids: Vec<(ItemId, Orientation)> = data[..end]
@@ -395,10 +408,10 @@ fn parse_walk_seq_update_tables(
     item_table: &mut ItemTable,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
-) {
+) -> u32 {
     // later codes assumes that data is non-empty...
     if data.is_empty() {
-        return;
+        return 0;
     }
 
     let items_ptr = Wrap(&mut item_table.items);
@@ -435,7 +448,9 @@ fn parse_walk_seq_update_tables(
         });
 
     // compute prefix sum
+    let mut num_nodes_path = 0;
     for i in 0..SIZE_T {
+        num_nodes_path += item_table.id_prefsum[i][num_path + 1];
         item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
     }
 
@@ -452,6 +467,7 @@ fn parse_walk_seq_update_tables(
     }
 
     log::debug!("..done");
+    num_nodes_path as u32
 }
 
 fn parse_path_seq_to_item_vec(
@@ -485,19 +501,69 @@ fn parse_path_seq_to_item_vec(
     sids
 }
 
+pub fn subset_path_gfa<R: Read>(
+    data: &mut BufReader<R>,
+    abacus: &AbacusByTotal,
+    graph_aux: &GraphAuxilliary,
+    flt_quorum_min: u32,
+    flt_quorum_max: u32,
+    flt_length_min: u32,
+    flt_length_max: u32,
+) {
+    let mut buf = vec![];
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'P' {
+            let mut comma: bool = false;
+            let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
+            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
+            //parse_path_seq_update_tables
+            for i in 0..sids.len() {
+                let sid = sids[i].0 .0 as usize;
+                let ori = sids[i].1;
+                let counts = abacus.countable[sid];
+                if counts >= flt_quorum_min
+                    && counts <= flt_quorum_max
+                    && graph_aux.node_lens[sid] >= flt_length_min
+                    && graph_aux.node_lens[sid] <= flt_length_max
+                {
+                    if comma {
+                        print!(",");
+                    } else {
+                        print!("P\t{}\t", path_seg);
+                    }
+                    comma = true;
+                    print!("{}{}", sid, ori.to_pm() as char);
+                }
+            }
+            if comma {
+                println!("\t*");
+            }
+        }
+        //NOT-TESTED
+        //if buf[0] == b'W' {
+        //    let (path_seg, buf_path_seg) = parse_walk_identifier(&buf);
+        //    let sids = parse_walk_seq_to_item_vec(&buf_path_seg, &graph_aux);
+        //    for sid in sids.iter() {
+        //        println!("{}{}",sid.0,sid.1);
+        //    }
+        //}
+        buf.clear();
+    }
+}
+
 fn parse_path_seq_update_tables(
     data: &[u8],
     graph_aux: &GraphAuxilliary,
     item_table: &mut ItemTable,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
-) {
+) -> u32 {
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
         .unwrap();
 
-    log::debug!("parsing path sequences of size {}..", end);
+    log::debug!("parsing path sequences of size {} bytes..", end);
 
     let items_ptr = Wrap(&mut item_table.items);
     let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
@@ -508,6 +574,7 @@ fn parse_path_seq_update_tables(
         .map(|x| Arc::new(Mutex::new(x)))
         .collect();
 
+    //let mut plus_strands: Vec<u32> = vec![0; rayon::current_num_threads()];
     data[..end].par_split(|&x| x == b',').for_each(|node| {
         let sid = *graph_aux
             .node2id
@@ -522,6 +589,8 @@ fn parse_path_seq_update_tables(
             "unknown orientation of segment {}",
             str::from_utf8(&node).unwrap()
         );
+        //plus_strands[rayon::current_thread_index().unwrap()] += (o == b'+') as u32;
+
         let idx = (sid.0 as usize) % SIZE_T;
 
         if let Ok(_) = mutex_vec[idx].lock() {
@@ -533,7 +602,9 @@ fn parse_path_seq_update_tables(
     });
 
     // compute prefix sum
+    let mut num_nodes_path = 0;
     for i in 0..SIZE_T {
+        num_nodes_path += item_table.id_prefsum[i][num_path + 1];
         item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
     }
 
@@ -550,6 +621,7 @@ fn parse_path_seq_update_tables(
     }
 
     log::debug!("..done");
+    num_nodes_path as u32
 }
 
 pub fn parse_graph_aux<R: Read>(
@@ -632,94 +704,81 @@ pub fn parse_graph_aux<R: Read>(
     Ok((node2id, node_len, edges, path_segments))
 }
 
-fn build_subpath_map(path_segments: &Vec<PathSegment>) -> HashMap<String, Vec<(usize, usize)>> {
-    // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
-    let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
+pub fn parse_cdbg_gfa_paths_walks<R: Read>(
+    data: &mut BufReader<R>,
+    abacus_aux: &AbacusAuxilliary,
+    graph_aux: &GraphAuxilliary,
+    k: usize,
+) -> ItemTable {
+    let mut item_table = ItemTable::new(graph_aux.path_segments.len());
+    let mut k_count = 0;
+    //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
 
-    path_segments.into_iter().for_each(|x| {
-        res.entry(x.id())
-            .or_insert(HashSet::default())
-            .insert(match x.coords() {
-                None => (0, usize::MAX),
-                Some((i, j)) => (i, j),
-            });
-    });
+    let mut num_path = 0;
+    let mut buf = vec![];
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        if buf[0] == b'P' {
+            let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
+            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
+            let mut u_sid = sids[0].0 .0 as usize - 1;
+            let mut u_ori = sids[0].1;
+            for i in 1..sids.len() {
+                let v_sid = sids[i].0 .0 as usize - 1;
+                let v_ori = sids[i].1;
+                let k_plus_one_mer =
+                    graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
+                //println!("{}", bits2kmer(k_plus_one_mer, k+1));
+                let infix = get_infix(k_plus_one_mer, k);
+                let infix_rc = revcmp(infix, k - 1);
+                if infix < infix_rc {
+                    let idx = (infix as usize) % SIZE_T;
+                    item_table.items[idx].push(k_plus_one_mer);
+                    item_table.id_prefsum[idx][num_path + 1] += 1;
+                } else if infix > infix_rc {
+                    let idx = (infix_rc as usize) % SIZE_T;
+                    item_table.items[idx].push(revcmp(k_plus_one_mer, k + 1));
+                    item_table.id_prefsum[idx][num_path + 1] += 1;
+                } // else ignore palindrome, since it always breaks the node
 
-    HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
-        let mut v: Vec<(usize, usize)> = coords.into_iter().collect();
-        v.sort();
-        let mut i = 1;
-        // remove overlaps
-        while i < v.len() {
-            if v[i - 1].1 >= v[i].0 {
-                let x = v.remove(i);
-                v[i - 1].1 = x.1;
-            } else {
-                i += 1
+                u_sid = v_sid;
+                u_ori = v_ori;
             }
+
+            // compute prefix sum
+            for i in 0..SIZE_T {
+                item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+            }
+
+            num_path += 1;
         }
-        (pid, v)
-    }))
+        buf.clear();
+    }
+
+    item_table
 }
 
-pub fn parse_gfa_itemcount<R: Read>(
+pub fn parse_gfa_paths_walks<R: Read>(
     data: &mut BufReader<R>,
     abacus_aux: &AbacusAuxilliary,
     graph_aux: &GraphAuxilliary,
     count: &CountType,
-) -> (ItemTable, Option<ActiveTable>, Option<IntervalContainer>) {
+) -> (
+    ItemTable,
+    Option<ActiveTable>,
+    Option<IntervalContainer>,
+    Vec<u32>,
+) {
+    log::info!("parsing path + walk sequences");
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
+    let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) =
+        abacus_aux.load_optional_subsetting(&graph_aux, &count);
 
-    //
-    // *only relevant for bps count in combination with subset option*
-    //
-    // this table stores the number of bps of nodes that are *partially* uncovered by subset
-    // coodinates
-    //
-    let mut subset_covered_bps: Option<IntervalContainer> =
-        if count == &CountType::Bp && abacus_aux.include_coords.is_some() {
-            Some(IntervalContainer::new())
-        } else {
-            None
-        };
-
-    //
-    // this table stores information about excluded nodes *if* the exclude setting is used
-    //
-    let mut exclude_table = abacus_aux.exclude_coords.as_ref().map(|_| {
-        ActiveTable::new(
-            graph_aux.number_of_items(count) + 1,
-            count == &CountType::Bp,
-        )
-    });
-
-    // build "include" lookup table
-    let include_map = match &abacus_aux.include_coords {
-        None => HashMap::default(),
-        Some(coords) => build_subpath_map(coords),
-    };
-
-    // build "exclude" lookup table
-    let exclude_map = match &abacus_aux.exclude_coords {
-        None => HashMap::default(),
-        Some(coords) => build_subpath_map(coords),
-    };
-
-    // reading GFA file searching for (P)aths and (W)alks
-    let mut buf = vec![];
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
+    let mut paths_len: Vec<u32> = Vec::new();
 
+    let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-        // really really make sure that we hit a new line, which is not guaranteed when reading
-        // from a compressed buffer
-        while buf.last().unwrap() != &b'\n' {
-            if data.read_until(b'\n', &mut buf).unwrap_or(0) == 0
-                && buf.last().unwrap_or(&b' ') != &b'\n'
-            {
-                buf.push(b'\n')
-            }
-        }
         if buf[0] == b'P' || buf[0] == b'W' {
             let (path_seg, buf_path_seg) = match buf[0] {
                 b'P' => parse_path_identifier(&buf),
@@ -767,7 +826,8 @@ pub fn parse_gfa_itemcount<R: Read>(
                 && !intersects(include_coords, &(start, end))
                 && !intersects(exclude_coords, &(start, end))
             {
-                log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", &path_seg, &include_coords, &exclude_coords);
+                log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", 
+                    &path_seg, &include_coords, &exclude_coords);
 
                 // update prefix sum
                 for i in 0..SIZE_T {
@@ -792,7 +852,7 @@ pub fn parse_gfa_itemcount<R: Read>(
                     exclude_table.as_mut()
                 };
 
-                match buf[0] {
+                let num_added_nodes = match buf[0] {
                     b'P' => parse_path_seq_update_tables(
                         &buf_path_seg,
                         &graph_aux,
@@ -809,12 +869,16 @@ pub fn parse_gfa_itemcount<R: Read>(
                     ),
                     _ => unreachable!(),
                 };
+
+                paths_len.push(num_added_nodes as u32);
             } else {
                 let sids = match buf[0] {
                     b'P' => parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux),
                     b'W' => parse_walk_seq_to_item_vec(&buf_path_seg, &graph_aux),
                     _ => unreachable!(),
                 };
+
+                paths_len.push(sids.len() as u32);
 
                 match count {
                     CountType::Node | CountType::Bp => update_tables(
@@ -845,7 +909,7 @@ pub fn parse_gfa_itemcount<R: Read>(
         }
         buf.clear();
     }
-    (item_table, exclude_table, subset_covered_bps)
+    (item_table, exclude_table, subset_covered_bps, paths_len)
 }
 
 fn update_tables(
@@ -1071,7 +1135,7 @@ pub fn write_table<W: Write>(
     headers: &Vec<Vec<String>>,
     columns: &Vec<Vec<f64>>,
     out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), Error> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
 
     for i in 0..n {
@@ -1124,10 +1188,8 @@ pub fn write_ordered_table<W: Write>(
     Ok(())
 }
 
-pub fn write_hist_table<W: Write>(
-    hists: &Vec<Hist>,
-    out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
+pub fn write_hist_table<W: Write>(hists: &Vec<Hist>, out: &mut BufWriter<W>) -> Result<(), Error> {
+    log::info!("reporting hist table");
     writeln!(
         out,
         "# {}",
@@ -1154,11 +1216,11 @@ pub fn write_hist_table<W: Write>(
 }
 
 pub fn write_histgrowth_table<W: Write>(
-    hists: &Option<Vec<Hist>>,
+    hists: &Vec<Hist>,
     growths: &Vec<(CountType, Vec<Vec<f64>>)>,
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), Error> {
     writeln!(
         out,
         "# {}",
@@ -1173,16 +1235,14 @@ pub fn write_histgrowth_table<W: Write>(
     ]];
     let mut output_columns: Vec<Vec<f64>> = Vec::new();
 
-    if let Some(hs) = hists {
-        for h in hs.iter() {
-            output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
-            header_cols.push(vec![
-                "hist".to_string(),
-                h.count.to_string(),
-                String::new(),
-                String::new(),
-            ])
-        }
+    for h in hists.iter() {
+        output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+        header_cols.push(vec![
+            "hist".to_string(),
+            h.count.to_string(),
+            String::new(),
+            String::new(),
+        ])
     }
 
     for (count, g) in growths {
@@ -1206,7 +1266,8 @@ pub fn write_ordered_histgrowth_table<W: Write>(
     abacus_group: &AbacusByGroup,
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), Error> {
+    log::info!("reporting ordered-growth table");
     writeln!(
         out,
         "# {}",
@@ -1250,4 +1311,45 @@ pub fn write_ordered_histgrowth_table<W: Write>(
             .collect::<Vec<Vec<String>>>(),
     );
     write_ordered_table(&header_cols, &output_columns, &abacus_group.groups, out)
+}
+
+pub fn write_ordered_histgrowth_html<W: Write>(
+    abacus_group: &AbacusByGroup,
+    hist_aux: &HistAuxilliary,
+    gfa_file: &str,
+    count: CountType,
+    out: &mut BufWriter<W>,
+) -> Result<(), Error> {
+    let mut growths: Vec<Vec<f64>> = hist_aux
+        .coverage
+        .par_iter()
+        .zip(&hist_aux.quorum)
+        .map(|(c, q)| {
+            log::info!(
+                "calculating ordered growth for coverage >= {} and quorum >= {}",
+                &c,
+                &q
+            );
+            abacus_group.calc_growth(&c, &q)
+        })
+        .collect();
+    // insert empty row for 0 element
+    for c in &mut growths {
+        c.insert(0, std::f64::NAN);
+    }
+    log::info!("reporting (hist-)growth table");
+
+    Ok(write_histgrowth_html(
+        &None,
+        &vec![(count, growths)],
+        &hist_aux,
+        &Path::new(gfa_file)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string(),
+        Some(&abacus_group.groups),
+        out,
+    )?)
 }
