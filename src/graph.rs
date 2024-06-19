@@ -224,68 +224,95 @@ impl GraphAuxilliary {
         self.node_lens[v.0 as usize]
     }
 
-    pub fn graph_info(&self) {
+    pub fn stats(&self, paths_len: &Vec<u32>) -> Stats {
+        Stats {
+            graph_info: self.graph_info(),
+            path_info: self.path_info(paths_len)
+        }
+    }
+
+    pub fn graph_info(&self) -> GraphInfo {
         let degree = self.degree.as_ref().unwrap();
         let mut node_lens_sorted = self.node_lens[1..].to_vec();
         node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
-        println!("Graph Info:");
-        println!("\tNumber of Nodes: {}", self.node_count);
-        println!("\tNumber of Edges: {}", self.edge_count);
-        println!(
-            "\tAverage Degree (undirected): {}",
-            averageu32(&degree[1..])
-        );
-        println!(
-            "\tMax Degree (undirected): {}",
-            degree[1..].iter().max().unwrap()
-        );
-        println!(
-            "\tMin Degree (undirected): {}",
-            degree[1..].iter().min().unwrap()
-        );
-        println!(
-            "\tNumber 0-degree Nodes: {}",
-            degree[1..].iter().filter(|&x| *x == 0).count()
-        );
-        println!(
-            "\tLargest Node (bp): {}",
-            node_lens_sorted.iter().max().unwrap()
-        );
-        println!(
-            "\tShortest Node (bp): {}",
-            node_lens_sorted.iter().min().unwrap()
-        );
-        println!(
-            "\tAverage Node Length (bp): {}",
-            averageu32(&node_lens_sorted)
-        );
-        println!(
-            "\tMedian Node Length (bp): {}",
-            median_already_sorted(&node_lens_sorted)
-        );
-        println!(
-            "\tN50 Node Length (bp): {}",
-            n50_already_sorted(&node_lens_sorted).unwrap()
-        );
+        // println!("Graph Info:");
+        // println!("\tNumber of Nodes: {}", self.node_count);
+        // println!("\tNumber of Edges: {}", self.edge_count);
+        // println!(
+        //     "\tAverage Degree (undirected): {}",
+        //     averageu32(&degree[1..])
+        // );
+        // println!(
+        //     "\tMax Degree (undirected): {}",
+        //     degree[1..].iter().max().unwrap()
+        // );
+        // println!(
+        //     "\tMin Degree (undirected): {}",
+        //     degree[1..].iter().min().unwrap()
+        // );
+        // println!(
+        //     "\tNumber 0-degree Nodes: {}",
+        //     degree[1..].iter().filter(|&x| *x == 0).count()
+        // );
+        // println!(
+        //     "\tLargest Node (bp): {}",
+        //     node_lens_sorted.iter().max().unwrap()
+        // );
+        // println!(
+        //     "\tShortest Node (bp): {}",
+        //     node_lens_sorted.iter().min().unwrap()
+        // );
+        // println!(
+        //     "\tAverage Node Length (bp): {}",
+        //     averageu32(&node_lens_sorted)
+        // );
+        // println!(
+        //     "\tMedian Node Length (bp): {}",
+        //     median_already_sorted(&node_lens_sorted)
+        // );
+        // println!(
+        //     "\tN50 Node Length (bp): {}",
+        //     n50_already_sorted(&node_lens_sorted).unwrap()
+        // );
+
+        GraphInfo {
+            node_count: self.node_count,
+            edge_count: self.edge_count,
+            average_degree: averageu32(&degree[1..]),
+            max_degree: *degree[1..].iter().max().unwrap(),
+            min_degree: *degree[1..].iter().min().unwrap(),
+            number_0_degree: degree[1..].iter().filter(|&x| *x == 0).count(),
+            largest_node: *node_lens_sorted.iter().max().unwrap(),
+            shortest_node: *node_lens_sorted.iter().min().unwrap(),
+            average_node: averageu32(&node_lens_sorted),
+            median_node: median_already_sorted(&node_lens_sorted),
+            n50_node: n50_already_sorted(&node_lens_sorted).unwrap(),
+        }
     }
 
-    pub fn path_info(&self, paths_len: &Vec<u32>) {
-        println!("Path/Walk Info:");
-        println!("\tNumber of Paths/Walks: {}", paths_len.len());
-        println!(
-            "\tLongest Path/Walk (node): {}",
-            paths_len.iter().max().unwrap()
-        );
-        println!(
-            "\tShortest Path/Walk (node): {}",
-            paths_len.iter().min().unwrap()
-        );
-        println!(
-            "\tAverage Number of Nodes in Paths/Walks: {}",
-            averageu32(&paths_len)
-        );
+    pub fn path_info(&self, paths_len: &Vec<u32>) -> PathInfo {
+        // println!("Path/Walk Info:");
+        // println!("\tNumber of Paths/Walks: {}", paths_len.len());
+        // println!(
+        //     "\tLongest Path/Walk (node): {}",
+        //     paths_len.iter().max().unwrap()
+        // );
+        // println!(
+        //     "\tShortest Path/Walk (node): {}",
+        //     paths_len.iter().min().unwrap()
+        // );
+        // println!(
+        //     "\tAverage Number of Nodes in Paths/Walks: {}",
+        //     averageu32(&paths_len)
+        // );
 
         //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
+        PathInfo {
+            no_paths: paths_len.len(),
+            longest_path: *paths_len.iter().max().unwrap(),
+            shortest_path: *paths_len.iter().min().unwrap(),
+            average_path: averageu32(&paths_len),
+        }
     }
 
     pub fn number_of_items(&self, c: &CountType) -> usize {
@@ -644,5 +671,81 @@ impl fmt::Display for PathSegment {
             write!(formatter, "{}", self.id())?;
         }
         Ok(())
+    }
+}
+
+pub struct GraphInfo {
+    pub node_count: usize,
+    pub edge_count: usize,
+    pub average_degree: f32,
+    pub max_degree: u32,
+    pub min_degree: u32,
+    pub number_0_degree: usize,
+    pub largest_node: u32,
+    pub shortest_node: u32,
+    pub average_node: f32,
+    pub median_node: f64,
+    pub n50_node: u32,
+}
+
+pub struct PathInfo {
+    pub no_paths: usize,
+    pub longest_path: u32,
+    pub shortest_path: u32,
+    pub average_path: f32,
+}
+
+pub struct Stats {
+    pub graph_info: GraphInfo,
+    pub path_info: PathInfo,
+}
+
+impl fmt::Display for Stats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // let graph_info_text = "Graph Info".repeat(11);
+        // write!(f, "{}", graph_info_text)?;
+        // let path_info_text = "Path/Walk Info,".repeat(3) + "Path/Walk Info\n";
+        // write!(f, "{}", path_info_text)?;
+        // write!(f, "Number of Nodes,Number of Edges,Average Degree (undirected),Max Degree (undirected),Min Degree (undirected),
+        // Number 0-degree Nodes,Largest Node (bp),Shortest Node (bp),Average Node Length (bp),Median Node Length (bp),N50 Node Length (bp),")?;
+        // write!(f, "Number of Paths/Walks,Longest Path/Walk (node),Shortest Path/Walk (node),Average Number of Nodes in Paths/Walks\n")?;
+        // write!(
+        //     f,
+        //     "{},{},{},{},{},{},{},{},{},{},{},",
+        //     self.graph_info.node_count,
+        //     self.graph_info.edge_count,
+        //     self.graph_info.average_degree,
+        //     self.graph_info.max_degree,
+        //     self.graph_info.min_degree,
+        //     self.graph_info.number_0_degree,
+        //     self.graph_info.largest_node,
+        //     self.graph_info.shortest_node,
+        //     self.graph_info.average_node,
+        //     self.graph_info.median_node,
+        //     self.graph_info.n50_node
+        // )?;
+        // write!(
+        //     f,
+        //     "{},{},{},{}\n",
+        //     self.path_info.no_paths,
+        //     self.path_info.longest_path,
+        //     self.path_info.shortest_path,
+        //     self.path_info.average_path
+        // )
+        write!(f, "Graph Info\tNode Count\t{}\n", self.graph_info.node_count)?;
+        write!(f, "\tEdge Count\t{}\n", self.graph_info.edge_count)?;
+        write!(f, "\tPath Count\t{}\n", self.path_info.no_paths)?;
+        write!(f, "\t0-degree Node Count\t{}\n", self.graph_info.number_0_degree)?;
+        write!(f, "Node Info\tAverage Degree\t{}\n", self.graph_info.average_degree)?;
+        write!(f, "\tMax Degree\t{}\n", self.graph_info.max_degree)?;
+        write!(f, "\tMin Degree\t{}\n", self.graph_info.min_degree)?;
+        write!(f, "\tLargest\t{}\n", self.graph_info.largest_node)?;
+        write!(f, "\tShortest\t{}\n", self.graph_info.shortest_node)?;
+        write!(f, "\tAverage Length\t{}\n", self.graph_info.average_node)?;
+        write!(f, "\tMedian Length\t{}\n", self.graph_info.median_node)?;
+        write!(f, "\tN50 Node Length\t{}\n", self.graph_info.n50_node)?;
+        write!(f, "Path Info\tLongest\t{}\n", self.path_info.longest_path)?;
+        write!(f, "\tShortest\t{}\n", self.path_info.shortest_path)?;
+        write!(f, "\tAverage Node Count\t{}\n", self.path_info.average_path)
     }
 }

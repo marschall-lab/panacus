@@ -713,7 +713,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             ..
         } => {
             //Hist
-            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+            let graph_aux = match output_format {
+                OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
+                _ => GraphAuxilliary::from_gfa(gfa_file, count),
+            };
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
             let mut hists = Vec::new();
@@ -731,7 +734,12 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             match output_format {
                 OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
                 OutputFormat::Html => {
-                    write_histgrowth_html(&Some(hists), &growths, &hist_aux, &filename, None, out)?
+                    let mut data = bufreader_from_compressed_gfa(gfa_file);
+                    let (_, _, _, paths_len) =
+                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+
+                    let stats = graph_aux.stats(&paths_len);
+                    write_histgrowth_html(&Some(hists), &growths, &hist_aux, &filename, None, Some(stats), out)?
                 }
             };
         }
@@ -752,7 +760,14 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
             match output_format {
                 OutputFormat::Table => write_hist_table(&hists, out)?,
-                OutputFormat::Html => write_hist_html(&hists, &filename, out)?,
+                OutputFormat::Html => {
+                    let mut data = bufreader_from_compressed_gfa(gfa_file);
+                    let (_, _, _, paths_len) =
+                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+
+                    let stats = graph_aux.stats(&paths_len);
+                    write_hist_html(&hists, &filename, Some(stats), out)?
+                }
             };
         }
         Params::Growth {
@@ -782,20 +797,22 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             match output_format {
                 OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
                 OutputFormat::Html => {
-                    write_histgrowth_html(&Some(hists), &growths, &hist_aux, &filename, None, out)?
+                    write_histgrowth_html(&Some(hists), &growths, &hist_aux, &filename, None, None, out)?
                 }
             };
         }
         Params::Stats { ref gfa_file, .. } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
-            graph_aux.graph_info();
+            //graph_aux.graph_info();
 
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
             let (_, _, _, paths_len) =
                 parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-            graph_aux.path_info(&paths_len);
+            //graph_aux.path_info(&paths_len);
+            let stats = graph_aux.stats(&paths_len);
+            write_stats(stats, out)?
         }
         Params::Subset {
             ref gfa_file,
@@ -829,7 +846,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             output_format,
             ..
         } => {
-            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+            let graph_aux = match output_format {
+                OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
+                _ => GraphAuxilliary::from_gfa(gfa_file, count),
+            };
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
             let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, false)?;
@@ -839,7 +859,12 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     write_ordered_histgrowth_table(&abacus, &hist_aux, out)?;
                 }
                 OutputFormat::Html => {
-                    write_ordered_histgrowth_html(&abacus, &hist_aux, &gfa_file, count, out)?;
+                    let mut data = bufreader_from_compressed_gfa(gfa_file);
+                    let (_, _, _, paths_len) =
+                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+
+                    let stats = graph_aux.stats(&paths_len);
+                    write_ordered_histgrowth_html(&abacus, &hist_aux, &gfa_file, count, Some(stats), out)?;
                 }
             }
         }

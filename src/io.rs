@@ -1262,6 +1262,19 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
+pub fn write_stats<W: Write>(
+    stats: Stats,
+    out: &mut BufWriter<W>,
+) -> Result<(), Error> {
+    log::info!("reporting graph stats table");
+    writeln!(
+        out,
+        "# {}",
+        std::env::args().collect::<Vec<String>>().join(" ")
+    )?;
+    writeln!(out, "{}", stats)
+}
+
 pub fn write_ordered_histgrowth_table<W: Write>(
     abacus_group: &AbacusByGroup,
     hist_aux: &HistAuxilliary,
@@ -1318,6 +1331,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
     hist_aux: &HistAuxilliary,
     gfa_file: &str,
     count: CountType,
+    stats: Option<Stats>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     let mut growths: Vec<Vec<f64>> = hist_aux
@@ -1350,6 +1364,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
             .unwrap()
             .to_string(),
         Some(&abacus_group.groups),
+        stats,
         out,
     )?)
 }
