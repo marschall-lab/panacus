@@ -322,12 +322,12 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
 </div>
 "##;
     let path_vars = HashMap::from([
+        ("longest_path", format!("{}", stats.path_info.longest_path)),
         (
-            "longest_path",
-            format!("{}", stats.graph_info.average_degree),
+            "shortest_path",
+            format!("{}", stats.path_info.shortest_path),
         ),
-        ("shortest_path", format!("{}", stats.graph_info.max_degree)),
-        ("average_path", format!("{}", stats.graph_info.min_degree)),
+        ("average_path", format!("{}", stats.path_info.average_path)),
     ]);
     tab_content.push_str(&reg.render_template(&path_info, &path_vars).unwrap());
 
