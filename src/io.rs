@@ -1262,10 +1262,7 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-pub fn write_stats<W: Write>(
-    stats: Stats,
-    out: &mut BufWriter<W>,
-) -> Result<(), Error> {
+pub fn write_stats<W: Write>(stats: Stats, out: &mut BufWriter<W>) -> Result<(), Error> {
     log::info!("reporting graph stats table");
     writeln!(
         out,

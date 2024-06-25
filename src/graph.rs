@@ -227,7 +227,7 @@ impl GraphAuxilliary {
     pub fn stats(&self, paths_len: &Vec<u32>) -> Stats {
         Stats {
             graph_info: self.graph_info(),
-            path_info: self.path_info(paths_len)
+            path_info: self.path_info(paths_len),
         }
     }
 
@@ -648,11 +648,23 @@ pub struct Stats {
 
 impl fmt::Display for Stats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Graph Info\tNode Count\t{}\n", self.graph_info.node_count)?;
+        write!(
+            f,
+            "Graph Info\tNode Count\t{}\n",
+            self.graph_info.node_count
+        )?;
         write!(f, "\tEdge Count\t{}\n", self.graph_info.edge_count)?;
         write!(f, "\tPath Count\t{}\n", self.path_info.no_paths)?;
-        write!(f, "\t0-degree Node Count\t{}\n", self.graph_info.number_0_degree)?;
-        write!(f, "Node Info\tAverage Degree\t{}\n", self.graph_info.average_degree)?;
+        write!(
+            f,
+            "\t0-degree Node Count\t{}\n",
+            self.graph_info.number_0_degree
+        )?;
+        write!(
+            f,
+            "Node Info\tAverage Degree\t{}\n",
+            self.graph_info.average_degree
+        )?;
         write!(f, "\tMax Degree\t{}\n", self.graph_info.max_degree)?;
         write!(f, "\tMin Degree\t{}\n", self.graph_info.min_degree)?;
         write!(f, "\tLargest\t{}\n", self.graph_info.largest_node)?;

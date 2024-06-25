@@ -223,7 +223,10 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
         ("node_count", format!("{}", stats.graph_info.node_count)),
         ("edge_count", format!("{}", stats.graph_info.edge_count)),
         ("no_paths", format!("{}", stats.path_info.no_paths)),
-        ("number_0_degree", format!("{}", stats.graph_info.number_0_degree)),
+        (
+            "number_0_degree",
+            format!("{}", stats.graph_info.number_0_degree),
+        ),
         ("is_first", String::from("true")),
     ]);
     tab_content.push_str(&reg.render_template(&graph_info, &graph_vars).unwrap());
@@ -275,11 +278,17 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
 </div>
 "##;
     let node_vars = HashMap::from([
-        ("average_degree", format!("{}", stats.graph_info.average_degree)),
+        (
+            "average_degree",
+            format!("{}", stats.graph_info.average_degree),
+        ),
         ("max_degree", format!("{}", stats.graph_info.max_degree)),
         ("min_degree", format!("{}", stats.graph_info.min_degree)),
         ("largest_node", format!("{}", stats.graph_info.largest_node)),
-        ("shortest_node", format!("{}", stats.graph_info.shortest_node)),
+        (
+            "shortest_node",
+            format!("{}", stats.graph_info.shortest_node),
+        ),
         ("average_node", format!("{}", stats.graph_info.average_node)),
         ("median_node", format!("{}", stats.graph_info.median_node)),
         ("n50_node", format!("{}", stats.graph_info.n50_node)),
@@ -313,7 +322,10 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
 </div>
 "##;
     let path_vars = HashMap::from([
-        ("longest_path", format!("{}", stats.graph_info.average_degree)),
+        (
+            "longest_path",
+            format!("{}", stats.graph_info.average_degree),
+        ),
         ("shortest_path", format!("{}", stats.graph_info.max_degree)),
         ("average_path", format!("{}", stats.graph_info.min_degree)),
     ]);
@@ -396,8 +408,10 @@ pub fn write_hist_html<W: Write>(
         "content",
         reg.render_template(
             &content,
-            &HashMap::from([("hist_content", generate_hist_tabs(hists)),
-            ("stats_content", generate_stats_tabs(stats.unwrap()))]),
+            &HashMap::from([
+                ("hist_content", generate_hist_tabs(hists)),
+                ("stats_content", generate_stats_tabs(stats.unwrap())),
+            ]),
         )
         .unwrap(),
     );
@@ -484,7 +498,7 @@ pub fn write_histgrowth_html<W: Write>(
     }
     nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-growth-tab" data-bs-toggle="pill" data-bs-target="#v-pills-growth" type="button" role="tab" aria-controls="v-pills-growth" aria-selected="true">{}pangenome growth</button>"##, if hists.is_some() { "" } else { " active"}, if ordered_names.is_some() { "ordered " } else {""} ));
     if stats.is_some() {
-         nav.push_str(r##"<button class="nav-link text-nowrap" id="v-pills-stats-tab" data-bs-toggle="pill" data-bs-target="#v-pills-stats" type="button" role="tab" aria-controls="v-pills-stats" aria-selected="false">pangenome stats</button>"##);
+        nav.push_str(r##"<button class="nav-link text-nowrap" id="v-pills-stats-tab" data-bs-toggle="pill" data-bs-target="#v-pills-stats" type="button" role="tab" aria-controls="v-pills-stats" aria-selected="false">pangenome stats</button>"##);
     }
 
     let mut js_objects = String::from("");
