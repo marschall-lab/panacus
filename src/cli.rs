@@ -264,6 +264,8 @@ pub enum Params {
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
+        output_format: OutputFormat,
         #[clap(
             short,
             long,
@@ -801,7 +803,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 }
             };
         }
-        Params::Stats { ref gfa_file, .. } => {
+        Params::Stats { ref gfa_file, output_format, .. } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
             //graph_aux.graph_info();
 
@@ -812,7 +814,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 
             //graph_aux.path_info(&paths_len);
             let stats = graph_aux.stats(&paths_len);
-            write_stats(stats, out)?
+            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+            match output_format {
+                OutputFormat::Table => write_stats(stats, out)?,
+                OutputFormat::Html => {
+                    write_stats_html(&filename, stats, out)?
+                }
+            };
         }
         Params::Subset {
             ref gfa_file,

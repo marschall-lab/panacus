@@ -406,6 +406,48 @@ pub fn write_hist_html<W: Write>(
     write_html(&vars, out)
 }
 
+pub fn write_stats_html<W: Write>(
+    fname: &str,
+    stats: Stats,
+    out: &mut BufWriter<W>,
+) -> Result<(), std::io::Error> {
+    let mut vars: HashMap<&str, String> = HashMap::default();
+
+    let content = r##"
+<div class="d-flex align-items-start">
+	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+        <button class="nav-link text-nowrap active" id="v-pills-stats-tab" data-bs-toggle="pill" data-bs-target="#v-pills-stats" type="button" role="tab" aria-controls="v-pills-stats" aria-selected="true">pangenome stats</button>
+ 	</div>
+  	<div class="tab-content w-100" id="v-pills-tabContent">
+		<div class="tab-pane fade show active" id="v-pills-stats" role="tabpanel" aria-labelledby="v-pills-stats-tab">
+{{{stats_content}}}
+		</div>
+  </div>
+</div>
+"##;
+
+    let mut js_objects = String::from("const hists = [");
+    js_objects.push_str("];\n\nconst growths = [];\n");
+    js_objects.push_str("const fname = '");
+    js_objects.push_str(fname);
+    js_objects.push_str("';\n");
+
+    let reg = Handlebars::new();
+    vars.insert("fname", fname.to_string());
+    vars.insert("data_hook", js_objects);
+    vars.insert(
+        "content",
+        reg.render_template(
+            &content,
+            &HashMap::from([("stats_content", generate_stats_tabs(stats))]),
+        )
+        .unwrap(),
+    );
+
+    populate_constants(&mut vars);
+    write_html(&vars, out)
+}
+
 pub fn write_histgrowth_html<W: Write>(
     hists: &Option<Vec<Hist>>,
     growths: &Vec<(CountType, Vec<Vec<f64>>)>,
