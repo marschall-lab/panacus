@@ -751,7 +751,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             output_format,
             ..
         } => {
-            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+            let graph_aux = match output_format {
+                OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
+                _ => GraphAuxilliary::from_gfa(gfa_file, count),
+            };
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
             let mut hists = Vec::new();
@@ -805,14 +808,12 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         }
         Params::Stats { ref gfa_file, output_format, .. } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
-            //graph_aux.graph_info();
 
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
             let (_, _, _, paths_len) =
                 parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-            //graph_aux.path_info(&paths_len);
             let stats = graph_aux.stats(&paths_len);
             let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
             match output_format {
