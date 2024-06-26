@@ -7,7 +7,7 @@ npm install -g uglify-js
 
 sass bootstrap.custom.scss bootstrap.custom.css
 
-css-minfy -f bootstrap.custom.css 
+css-minify -f bootstrap.custom.css 
 uglifyjs lib.js > lib.min.js
-uglifyjs hook_after.js > hook-after.min.js
+uglifyjs hook_after.js > hook_after.min.js
 

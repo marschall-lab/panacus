@@ -217,6 +217,13 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
     </tr>
   </tbody>
 </table>
+<br/>
+    <div class="d-flex flex-row-reverse">
+        <button id="btn-download-table-stats-graph" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
+        </button>
+    </div>
 </div>
 "##;
     let graph_vars = HashMap::from([
@@ -275,6 +282,13 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
     </tr>
   </tbody>
 </table>
+<br/>
+    <div class="d-flex flex-row-reverse">
+        <button id="btn-download-table-stats-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
+        </button>
+    </div>
 </div>
 "##;
     let node_vars = HashMap::from([
@@ -319,6 +333,13 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
     </tr>
   </tbody>
 <table>
+<br/>
+    <div class="d-flex flex-row-reverse">
+        <button id="btn-download-table-stats-path" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
+        </button>
+    </div>
 </div>
 "##;
     let path_vars = HashMap::from([
@@ -400,6 +421,13 @@ pub fn write_hist_html<W: Write>(
     js_objects.push_str("const fname = '");
     js_objects.push_str(fname);
     js_objects.push_str("';\n");
+    js_objects.push_str("const stats = `");
+    let stats_text = match stats {
+        Some(ref s) => s.to_string(),
+        _ => "".to_string(),
+    };
+    js_objects.push_str(stats_text.as_str());
+    js_objects.push_str("`;\n");
 
     let reg = Handlebars::new();
     vars.insert("fname", fname.to_string());
@@ -445,6 +473,10 @@ pub fn write_stats_html<W: Write>(
     js_objects.push_str("const fname = '");
     js_objects.push_str(fname);
     js_objects.push_str("';\n");
+    js_objects.push_str("const stats = `");
+    let stats_text = stats.to_string();
+    js_objects.push_str(stats_text.as_str());
+    js_objects.push_str("`;\n");
 
     let reg = Handlebars::new();
     vars.insert("fname", fname.to_string());
@@ -583,6 +615,13 @@ pub fn write_histgrowth_html<W: Write>(
     js_objects.push_str("];\n\nconst fname = '");
     js_objects.push_str(fname);
     js_objects.push_str("';\n");
+    js_objects.push_str("const stats = `");
+    let stats_text = match stats {
+        Some(ref s) => s.to_string(),
+        _ => "".to_string(),
+    };
+    js_objects.push_str(stats_text.as_str());
+    js_objects.push_str("`;\n");
 
     let reg = Handlebars::new();
     let mut prevars = HashMap::from([
