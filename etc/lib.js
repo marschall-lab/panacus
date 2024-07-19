@@ -114,6 +114,16 @@ function buildGrowthTableDownload(chart, obj, prefix) {
     };
 }
 
+function buildStatsTableDownload(table, statsType, prefix) {
+    document.getElementById('btn-download-table-stats-' + statsType).onclick = function() {
+        let blob = new Blob([table], {type: 'text/plain'});
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = prefix + '_stats.tsv';
+        a.click();
+    };
+}
+
 
 function buildLogToggle(chart, obj) {
     document.getElementById('btn-logscale-plot-' + obj.constructor.name.toLowerCase() + '-' + obj.count).addEventListener('change', function(event) {

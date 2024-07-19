@@ -4,3 +4,9 @@
 Cargo.lock
 binary_release/
 target/
+etc/bootstrap.custom.css
+etc/bootstrap.custom.css.map
+etc/css-dist/
+etc/node_modules/
+etc/package-lock.json
+etc/package.json
