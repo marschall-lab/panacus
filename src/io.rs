@@ -1,8 +1,7 @@
 /* standard use */
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
-use std::iter::FromIterator;
 use std::path::Path;
 use std::str::{self, FromStr};
 use std::sync::{Arc, Mutex};
@@ -624,6 +623,7 @@ fn parse_path_seq_update_tables(
     num_nodes_path as u32
 }
 
+#[allow(dead_code)]
 pub fn parse_graph_aux<R: Read>(
     data: &mut BufReader<R>,
     index_edges: bool,
@@ -711,14 +711,14 @@ pub fn parse_cdbg_gfa_paths_walks<R: Read>(
     k: usize,
 ) -> ItemTable {
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
-    let mut k_count = 0;
+    //let mut k_count = 0;
     //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
 
     let mut num_path = 0;
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' {
-            let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
+            let (_path_seg, buf_path_seg) = parse_path_identifier(&buf);
             let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
             let mut u_sid = sids[0].0 .0 as usize - 1;
             let mut u_ori = sids[0].1;

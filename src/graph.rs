@@ -3,12 +3,10 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::Error;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, Read};
 use std::str::{self, FromStr};
 
 /* private use */
-use crate::io;
 use crate::io::bufreader_from_compressed_gfa;
 use crate::util::*;
 use crate::util::{CountType, ItemIdSize};

@@ -479,6 +479,7 @@ pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
     (kmer_bits >> 2) & mask
 }
 
+#[allow(dead_code)]
 pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
     let kmer_bits_rc = revcmp(kmer_bits, k);
     if kmer_bits < kmer_bits_rc {

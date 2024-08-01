@@ -477,68 +477,68 @@ pub enum Params {
         threads: usize,
     },
 
-    #[clap(
-        alias = "C",
-        about = "Calculate the histogram and growth of a Compacted de Bruijn Graph"
-    )]
-    Cdbg {
-        #[clap(
-            index = 1,
-            help = "graph in GFA1 format, accepts also compressed (.gz) file representing a compacted de Bruijn graph",
-            required = true
-        )]
-        gfa_file: String,
-        #[clap(short, long, help = "Value of k for cdBG", default_value = "")]
-        k: usize,
-        #[clap(
-            name = "subset",
-            short,
-            long,
-            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
-            default_value = ""
-        )]
-        positive_list: String,
-        #[clap(
-            name = "exclude",
-            short,
-            long,
-            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
-            default_value = ""
-        )]
-        negative_list: String,
-        #[clap(
-            short,
-            long,
-            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
-            default_value = ""
-        )]
-        #[clap(
-            short,
-            long,
-            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
-            default_value = ""
-        )]
-        groupby: String,
-        #[clap(
-            short = 'H',
-            long,
-            help = "Merge counts from paths belonging to same haplotype"
-        )]
-        groupby_haplotype: bool,
-        #[clap(
-            short = 'S',
-            long,
-            help = "Merge counts from paths belonging to same sample"
-        )]
-        groupby_sample: bool,
-        #[clap(
-            short,
-            long,
-            help = "Run in parallel on N threads (0 for number of CPU cores)",
-            default_value = "0"
-        )]
-        threads: usize,
-    },
+    //#[clap(
+    //    alias = "C",
+    //    about = "Calculate the histogram and growth of a Compacted de Bruijn Graph"
+    //)]
+    //Cdbg {
+    //    #[clap(
+    //        index = 1,
+    //        help = "graph in GFA1 format, accepts also compressed (.gz) file representing a compacted de Bruijn graph",
+    //        required = true
+    //    )]
+    //    gfa_file: String,
+    //    #[clap(short, long, help = "Value of k for cdBG", default_value = "")]
+    //    k: usize,
+    //    #[clap(
+    //        name = "subset",
+    //        short,
+    //        long,
+    //        help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+    //        default_value = ""
+    //    )]
+    //    positive_list: String,
+    //    #[clap(
+    //        name = "exclude",
+    //        short,
+    //        long,
+    //        help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file",
+    //        default_value = ""
+    //    )]
+    //    negative_list: String,
+    //    #[clap(
+    //        short,
+    //        long,
+    //        help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+    //        default_value = ""
+    //    )]
+    //    #[clap(
+    //        short,
+    //        long,
+    //        help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+    //        default_value = ""
+    //    )]
+    //    groupby: String,
+    //    #[clap(
+    //        short = 'H',
+    //        long,
+    //        help = "Merge counts from paths belonging to same haplotype"
+    //    )]
+    //    groupby_haplotype: bool,
+    //    #[clap(
+    //        short = 'S',
+    //        long,
+    //        help = "Merge counts from paths belonging to same sample"
+    //    )]
+    //    groupby_sample: bool,
+    //    #[clap(
+    //        short,
+    //        long,
+    //        help = "Run in parallel on N threads (0 for number of CPU cores)",
+    //        default_value = "0"
+    //    )]
+    //    threads: usize,
+    //},
 }
 
 pub fn read_params() -> Params {
@@ -605,7 +605,8 @@ pub fn set_number_of_threads(params: &Params) {
     | Params::Subset { threads, .. }
     | Params::OrderedHistgrowth { threads, .. }
     | Params::Table { threads, .. }
-    | Params::Cdbg { threads, .. } = params
+    //| Params::Cdbg { threads, .. } 
+    = params
     {
         if *threads > 0 {
             log::info!("running panacus on {} threads", &threads);
@@ -677,12 +678,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         groupby_sample,
         ..
     }
-    | Params::Cdbg {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
-    } = params
+    //| Params::Cdbg {
+    //    ref groupby,
+    //    groupby_haplotype,
+    //    groupby_sample,
+    //    ..
+    //} 
+    = params
     {
         validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)?;
     }
@@ -893,45 +895,45 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 
             abacus.to_tsv(total, out)?;
         }
-        Params::Cdbg {
-            ref gfa_file, k, ..
-        } => {
-            let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+        //Params::Cdbg {
+        //    ref gfa_file, k, ..
+        //} => {
+        //    let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
+        //    let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
 
-            let mut hists = Vec::new();
-            let abaci_node =
-                AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
-            let abaci_bp =
-                AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
-            hists.push(Hist::from_abacus(&abaci_node[0], None));
-            hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
+        //    let mut hists = Vec::new();
+        //    let abaci_node =
+        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
+        //    let abaci_bp =
+        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
+        //    hists.push(Hist::from_abacus(&abaci_node[0], None));
+        //    hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
 
-            // k-mers and unimer
-            let n = hists[0].coverage.len();
-            let mut kmer: Vec<usize> = vec![0; n];
-            let mut unimer: Vec<usize> = vec![0; n];
+        //    // k-mers and unimer
+        //    let n = hists[0].coverage.len();
+        //    let mut kmer: Vec<usize> = vec![0; n];
+        //    let mut unimer: Vec<usize> = vec![0; n];
 
-            for i in 0..n {
-                kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
-                unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
-            }
+        //    for i in 0..n {
+        //        kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
+        //        unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
+        //    }
 
-            let mut data = BufReader::new(fs::File::open(&gfa_file)?);
-            let abaci_infix_eq =
-                AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
+        //    let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+        //    let abaci_infix_eq =
+        //        AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
 
-            println!("# infix_eq");
-            for v in abaci_infix_eq.countable.iter() {
-                println!("{}", v);
-            }
+        //    println!("# infix_eq");
+        //    for v in abaci_infix_eq.countable.iter() {
+        //        println!("{}", v);
+        //    }
 
-            println!("# kmer");
-            for i in 1..kmer.len() {
-                println!("{}", kmer[i]);
-            }
-            write_hist_table(&hists, out)?;
-        }
+        //    println!("# kmer");
+        //    for i in 1..kmer.len() {
+        //        println!("{}", kmer[i]);
+        //    }
+        //    write_hist_table(&hists, out)?;
+        //}
     }
 
     Ok(())

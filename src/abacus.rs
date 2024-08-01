@@ -1,6 +1,6 @@
 /* standard use */
 use std::fs;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
 //use std::sync::{Arc, Mutex};
@@ -75,14 +75,15 @@ impl AbacusAuxilliary {
                 groupby_haplotype,
                 ..
             }
-            | Params::Cdbg {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            } => {
+            //| Params::Cdbg {
+            //    positive_list,
+            //    negative_list,
+            //    groupby,
+            //    groupby_sample,
+            //    groupby_haplotype,
+            //    ..
+            //} 
+            => {
                 let groups = AbacusAuxilliary::load_groups(
                     groupby,
                     *groupby_haplotype,
@@ -565,7 +566,7 @@ impl AbacusByTotal {
         let mut countable: Vec<CountSize> = vec![0; m];
 
         for i in 0..SIZE_T {
-            for (k_minus_one_mer, infix_storage) in &infix_eq_tables[i] {
+            for (_k_minus_one_mer, infix_storage) in &infix_eq_tables[i] {
                 for edge_count in infix_storage.edges.iter() {
                     if *edge_count != 0 {
                         //println!("{:?} {} {} {} ", infix_storage.edges, infix_storage.last_edge, infix_storage.last_group, infix_storage.sigma);
