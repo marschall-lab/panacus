@@ -22,7 +22,7 @@ from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
 import seaborn as sns
 
-PAT_PANACUS = re.compile('^#.+panacus (\S+) (.+)')
+PAT_PANACUS = re.compile(r'^#.+panacus (\S+) (.+)')
 N_HEADERS = 4
 SUPPORTED_FILE_FORMATS = plt.gcf().canvas.get_supported_filetypes().keys()
 
@@ -114,12 +114,12 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
     popts = list()
     df = df.reindex(sorted(df.columns, key=lambda x: (x[3], x[2])), axis=1)
     for i, (t, ct, c, q) in enumerate(df.columns):
-        df[(t, ct, c, q)].plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
+        df[(t, ct, c, q)].plot.bar(color=f'C{i}', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
         if c <= 1 and q <= 1/df.shape[0]:
             if estimate_growth:
                 popt, curve = fit_gamma(df.loc[1:, (t, ct, c,q)].array)
                 popts.append((c, q, popt, i))
-                axs[0].plot(df.loc[1:].index, curve, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+                axs[0].plot(df.loc[1:].index, curve, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
             else:
                 popts.append((c, q, None, i))
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
@@ -137,13 +137,13 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
         for c, q, _, i in popts:
             x = np.zeros(df.shape[0]-1)
             x[1:] = df.loc[df.index[1]:df.index[-2], (t, ct, c, q)]
-            (df.loc[df.index[1]:, (t, ct, c, q)] - x).plot.bar(color=f'C{i}', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
+            (df.loc[df.index[1]:, (t, ct, c, q)] - x).plot.bar(color=f'C{i}', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[1])
             if estimate_growth:
                 popt, _ = fit_alpha((df.loc[df.index[2]:, (t, ct, c, q)] - x[1:]).array)
                 k2 = popt[0]
                 alpha = popt[1]
                 Y = k2*np.arange(1, df.shape[0]+1)**(-alpha)
-                axs[1].plot(Y, '--',  color='black', label=f'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
+                axs[1].plot(Y, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_2 X^{{-α}}$ with $k_2$={humanize_number(k2,1)}, α={alpha:.3f})')
 
         axs[1].set_xticklabels(axs[1].get_xticklabels(), rotation=65)
 
