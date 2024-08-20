@@ -14,6 +14,17 @@
 - pangenome growth statistics
 - path-/group-resolved coverage table
 
+### Coverage Histogram
+Histogram listing the number of features (nodes, edges, ...) that are visited by a certain number of paths.
+
+### Pangenome Growth statistics
+Describes how many features (nodes, edges, ...) one would expect on average if the graph was built from
+1...n haplotypes.
+
+To limit the amount of features that are part of the calculation (e.g. for visualizing the core genome) pairs of the coverage/quorum parameters can be used:
+- coverage: include only features in the calculation that are visited by at least that many paths
+- quorum: fraction of haplotypes that must share a feature after the haplotype is added to the graph
+
 ## Dependencies
 
 `panacus` is written in [RUST](https://www.rust-lang.org/) and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
