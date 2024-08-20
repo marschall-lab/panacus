@@ -170,10 +170,10 @@ impl AbacusAuxilliary {
                 //}
 
                 Ok(AbacusAuxilliary {
-                    groups: groups,
-                    include_coords: include_coords,
-                    exclude_coords: exclude_coords,
-                    order: order,
+                    groups,
+                    include_coords,
+                    exclude_coords,
+                    order,
                 })
             }
             _ => Err(Error::new(
@@ -196,7 +196,7 @@ impl AbacusAuxilliary {
         for (p, g) in groups.iter() {
             group2paths
                 .entry(g.clone())
-                .or_insert(Vec::new())
+                .or_default()
                 .push(p.clone())
         }
         let path_to_group: HashMap<PathSegment, String> = groups
@@ -304,9 +304,7 @@ impl AbacusAuxilliary {
             // augment the group assignments with yet unassigned path segments
             graph_aux.path_segments.iter().for_each(|x| {
                 let path = x.clear_coords();
-                if !path_to_group.contains_key(&path) {
-                    path_to_group.insert(path, x.id());
-                }
+                path_to_group.entry(path).or_insert_with(|| x.id());
             });
             Ok(path_to_group)
         } else {
@@ -328,11 +326,11 @@ impl AbacusAuxilliary {
 
         let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> = HashMap::default();
 
-        for (i, p) in path_segments.into_iter().enumerate() {
+        for (i, p) in path_segments.iter().enumerate() {
             let group: &'a str = self.groups.get(&p.clear_coords()).unwrap();
             group_to_paths
                 .entry(group)
-                .or_insert(Vec::new())
+                .or_default()
                 .push((i as ItemIdSize, group));
         }
 
@@ -346,8 +344,8 @@ impl AbacusAuxilliary {
                 None => HashSet::new(),
             };
             path_segments
-                .into_iter()
-                .filter_map(|x| if !exclude.contains(x) { Some(x) } else { None })
+                .iter()
+                .filter(|x| !exclude.contains(x))
                 .collect::<Vec<&PathSegment>>()
         };
         order
@@ -355,7 +353,7 @@ impl AbacusAuxilliary {
             .map(|p| {
                 group_to_paths
                     .remove(&self.groups.get(&p.clear_coords()).unwrap()[..])
-                    .unwrap_or(Vec::new())
+                    .unwrap_or_default()
             })
             .collect::<Vec<Vec<(ItemIdSize, &'a str)>>>()
             .concat()
@@ -372,9 +370,9 @@ impl AbacusAuxilliary {
         // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
         let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
 
-        path_segments.into_iter().for_each(|x| {
+        path_segments.iter().for_each(|x| {
             res.entry(x.id())
-                .or_insert(HashSet::default())
+                .or_default()
                 .insert(match x.coords() {
                     None => (0, usize::MAX),
                     Some((i, j)) => (i, j),
@@ -507,14 +505,14 @@ impl AbacusByTotal {
         );
 
         Self {
-            count: count,
-            countable: countable,
+            count,
+            countable,
             uncovered_bps: Some(quantify_uncovered_bps(
                 &exclude_table,
                 &subset_covered_bps,
-                &graph_aux,
+                graph_aux,
             )),
-            groups: groups,
+            groups,
         }
     }
 
@@ -691,13 +689,13 @@ impl AbacusByTotal {
                 } else {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
                     let abacus =
-                        AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, count_type);
+                        AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count_type);
                     abaci.push(abacus);
                 }
             }
         } else {
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, count);
+            let abacus = AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count);
             abaci.push(abacus);
         }
         Ok(abaci)
@@ -803,13 +801,13 @@ impl<'a> AbacusByGroup<'a> {
         );
 
         Ok(Self {
-            count: count,
-            r: r,
-            v: v,
-            c: c,
+            count,
+            r,
+            v,
+            c,
             uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, graph_aux),
-            groups: groups,
-            graph_aux: graph_aux,
+            groups,
+            graph_aux,
         })
     }
 
@@ -863,7 +861,7 @@ impl<'a> AbacusByGroup<'a> {
         r: &Vec<usize>,
         report_values: bool,
     ) -> (Option<Vec<CountSize>>, Vec<GroupSize>) {
-        let n = *r.last().unwrap() as usize;
+        let n = { *r.last().unwrap() };
         log::info!("allocating storage for group-based coverage table..");
         let mut v = if report_values {
             vec![0; n]
@@ -993,18 +991,18 @@ impl<'a> AbacusByGroup<'a> {
         for x in self.r[1..].iter() {
             write!(out, "\t{}", x)?;
         }
-        writeln!(out, "")?;
+        writeln!(out)?;
         write!(out, "{}", self.c[0])?;
         for x in self.c[1..].iter() {
             write!(out, "\t{}", x)?;
         }
-        writeln!(out, "")?;
+        writeln!(out)?;
         if let Some(v) = &self.v {
             write!(out, "{}", v[0])?;
             for x in v[1..].iter() {
                 write!(out, "\t{}", x)?;
             }
-            writeln!(out, "")?;
+            writeln!(out)?;
         };
         Ok(())
     }
@@ -1028,7 +1026,7 @@ impl<'a> AbacusByGroup<'a> {
                         write!(out, "\t{}", group)?;
                     }
                 }
-                writeln!(out, "")?;
+                writeln!(out)?;
 
                 let mut it = self.r.iter().tuple_windows().enumerate();
                 // ignore first entry
@@ -1058,7 +1056,7 @@ impl<'a> AbacusByGroup<'a> {
                                 k += 1;
                             }
                         }
-                        writeln!(out, "")?;
+                        writeln!(out)?;
                     }
                 }
             }
@@ -1083,15 +1081,13 @@ impl<'a> AbacusByGroup<'a> {
                             write!(out, "\t{}", group)?;
                         }
                     }
-                    writeln!(out, "")?;
+                    writeln!(out)?;
 
                     let mut it = self.r.iter().tuple_windows().enumerate();
                     // ignore first entry
                     it.next();
                     for (i, (&start, &end)) in it {
                         let edge = id2edge[i];
-                        let start = start as usize;
-                        let end = end as usize;
                         write!(
                             out,
                             "{}{}{}{}",
@@ -1117,7 +1113,7 @@ impl<'a> AbacusByGroup<'a> {
                                     k += 1;
                                 }
                             }
-                            writeln!(out, "")?;
+                            writeln!(out)?;
                         }
                     }
                 }

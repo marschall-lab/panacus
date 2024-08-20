@@ -104,8 +104,8 @@ pub fn generate_hist_tabs(hists: &Vec<Hist>) -> String {
             vars.insert("is_first", String::from("true"));
         }
 
-        tab_content.push_str(&reg.render_template(&tab, &vars).unwrap());
-        tab_navigation.push_str(&reg.render_template(&nav, &vars).unwrap());
+        tab_content.push_str(&reg.render_template(tab, &vars).unwrap());
+        tab_navigation.push_str(&reg.render_template(nav, &vars).unwrap());
     }
 
     let container = r##"<div class="container">
@@ -123,7 +123,7 @@ pub fn generate_hist_tabs(hists: &Vec<Hist>) -> String {
         ("tab_navigation", tab_navigation),
     ]);
 
-    reg.render_template(&container, &vars).unwrap()
+    reg.render_template(container, &vars).unwrap()
 }
 
 pub fn generate_growth_tabs(growths: &Vec<(CountType, Vec<Vec<f64>>)>) -> String {
@@ -158,8 +158,8 @@ pub fn generate_growth_tabs(growths: &Vec<(CountType, Vec<Vec<f64>>)>) -> String
             vars.insert("is_first", String::from("true"));
         }
 
-        tab_content.push_str(&reg.render_template(&tab, &vars).unwrap());
-        tab_navigation.push_str(&reg.render_template(&nav, &vars).unwrap());
+        tab_content.push_str(&reg.render_template(tab, &vars).unwrap());
+        tab_navigation.push_str(&reg.render_template(nav, &vars).unwrap());
     }
 
     let container = r##"<div class="container p-5">
@@ -177,7 +177,7 @@ pub fn generate_growth_tabs(growths: &Vec<(CountType, Vec<Vec<f64>>)>) -> String
         ("tab_navigation", tab_navigation),
     ]);
 
-    reg.render_template(&container, &vars).unwrap()
+    reg.render_template(container, &vars).unwrap()
 }
 
 pub fn generate_stats_tabs(stats: Stats) -> String {
@@ -236,7 +236,7 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
         ),
         ("is_first", String::from("true")),
     ]);
-    tab_content.push_str(&reg.render_template(&graph_info, &graph_vars).unwrap());
+    tab_content.push_str(&reg.render_template(graph_info, &graph_vars).unwrap());
 
     let node_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-stats-2" role="tabpanel" aria-labelledby="nav-stats-2">
     </br>
@@ -307,7 +307,7 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
         ("median_node", format!("{}", stats.graph_info.median_node)),
         ("n50_node", format!("{}", stats.graph_info.n50_node)),
     ]);
-    tab_content.push_str(&reg.render_template(&node_info, &node_vars).unwrap());
+    tab_content.push_str(&reg.render_template(node_info, &node_vars).unwrap());
 
     let path_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-stats-3" role="tabpanel" aria-labelledby="nav-stats-3">
     </br>
@@ -350,7 +350,7 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
         ),
         ("average_path", format!("{}", stats.path_info.average_path)),
     ]);
-    tab_content.push_str(&reg.render_template(&path_info, &path_vars).unwrap());
+    tab_content.push_str(&reg.render_template(path_info, &path_vars).unwrap());
 
     let container = r##"<div class="container p-5">
 	<nav>
@@ -367,7 +367,7 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
         ("tab_navigation", tab_navigation),
     ]);
 
-    reg.render_template(&container, &vars).unwrap()
+    reg.render_template(container, &vars).unwrap()
 }
 
 pub fn write_html<W: Write>(
@@ -435,7 +435,7 @@ pub fn write_hist_html<W: Write>(
     vars.insert(
         "content",
         reg.render_template(
-            &content,
+            content,
             &HashMap::from([
                 ("hist_content", generate_hist_tabs(hists)),
                 ("stats_content", generate_stats_tabs(stats.unwrap())),
@@ -484,7 +484,7 @@ pub fn write_stats_html<W: Write>(
     vars.insert(
         "content",
         reg.render_template(
-            &content,
+            content,
             &HashMap::from([("stats_content", generate_stats_tabs(stats))]),
         )
         .unwrap(),
@@ -557,7 +557,7 @@ pub fn write_histgrowth_html<W: Write>(
     js_objects.push_str("];\n\n");
     js_objects.push_str("const growths = [\n");
 
-    for (i, (count, columns)) in growths.into_iter().enumerate() {
+    for (i, (count, columns)) in growths.iter().enumerate() {
         if i > 0 {
             js_objects.push_str(",\n");
         }
@@ -581,7 +581,7 @@ pub fn write_histgrowth_html<W: Write>(
                 &columns
                     .iter()
                     .map(|col| col[1..]
-                        .into_iter()
+                        .iter()
                         .map(|x| x.floor() as usize)
                         .collect::<Vec<usize>>())
                     .collect::<Vec<Vec<usize>>>()
@@ -605,7 +605,7 @@ pub fn write_histgrowth_html<W: Write>(
                 &columns
                     .iter()
                     .map(|col| col[1..]
-                        .into_iter()
+                        .iter()
                         .map(|x| x.floor() as usize)
                         .collect::<Vec<usize>>())
                     .collect::<Vec<Vec<usize>>>()
@@ -637,7 +637,7 @@ pub fn write_histgrowth_html<W: Write>(
 
     vars.insert("fname", fname.to_string());
     vars.insert("data_hook", js_objects);
-    vars.insert("content", reg.render_template(&content, &prevars).unwrap());
+    vars.insert("content", reg.render_template(content, &prevars).unwrap());
 
     populate_constants(&mut vars);
     write_html(&vars, out)

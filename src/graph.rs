@@ -55,24 +55,24 @@ impl Orientation {
     }
 
     #[allow(dead_code)]
-    pub fn to_lg(&self) -> char {
+    pub fn to_lg(self) -> char {
         match self {
-            &Orientation::Forward => '>',
-            &Orientation::Backward => '<',
+            Orientation::Forward => '>',
+            Orientation::Backward => '<',
         }
     }
 
-    pub fn to_pm(&self) -> char {
+    pub fn to_pm(self) -> char {
         match self {
-            &Orientation::Forward => '+',
-            &Orientation::Backward => '-',
+            Orientation::Forward => '+',
+            Orientation::Backward => '-',
         }
     }
 
     pub fn flip(&self) -> Self {
-        match self {
-            &Orientation::Forward => Orientation::Backward,
-            &Orientation::Backward => Orientation::Forward,
+        match *self {
+            Orientation::Forward => Orientation::Backward,
+            Orientation::Backward => Orientation::Forward,
         }
     }
 }
@@ -107,10 +107,8 @@ impl Edge {
         };
 
         let end = start + iter.position(|&x| x == b'\t').unwrap();
-        let u = node2id.get(&data[start..end]).expect(&format!(
-            "unknown node {}",
-            str::from_utf8(&data[start..end]).unwrap()
-        ));
+        let u = node2id.get(&data[start..end]).unwrap_or_else(|| panic!("unknown node {}",
+            str::from_utf8(&data[start..end]).unwrap()));
 
         // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
         // need to advance in the buffer (and  therefore call iter.position(..))
@@ -120,10 +118,8 @@ impl Edge {
         let start = end + 3;
         let end = start + iter.position(|&x| x == b'\t').unwrap();
 
-        let v = node2id.get(&data[start..end]).expect(&format!(
-            "unknown node {}",
-            str::from_utf8(&data[start..end]).unwrap()
-        ));
+        let v = node2id.get(&data[start..end]).unwrap_or_else(|| panic!("unknown node {}",
+            str::from_utf8(&data[start..end]).unwrap()));
         let o2 = Orientation::from_pm(data[end + 1]);
 
         if canonical {
@@ -255,7 +251,7 @@ impl GraphAuxilliary {
             no_paths: paths_len.len(),
             longest_path: *paths_len.iter().max().unwrap(),
             shortest_path: *paths_len.iter().min().unwrap(),
-            average_path: averageu32(&paths_len),
+            average_path: averageu32(paths_len),
         }
     }
 
@@ -280,20 +276,20 @@ impl GraphAuxilliary {
         while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
             if buf[0] == b'L' {
                 let edge = Edge::from_link(&buf[..], node2id, true);
-                if edge2id.contains_key(&edge) {
-                    log::warn!("edge {} is duplicated in GFA", &edge);
-                } else {
+                if let std::collections::hash_map::Entry::Vacant(e) = edge2id.entry(edge) {
                     degree[edge.0 .0 as usize] += 1;
                     //if e.0.0 != e.2.0 {
                     degree[edge.2 .0 as usize] += 1;
                     //}
-                    edge2id.insert(edge, ItemId(edge_id));
+                    e.insert(ItemId(edge_id));
                     edge_id += 1;
+                } else {
+                    log::warn!("edge {} is duplicated in GFA", &edge);
                 }
             }
             buf.clear();
         }
-        let edge_count = edge2id.len() as usize;
+        let edge_count = edge2id.len();
         log::info!("found: {} edges", edge_count);
 
         (edge2id, edge_count, degree)
@@ -356,7 +352,7 @@ impl GraphAuxilliary {
             path_segments.len(),
             node2id.len()
         );
-        if path_segments.len() == 0 {
+        if path_segments.is_empty() {
             log::warn!("graph does not contain any annotated paths (P/W lines)");
         }
 
@@ -383,7 +379,7 @@ impl GraphAuxilliary {
         let mut i = 0;
         for _ in 0..6 {
             let j = it.position(|x| x == &b'\t').unwrap();
-            six_col.push(&str::from_utf8(&data[i..i + j]).unwrap());
+            six_col.push(str::from_utf8(&data[i..i + j]).unwrap());
             i += j + 1;
         }
 
@@ -478,11 +474,11 @@ impl PathSegment {
         end: Option<usize>,
     ) -> Self {
         Self {
-            sample: sample,
+            sample,
             haplotype: Some(haplotype),
             seqid: Some(seqid),
-            start: start,
-            end: end,
+            start,
+            end,
         }
     }
 
@@ -646,32 +642,32 @@ pub struct Stats {
 
 impl fmt::Display for Stats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
+        writeln!(
             f,
-            "Graph Info\tNode Count\t{}\n",
+            "Graph Info\tNode Count\t{}",
             self.graph_info.node_count
         )?;
-        write!(f, "\tEdge Count\t{}\n", self.graph_info.edge_count)?;
-        write!(f, "\tPath Count\t{}\n", self.path_info.no_paths)?;
-        write!(
+        writeln!(f, "\tEdge Count\t{}", self.graph_info.edge_count)?;
+        writeln!(f, "\tPath Count\t{}", self.path_info.no_paths)?;
+        writeln!(
             f,
-            "\t0-degree Node Count\t{}\n",
+            "\t0-degree Node Count\t{}",
             self.graph_info.number_0_degree
         )?;
-        write!(
+        writeln!(
             f,
-            "Node Info\tAverage Degree\t{}\n",
+            "Node Info\tAverage Degree\t{}",
             self.graph_info.average_degree
         )?;
-        write!(f, "\tMax Degree\t{}\n", self.graph_info.max_degree)?;
-        write!(f, "\tMin Degree\t{}\n", self.graph_info.min_degree)?;
-        write!(f, "\tLargest\t{}\n", self.graph_info.largest_node)?;
-        write!(f, "\tShortest\t{}\n", self.graph_info.shortest_node)?;
-        write!(f, "\tAverage Length\t{}\n", self.graph_info.average_node)?;
-        write!(f, "\tMedian Length\t{}\n", self.graph_info.median_node)?;
-        write!(f, "\tN50 Node Length\t{}\n", self.graph_info.n50_node)?;
-        write!(f, "Path Info\tLongest\t{}\n", self.path_info.longest_path)?;
-        write!(f, "\tShortest\t{}\n", self.path_info.shortest_path)?;
-        write!(f, "\tAverage Node Count\t{}\n", self.path_info.average_path)
+        writeln!(f, "\tMax Degree\t{}", self.graph_info.max_degree)?;
+        writeln!(f, "\tMin Degree\t{}", self.graph_info.min_degree)?;
+        writeln!(f, "\tLargest\t{}", self.graph_info.largest_node)?;
+        writeln!(f, "\tShortest\t{}", self.graph_info.shortest_node)?;
+        writeln!(f, "\tAverage Length\t{}", self.graph_info.average_node)?;
+        writeln!(f, "\tMedian Length\t{}", self.graph_info.median_node)?;
+        writeln!(f, "\tN50 Node Length\t{}", self.graph_info.n50_node)?;
+        writeln!(f, "Path Info\tLongest\t{}", self.path_info.longest_path)?;
+        writeln!(f, "\tShortest\t{}", self.path_info.shortest_path)?;
+        writeln!(f, "\tAverage Node Count\t{}", self.path_info.average_path)
     }
 }

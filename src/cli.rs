@@ -573,7 +573,7 @@ pub fn parse_threshold_cli(
     for (i, el) in threshold_str.split(',').enumerate() {
         let rel_val = match f64::from_str(el.trim()) {
             Ok(t) => {
-                if 0.0 <= t && t <= 1.0 {
+                if (0.0..=1.0).contains(&t) {
                     Ok(t)
                 } else {
                     Err(Error::new(
@@ -606,7 +606,7 @@ pub fn parse_threshold_cli(
                     i + 1)))?),
             RequireThreshold::Relative => Threshold::Relative(rel_val?),
             RequireThreshold::Either =>
-        if let Some(t) = usize::from_str(el.trim()).ok() {
+        if let Ok(t) = usize::from_str(el.trim()) {
             Threshold::Absolute(t)
         } else {
             Threshold::Relative(rel_val?)
@@ -746,7 +746,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         &Some(hists),
                         &growths,
                         &hist_aux,
-                        &filename,
+                        filename,
                         None,
                         Some(stats),
                         out,
@@ -780,7 +780,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
                     let stats = graph_aux.stats(&paths_len);
-                    write_hist_html(&hists, &filename, Some(stats), out)?
+                    write_hist_html(&hists, filename, Some(stats), out)?
                 }
             };
         }
@@ -791,7 +791,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
             log::info!("loading coverage histogram from {}", hist_file);
-            let mut data = BufReader::new(fs::File::open(&hist_file)?);
+            let mut data = BufReader::new(fs::File::open(hist_file)?);
             let (coverages, comments) = parse_hists(&mut data)?;
             for c in comments {
                 out.write_all(&c[..])?;
@@ -814,7 +814,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     &Some(hists),
                     &growths,
                     &hist_aux,
-                    &filename,
+                    filename,
                     None,
                     None,
                     out,
@@ -837,7 +837,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
             match output_format {
                 OutputFormat::Table => write_stats(stats, out)?,
-                OutputFormat::Html => write_stats_html(&filename, stats, out)?,
+                OutputFormat::Html => write_stats_html(filename, stats, out)?,
             };
         }
         Params::Subset {
@@ -893,7 +893,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     write_ordered_histgrowth_html(
                         &abacus,
                         &hist_aux,
-                        &gfa_file,
+                        gfa_file,
                         count,
                         Some(stats),
                         out,
@@ -909,7 +909,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+            let mut data = BufReader::new(fs::File::open(gfa_file)?);
             let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, total)?;
 
             abacus.to_tsv(total, out)?;
