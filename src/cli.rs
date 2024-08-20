@@ -794,8 +794,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let mut data = BufReader::new(fs::File::open(&hist_file)?);
             let (coverages, comments) = parse_hists(&mut data)?;
             for c in comments {
-                out.write(&c[..])?;
-                out.write(b"\n")?;
+                out.write_all(&c[..])?;
+                out.write_all(b"\n")?;
             }
             let hists: Vec<Hist> = coverages
                 .into_iter()

@@ -1255,7 +1255,7 @@ pub fn write_histgrowth_table<W: Write>(
                 .zip(hist_aux.coverage.iter())
                 .zip(&hist_aux.quorum)
                 .map(|(((p, t), c), q)| {
-                    vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+                    vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
                 }),
         );
     }
@@ -1316,7 +1316,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
             .zip(hist_aux.coverage.iter())
             .zip(&hist_aux.quorum)
             .map(|(((p, t), c), q)| {
-                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+                vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
             })
             .collect::<Vec<Vec<String>>>(),
     );
@@ -1346,7 +1346,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
         .collect();
     // insert empty row for 0 element
     for c in &mut growths {
-        c.insert(0, std::f64::NAN);
+        c.insert(0, f64::NAN);
     }
     log::info!("reporting (hist-)growth table");
 

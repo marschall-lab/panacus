@@ -569,13 +569,13 @@ pub fn write_histgrowth_html<W: Write>(
                 &hist_aux
                     .coverage
                     .iter()
-                    .map(|x| x.to_string())
+                    .map(|x| x.get_string())
                     .collect::<Vec<String>>()
                     .join(", "),
                 &hist_aux
                     .quorum
                     .iter()
-                    .map(|x| x.to_string())
+                    .map(|x| x.get_string())
                     .collect::<Vec<String>>()
                     .join(", "),
                 &columns
@@ -593,13 +593,13 @@ pub fn write_histgrowth_html<W: Write>(
                 &hist_aux
                     .coverage
                     .iter()
-                    .map(|x| x.to_string())
+                    .map(|x| x.get_string())
                     .collect::<Vec<String>>()
                     .join(", "),
                 &hist_aux
                     .quorum
                     .iter()
-                    .map(|x| x.to_string())
+                    .map(|x| x.get_string())
                     .collect::<Vec<String>>()
                     .join(", "),
                 &columns
