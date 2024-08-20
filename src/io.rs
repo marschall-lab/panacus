@@ -1,5 +1,5 @@
 /* standard use */
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
 use std::path::Path;
