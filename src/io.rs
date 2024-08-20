@@ -704,58 +704,58 @@ pub fn parse_graph_aux<R: Read>(
     Ok((node2id, node_len, edges, path_segments))
 }
 
-pub fn parse_cdbg_gfa_paths_walks<R: Read>(
-    data: &mut BufReader<R>,
-    abacus_aux: &AbacusAuxilliary,
-    graph_aux: &GraphAuxilliary,
-    k: usize,
-) -> ItemTable {
-    let mut item_table = ItemTable::new(graph_aux.path_segments.len());
-    //let mut k_count = 0;
-    //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
-
-    let mut num_path = 0;
-    let mut buf = vec![];
-    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-        if buf[0] == b'P' {
-            let (_path_seg, buf_path_seg) = parse_path_identifier(&buf);
-            let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
-            let mut u_sid = sids[0].0 .0 as usize - 1;
-            let mut u_ori = sids[0].1;
-            for i in 1..sids.len() {
-                let v_sid = sids[i].0 .0 as usize - 1;
-                let v_ori = sids[i].1;
-                let k_plus_one_mer =
-                    graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
-                //println!("{}", bits2kmer(k_plus_one_mer, k+1));
-                let infix = get_infix(k_plus_one_mer, k);
-                let infix_rc = revcmp(infix, k - 1);
-                if infix < infix_rc {
-                    let idx = (infix as usize) % SIZE_T;
-                    item_table.items[idx].push(k_plus_one_mer);
-                    item_table.id_prefsum[idx][num_path + 1] += 1;
-                } else if infix > infix_rc {
-                    let idx = (infix_rc as usize) % SIZE_T;
-                    item_table.items[idx].push(revcmp(k_plus_one_mer, k + 1));
-                    item_table.id_prefsum[idx][num_path + 1] += 1;
-                } // else ignore palindrome, since it always breaks the node
-
-                u_sid = v_sid;
-                u_ori = v_ori;
-            }
-
-            // compute prefix sum
-            for i in 0..SIZE_T {
-                item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-            }
-
-            num_path += 1;
-        }
-        buf.clear();
-    }
-
-    item_table
-}
+// pub fn parse_cdbg_gfa_paths_walks<R: Read>(
+//     data: &mut BufReader<R>,
+//     _abacus_aux: &AbacusAuxilliary,
+//     graph_aux: &GraphAuxilliary,
+//     k: usize,
+// ) -> ItemTable {
+//     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
+//     //let mut k_count = 0;
+//     //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
+// 
+//     let mut num_path = 0;
+//     let mut buf = vec![];
+//     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+//         if buf[0] == b'P' {
+//             let (_path_seg, buf_path_seg) = parse_path_identifier(&buf);
+//             let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
+//             let mut u_sid = sids[0].0 .0 as usize - 1;
+//             let mut u_ori = sids[0].1;
+//             for i in 1..sids.len() {
+//                 let v_sid = sids[i].0 .0 as usize - 1;
+//                 let v_ori = sids[i].1;
+//                 let k_plus_one_mer =
+//                     graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
+//                 //println!("{}", bits2kmer(k_plus_one_mer, k+1));
+//                 let infix = get_infix(k_plus_one_mer, k);
+//                 let infix_rc = revcmp(infix, k - 1);
+//                 if infix < infix_rc {
+//                     let idx = (infix as usize) % SIZE_T;
+//                     item_table.items[idx].push(k_plus_one_mer);
+//                     item_table.id_prefsum[idx][num_path + 1] += 1;
+//                 } else if infix > infix_rc {
+//                     let idx = (infix_rc as usize) % SIZE_T;
+//                     item_table.items[idx].push(revcmp(k_plus_one_mer, k + 1));
+//                     item_table.id_prefsum[idx][num_path + 1] += 1;
+//                 } // else ignore palindrome, since it always breaks the node
+// 
+//                 u_sid = v_sid;
+//                 u_ori = v_ori;
+//             }
+// 
+//             // compute prefix sum
+//             for i in 0..SIZE_T {
+//                 item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+//             }
+// 
+//             num_path += 1;
+//         }
+//         buf.clear();
+//     }
+// 
+//     item_table
+// }
 
 pub fn parse_gfa_paths_walks<R: Read>(
     data: &mut BufReader<R>,
@@ -1354,12 +1354,11 @@ pub fn write_ordered_histgrowth_html<W: Write>(
         &None,
         &vec![(count, growths)],
         &hist_aux,
-        &Path::new(gfa_file)
+        Path::new(gfa_file)
             .file_name()
             .unwrap()
             .to_str()
-            .unwrap()
-            .to_string(),
+            .unwrap(),
         Some(&abacus_group.groups),
         stats,
         out,

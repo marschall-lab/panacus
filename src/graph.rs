@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::{BufRead, Read};
+use std::io::BufRead;
 use std::str::{self, FromStr};
 
 /* private use */
@@ -172,12 +172,12 @@ pub struct GraphAuxilliary {
     pub node_count: usize,
     pub edge_count: usize,
     pub degree: Option<Vec<u32>>,
-    pub extremities: Option<Vec<(u64, u64)>>,
+    // pub extremities: Option<Vec<(u64, u64)>>,
 }
 
 impl GraphAuxilliary {
     pub fn from_gfa(gfa_file: &str, count_type: CountType) -> Self {
-        let (node2id, path_segments, node_lens, extremities) =
+        let (node2id, path_segments, node_lens, _extremities) =
             Self::parse_nodes_gfa(gfa_file, None);
         let index_edges: bool = (count_type == CountType::Edge) | (count_type == CountType::All);
         let (edge2id, edge_count, degree) = if index_edges {
@@ -196,27 +196,27 @@ impl GraphAuxilliary {
             node_count,
             edge_count,
             degree,
-            extremities,
+            // extremities,
         }
     }
 
-    pub fn from_cdbg_gfa(gfa_file: &str, k: usize) -> Self {
-        let (node2id, path_segments, node_lens, extremities) =
-            Self::parse_nodes_gfa(gfa_file, Some(k));
-        let (edge2id, edge_count, degree) = (None, 0, None);
-        let node_count = node2id.len();
+    // pub fn from_cdbg_gfa(gfa_file: &str, k: usize) -> Self {
+    //     let (node2id, path_segments, node_lens, extremities) =
+    //         Self::parse_nodes_gfa(gfa_file, Some(k));
+    //     let (edge2id, edge_count, degree) = (None, 0, None);
+    //     let node_count = node2id.len();
 
-        Self {
-            node2id,
-            node_lens,
-            edge2id,
-            path_segments,
-            node_count,
-            edge_count,
-            degree,
-            extremities,
-        }
-    }
+    //     Self {
+    //         node2id,
+    //         node_lens,
+    //         edge2id,
+    //         path_segments,
+    //         node_count,
+    //         edge_count,
+    //         degree,
+    //         extremities,
+    //     }
+    // }
 
     pub fn node_len(&self, v: &ItemId) -> u32 {
         self.node_lens[v.0 as usize]
@@ -406,29 +406,29 @@ impl GraphAuxilliary {
         )
     }
 
-    pub fn get_k_plus_one_mer_edge(
-        &self,
-        u: usize,
-        o1: Orientation,
-        v: usize,
-        o2: Orientation,
-        k: usize,
-    ) -> u64 {
-        let extremities = self.extremities.as_ref().unwrap();
+    // pub fn get_k_plus_one_mer_edge(
+    //     &self,
+    //     u: usize,
+    //     o1: Orientation,
+    //     v: usize,
+    //     o2: Orientation,
+    //     k: usize,
+    // ) -> u64 {
+    //     let extremities = self.extremities.as_ref().unwrap();
 
-        let left = if o1 == Orientation::Forward {
-            extremities[u].1
-        } else {
-            revcmp(extremities[u].0, k)
-        };
-        let right = if o2 == Orientation::Forward {
-            extremities[v].0 & 0b11
-        } else {
-            revcmp(extremities[v].1, k) & 0b11
-        };
+    //     let left = if o1 == Orientation::Forward {
+    //         extremities[u].1
+    //     } else {
+    //         revcmp(extremities[u].0, k)
+    //     };
+    //     let right = if o2 == Orientation::Forward {
+    //         extremities[v].0 & 0b11
+    //     } else {
+    //         revcmp(extremities[v].1, k) & 0b11
+    //     };
 
-        (left << 2) | right
-    }
+    //     (left << 2) | right
+    // }
 
     // pub fn get_k_plus_one_mer_right_telomer(&self, u: usize, o1: Orientation, k: usize) -> u64 {
     //     let extremities = self.extremities.as_ref().unwrap();
