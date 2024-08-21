@@ -39,5 +39,5 @@ behavior of this command line call)
 panacus-visualize hprc-v1.0-mc-grch38.ordered-histgrowth.bp.tsv > hprc-v1.0-mc-grch38.ordered-histgrowth.bp.pdf
 ```
 
-![ordered pangenome growth of bps in hprc-v1.0-mc-grch38.gfa](docs/hprc-v1.0-mc-grch38.ordered-histgrowth.bp.png?raw=true "pangenome growth of non-reference sequence in the HPRC v.1.0 MC GRCh38 graph")
+![ordered pangenome growth of bps in hprc-v1.0-mc-grch38.gfa](/docs/hprc-v1.0-mc-grch38.ordered-histgrowth.bp.png?raw=true "pangenome growth of non-reference sequence in the HPRC v.1.0 MC GRCh38 graph")
 

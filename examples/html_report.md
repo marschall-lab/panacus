@@ -11,7 +11,7 @@ RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -s chr22.h
 
 :point_right: :point_right: :point_right: **view the resulting [HTML report here](https://htmlpreview.github.io/?https://github.com/marschall-lab/panacus/blob/main/docs/chr22.hprc-v1.0-pggb.histgrowth.html)!**
 
-![panacus report (coverage histogram) for chr22.hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.report.histogram.logscale.highlight.png?raw=true "pangenome report of chr22.hprc-v1.0-pggb.gfa showing coverage histogram in logsacle")
+![panacus report (coverage histogram) for chr22.hprc-v1.0-pggb.gfa](/docs/chr22.hprc-v1.0-pggb.report.histogram.logscale.highlight.png?raw=true "pangenome report of chr22.hprc-v1.0-pggb.gfa showing coverage histogram in logsacle")
 
 ### Figure legend
 1. Navigate between coverage histograms for bp, node, and edge through tabs 
@@ -21,7 +21,7 @@ RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -s chr22.h
 5. Choose between light and dark theme
 6. Proceed to pangenome growth plots
 
-![panacus report (pangenome growth) for chr22.hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.report.growth.disabled.highlight.png?raw=true "pangenome report of chr22.hprc-v1.0-pggb.gfa showing pangenome growth plots with disabled curves")
+![panacus report (pangenome growth) for chr22.hprc-v1.0-pggb.gfa](/docs/chr22.hprc-v1.0-pggb.report.growth.disabled.highlight.png?raw=true "pangenome report of chr22.hprc-v1.0-pggb.gfa showing pangenome growth plots with disabled curves")
 
 ### Figure legend
 1. Navigate between coverage histograms for bp, node, and edge through tabs 

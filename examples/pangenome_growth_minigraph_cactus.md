@@ -30,5 +30,5 @@ RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -a -s chr2
 panacus-visualize -e chr22.hprc-v1.1-mc-grch38.histgrowth.node.tsv > chr22.hprc-v1.1-mc-grch38.histgrowth.node.pdf
 ```
 
-![coverage histogram and pangenome growth of nodes in chr22.hprc-v1.1-mc-grch38.gfa](docs/chr22.hprc-v1.1-mc-grch38.histgrowth.node.png?raw=true "coverage and pangenome growth statistics on the HPRC v.1.1 mc-grch38, chr 22")
+![coverage histogram and pangenome growth of nodes in chr22.hprc-v1.1-mc-grch38.gfa](/docs/chr22.hprc-v1.1-mc-grch38.histgrowth.node.png?raw=true "coverage and pangenome growth statistics on the HPRC v.1.1 mc-grch38, chr 22")
 
