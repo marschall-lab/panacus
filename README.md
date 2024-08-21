@@ -29,7 +29,7 @@ To limit the amount of features that are part of the calculation (e.g. for visua
 ## Installation
 `panacus` is written in [RUST](https://www.rust-lang.org/) and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
 
-`panacus` provides a Python script for visualizing the calculated counting statistics and requires Python>=3.6 and the following Python libraries:
+`panacus` provides a Python script for visualizing the calculated counting statistics. It requires Python>=3.6 and the following Python libraries:
 - matplotlib
 - numpy
 - pandas
