@@ -29,7 +29,6 @@ pub enum OutputFormat {
 
 pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> BufReader<Box<dyn Read>> {
     log::info!("loading graph from {}", &gfa_file);
-    let f = std::fs::File::open(&gfa_file).expect("Error opening gfa file {}", gfa_file);
     let f = std::fs::File::open(&gfa_file).expect(&format!("Error opening gfa file {}", &gfa_file));
     let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
         log::info!("assuming that {} is gzip compressed..", &gfa_file);
