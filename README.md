@@ -27,7 +27,7 @@ To limit the amount of features that are part of the calculation (e.g. for visua
 - `quorum`: fraction of haplotypes that must share a feature after the haplotype is added to the graph to include it in the output (e.g. a quorum of `1` means only features that are shared by `100%` of the haplotypes ("core genome"))
 
 ## Installation
-`panacus` is written in [RUST](https://www.rust-lang.org/) and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
+`panacus` is written in [RUST](https://www.rust-lang.org/) and requires a working RUST build system (version >= 1.74.1) for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
 
 `panacus` provides a Python script for visualizing the calculated counting statistics. It requires Python>=3.6 and the following Python libraries:
 - matplotlib
