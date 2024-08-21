@@ -22,8 +22,9 @@ Describes how many features (nodes, edges, ...) one would expect on average if t
 1...n haplotypes.
 
 To limit the amount of features that are part of the calculation (e.g. for visualizing the core genome) pairs of the coverage/quorum parameters can be used:
-- coverage: include only features in the calculation that are visited by at least that many paths
-- quorum: fraction of haplotypes that must share a feature after the haplotype is added to the graph
+
+- `coverage`: include only features in the calculation that are visited by at least that many paths (can be used e.g. to filter out private nodes, that are part of only 1 haplotype)
+- `quorum`: fraction of haplotypes that must share a feature after the haplotype is added to the graph to include it in the output (e.g. a quorum of `1` means only features that are shared by `100%` of the haplotypes ("core genome"))
 
 ## Dependencies
 
