@@ -21,8 +21,8 @@ use crate::util::*;
 pub enum RequireThreshold {
     Absolute,
     Relative,
-    #[allow(dead_code)]
-    Either,
+    //#[allow(dead_code)]
+    //Either,
 }
 
 #[macro_export]
@@ -541,6 +541,7 @@ pub enum Params {
     //},
 }
 
+
 pub fn read_params() -> Params {
     Command::parse().cmd
 }
@@ -549,55 +550,56 @@ pub fn parse_threshold_cli(
     threshold_str: &str,
     require: RequireThreshold,
 ) -> Result<Vec<Threshold>, Error> {
-    let mut thresholds = Vec::new();
-
-    for (i, el) in threshold_str.split(',').enumerate() {
-        let rel_val = match f64::from_str(el.trim()) {
-            Ok(t) => {
-                if 0.0 <= t && t <= 1.0 {
-                    Ok(t)
-                } else {
-                    Err(Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "relative threshold \"{}\" ({}. element in list) must be within [0,1].",
-                            &threshold_str,
-                            i + 1
-                        ),
-                    ))
+    threshold_str
+        .split(',')
+        .enumerate()
+        .map(|(i, el)| {
+            let trimmed = el.trim();
+                
+            match require {
+                RequireThreshold::Absolute => {
+                    let absolute_result = usize::from_str(trimmed).map(Threshold::Absolute).map_err(|_| {
+                        Error::new(ErrorKind::InvalidData,
+                            format!(
+                                "Threshold \"{}\" ({}. element) should be a valid integer for absolute threshold.",
+                                trimmed, i + 1
+                            ),
+                        )
+                    });
+                    absolute_result
+                }
+                RequireThreshold::Relative => {
+                    // Parse as either float (relative) or integer (absolute)
+                    let relative_result = f64::from_str(trimmed)
+                        .map_err(|_| Error::new(ErrorKind::InvalidData, format!(
+                            "Threshold \"{}\" ({}. element) should be a valid float for relative threshold.",
+                            trimmed, i + 1
+                        )))
+                        .and_then(|t| {
+                            if 0.0 <= t && t <=1.0 {
+                                Ok(Threshold::Relative(t))
+                            } else {
+                                Err(Error::new(
+                                    ErrorKind::InvalidData,
+                                    format!(
+                                        "Relative threshold \"{}\" ({}. element) must be within [0,1].",
+                                        trimmed, i + 1
+                                    ),
+                                ))
+                            }
+                        });
+                    relative_result
                 }
             }
-            Err(_) => Err(Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "threshold \"{}\" ({}. element in list) is required to be float, but isn't.",
-                    &threshold_str,
-                    i + 1
-                ),
-            )),
-        };
-
-        thresholds.push(
-            match require {
-                RequireThreshold::Absolute => Threshold::Absolute(usize::from_str(el.trim()).map_err(|_|
-                    Error::new(
-                            ErrorKind::InvalidData,
-                            format!("threshold \"{}\" ({}. element in list) is required to be integer, but isn't.",
-                    &threshold_str,
-                    i + 1)))?),
-            RequireThreshold::Relative => Threshold::Relative(rel_val?),
-            RequireThreshold::Either =>
-        if let Some(t) = usize::from_str(el.trim()).ok() {
-            Threshold::Absolute(t)
-        } else {
-            Threshold::Relative(rel_val?)
-            }
-            }
-            );
-    }
-    Ok(thresholds)
+        })
+        .collect() 
 }
 
+// set number of threads can be run only once, otherwise it throws an error of the 
+// GlobalPoolAlreadyInitialized, which unfortunately is not pub therefore we cannot catch it.
+// https://github.com/rayon-rs/rayon/issues/878
+// We run this function in the main otherwise in the tests the second time we run the function
+// "run" it will crush
 pub fn set_number_of_threads(params: &Params) {
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
@@ -606,42 +608,19 @@ pub fn set_number_of_threads(params: &Params) {
     | Params::OrderedHistgrowth { threads, .. }
     | Params::Table { threads, .. }
     //| Params::Cdbg { threads, .. } 
-    = params
-    {
-        if *threads > 0 {
-            log::info!("running panacus on {} threads", &threads);
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(*threads)
-                .build_global()
-                .unwrap();
-        } else {
-            log::info!("running panacus using all available CPUs");
-            rayon::ThreadPoolBuilder::new().build_global().unwrap();
-        }
+    = params {
+        //if num_threads is 0 then the Rayon will select 
+        //the number of threads automatically 
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(*threads)
+            .build_global()
+            .expect("Failed to initialize global thread pool");
+        log::info!("running panacus on {} threads", rayon::current_num_threads());
     }
 }
 
-// make sure either group, groupby-sample, or groupby-haplotype is set
-pub fn validate_single_groupby_option(
-    groupby: &str,
-    groupby_haplotype: bool,
-    groupby_sample: bool,
-) -> Result<(), Error> {
-    let mut c = 0;
-    c += (!groupby.is_empty()) as u8;
-    c += (groupby_haplotype) as u8;
-    c += (groupby_sample) as u8;
-    if c > 1 {
-        let msg = "At most one option of groupby, groupby-haplotype, and groupby-sample can be set at once, but at least two are given.";
-        log::error!("{}", &msg);
-        return Err(Error::new(ErrorKind::InvalidInput, msg));
-    }
-    Ok(())
-}
-
-pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error> {
-    set_number_of_threads(&params);
-
+// make sure only one of group, groupby-sample, or groupby-haplotype is set
+pub fn validate_single_groupby_option(params: &Params) -> Result<(), Error> {
     if let Params::Histgrowth {
         ref groupby,
         groupby_haplotype,
@@ -684,10 +663,28 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
     //    groupby_sample,
     //    ..
     //} 
-    = params
-    {
-        validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)?;
+    = params {
+        let options_set = [
+            !(*groupby).is_empty(),
+            *groupby_haplotype,
+            *groupby_sample,
+        ];
+
+        let active_options = options_set.iter().filter(|&option| *option).count();
+
+        if active_options > 1 {
+            let msg = "At most only one of groupby, groupby-haplotype, or groupby-sample can be set. Multiple options were provided.";
+            log::error!("{}", msg);
+            return Err(Error::new(ErrorKind::InvalidInput, msg));
+        }
+
     }
+    Ok(())
+}
+
+pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error> {
+
+    validate_single_groupby_option(&params)?;
 
     match params {
         Params::Histgrowth {
@@ -937,4 +934,132 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Params {
+        fn default_histgrowth() -> Self {
+            Params::Histgrowth {
+                gfa_file: String::new(),
+                count: CountType::Node,
+                positive_list: String::new(),
+                negative_list: String::new(),
+                groupby: String::new(),
+                groupby_haplotype: false,
+                groupby_sample: false,
+                coverage: "1".to_string(),
+                quorum: "0".to_string(),
+                hist: false,
+                output_format: OutputFormat::Table,
+                threads: 0,
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_relative_success() {
+        let threshold_str = "0.2,0.5,0.9";
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Relative);
+        assert!(result.is_ok());
+        let thresholds = result.unwrap();
+        assert_eq!(thresholds.len(), 3);
+        assert_eq!(thresholds[0], Threshold::Relative(0.2));
+        assert_eq!(thresholds[1], Threshold::Relative(0.5));
+        assert_eq!(thresholds[2], Threshold::Relative(0.9));
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_absolute_success() {
+        let threshold_str = "5,10,15";
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Absolute);
+        assert!(result.is_ok());
+        let thresholds = result.unwrap();
+        assert_eq!(thresholds.len(), 3);
+        assert_eq!(thresholds[0], Threshold::Absolute(5));
+        assert_eq!(thresholds[1], Threshold::Absolute(10));
+        assert_eq!(thresholds[2], Threshold::Absolute(15));
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_invalid_float_in_absolute() {
+        let threshold_str = "5.5,10,15";
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Absolute);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().kind(),
+            ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_invalid_value_in_relative() {
+        let threshold_str = "0.2,1.2,0.9"; // 1.2 is out of range for relative threshold
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Relative);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().kind(),
+            ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn test_validate_single_groupby_option() {
+        let test_cases = vec![
+            // Valid cases
+            ("", false, false, true),       // None set
+            ("group1", false, false, true), // Only groupby is set
+            ("", true, false, true),        // Only groupby_haplotype is set
+            ("", false, true, true),        // Only groupby_sample is set
+
+            // Invalid cases
+            ("group1", true, false, false), // groupby and groupby_haplotype set
+            ("group1", false, true, false), // groupby and groupby_sample set
+            ("", true, true, false),        // groupby_haplotype and groupby_sample set
+            ("group1", true, true, false),  // All options set
+        ];
+
+        for (test_groupby, test_groupby_haplotype, test_groupby_sample, should_pass) in test_cases {
+            let mut params = Params::default_histgrowth();
+            if let Params::Histgrowth {
+                ref mut groupby,
+                ref mut groupby_haplotype,
+                ref mut groupby_sample,
+                ..
+            } = params {
+                *groupby = test_groupby.to_string();
+                *groupby_haplotype = test_groupby_haplotype;
+                *groupby_sample = test_groupby_sample;
+            }
+
+            let result = validate_single_groupby_option(&params);
+            if should_pass {
+                assert!(
+                    result.is_ok(),
+                    "Expected OK, but got error for input: groupby = '{}', groupby_haplotype = {}, groupby_sample = {}",
+                    test_groupby, test_groupby_haplotype, test_groupby_sample
+                );
+            } else {
+                assert!(
+                    result.is_err(),
+                    "Expected error, but got OK for input: groupby = '{}', groupby_haplotype = {}, groupby_sample = {}",
+                    test_groupby, test_groupby_haplotype, test_groupby_sample
+                );
+            }
+        }
+    }
+   
+    #[test]
+    #[should_panic(expected = "Error opening gfa file non_existent_file.gfa")]
+    fn test_run_function_should_panic_when_file_not_found() {
+        let mut params = Params::default_histgrowth();
+        if let Params::Histgrowth { ref mut gfa_file, .. } = params {
+            *gfa_file = "non_existent_file.gfa".to_string();
+        }
+
+        let mut output = BufWriter::new(Vec::new());
+        let _ = run(params, &mut output); // This should panic due to the non-existent file
+    }
 }
