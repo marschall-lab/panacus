@@ -1,7 +1,7 @@
 # Pangenome Coverage and Growth Statistics for PGGB
 
 > ![TIP]
-> You can execute this file by downloading it and running: ````cat pangenome_growth_pggb.md | sed -n '/```bash/,/```/p' | sed '/```/d'| bash````
+> You can execute this file by downloading it and running: 
 
 Here's a quick example for computing coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22: 
 
