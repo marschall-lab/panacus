@@ -26,29 +26,16 @@ To limit the amount of features that are part of the calculation (e.g. for visua
 - `coverage`: include only features in the calculation that are visited by at least that many paths (can be used e.g. to filter out private nodes, that are part of only 1 haplotype)
 - `quorum`: fraction of haplotypes that must share a feature after the haplotype is added to the graph to include it in the output (e.g. a quorum of `1` means only features that are shared by `100%` of the haplotypes ("core genome"))
 
-## Dependencies
-
+## Installation
 `panacus` is written in [RUST](https://www.rust-lang.org/) and requires a working RUST build system for installation. See [here](https://www.rust-lang.org/tools/install) for more details.
 
-- clap
-- itertools
-- quick-csv
-- rand
-- rayon
-- regex
-- rustc-hash
-- strum, strum_macros
-
-`panacus` provides a Python script for visualizing the calculated counting statistics and requires the following Python libraries:
-
+`panacus` provides a Python script for visualizing the calculated counting statistics and requires Python>=3.6 and the following Python libraries:
 - matplotlib
 - numpy
 - pandas
 - scikit-learn
 - scipy
 - seaborn
-
-## Installation
 
 ### From bioconda channel
 
@@ -132,7 +119,7 @@ Options:
   -V, --version  Print version
 ```
 
-## Pangenome Coverage and Growth Statistics
+## Examples
 
 ### PGGB
 Here's a quick example for computing coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22: 
