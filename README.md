@@ -150,9 +150,9 @@ grep '^P' chr22.hprc-v1.0-pggb.gfa | cut -f2 | grep -ve 'grch38\|chm13' > chr22.
 ```shell
 RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -a -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.node.tsv
 ```
-4. Visualize coverage histogram and pangenome growth curve with estimated growth parameters:
+4. Visualize coverage histogram and pangenome growth curve:
 ```shell
-panacus-visualize -e chr22.hprc-v1.0-pggb.histgrowth.node.tsv > chr22.hprc-v1.0-pggb.histgrowth.node.pdf
+panacus-visualize chr22.hprc-v1.0-pggb.histgrowth.node.tsv > chr22.hprc-v1.0-pggb.histgrowth.node.pdf
 ```
 
 ![coverage histogram and pangenome growth of nodes in chr22.hprc-v1.0-pggb.gfa](docs/chr22.hprc-v1.0-pggb.histgrowth.node.png?raw=true "coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22")
@@ -237,11 +237,11 @@ HG03453 HG03486 HG03516 HG03540 HG03579 NA18906 NA20129 NA21309' | tr ' ' '\n' >
 ```
 3. Exclude paths from reference genome GRCh38
 ```shell
-grep '^P' hprc-v1.0-mc-grch38.gfa | cut -f2 | grep -ie 'grch38' > hprc-v1.0-mc-grch38.paths.grch38.txt
+grep '^P' hprc-v1.0-mc-grch38.gfa | cut -f2 | grep -ie 'grch38' > hprc-v1.0-mc-grch38.exclude.grch38.txt
 ```
 4. Run `panacus ordered-histgrowth` to calculate pangenome growth for basepairs with coverage thresholds 1,2,3, and 42 using up to 4 threads:
 ```shell
-RUST_LOG=info panacus ordered-histgrowth -c bp -t4 -l 1,2,3,42 -S -e hprc-v1.0-mc-grch38.paths.grch38.txt hprc-v1.0-mc-grch38.gfa > hprc-v1.0-mc-grch38.ordered-histgrowth.bp.tsv
+RUST_LOG=info panacus ordered-histgrowth -c bp -t4 -l 1,2,3,42 -S -e hprc-v1.0-mc-grch38.exclude.grch38.txt -O hprc-v1.0-mc.grch38.order.samples.txt hprc-v1.0-mc-grch38.gfa > hprc-v1.0-mc-grch38.ordered-histgrowth.bp.tsv
 ```
 (The log will report some errors regarding missing order information of CHM13 paths. These paths will be ignored in the plot, which is the intended
 behavior of this command line call)
