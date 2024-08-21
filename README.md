@@ -119,7 +119,7 @@ Options:
   -V, --version  Print version
 ```
 
-## Examples
+## Pangenome Coverage and Growth Statistics
 
 ### PGGB
 Here's a quick example for computing coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22: 
