@@ -541,6 +541,26 @@ pub enum Params {
     //},
 }
 
+//This is just used for tests, but we use it in multiple tests in other files as well
+impl Params {
+    pub fn default_histgrowth() -> Self {
+        Params::Histgrowth {
+            gfa_file: String::new(),
+            count: CountType::Node,
+            positive_list: String::new(),
+            negative_list: String::new(),
+            groupby: String::new(),
+            groupby_haplotype: false,
+            groupby_sample: false,
+            coverage: "1".to_string(),
+            quorum: "0".to_string(),
+            hist: false,
+            output_format: OutputFormat::Table,
+            threads: 0,
+        }
+    }
+}
+
 
 pub fn read_params() -> Params {
     Command::parse().cmd
@@ -940,24 +960,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 mod tests {
     use super::*;
 
-    impl Params {
-        fn default_histgrowth() -> Self {
-            Params::Histgrowth {
-                gfa_file: String::new(),
-                count: CountType::Node,
-                positive_list: String::new(),
-                negative_list: String::new(),
-                groupby: String::new(),
-                groupby_haplotype: false,
-                groupby_sample: false,
-                coverage: "1".to_string(),
-                quorum: "0".to_string(),
-                hist: false,
-                output_format: OutputFormat::Table,
-                threads: 0,
-            }
-        }
-    }
 
     #[test]
     fn test_parse_threshold_cli_relative_success() {
