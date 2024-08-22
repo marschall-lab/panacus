@@ -1,8 +1,9 @@
 /* standard use */
 use std::fs;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
+use std::str::{self};
 //use std::sync::{Arc, Mutex};
 
 /* external crate*/
@@ -249,6 +250,37 @@ impl AbacusAuxilliary {
         })
     }
 
+    fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment, String)>, Error> {
+        let mut res: Vec<(PathSegment, String)> = Vec::new();
+
+        let mut i = 1;
+        let mut buf = vec![];
+        while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+            //Remove new line at the end
+            if let Some(&last_byte) = buf.last() {
+                if last_byte == b'\n' || last_byte == b'\r' {
+                    buf.pop();
+                }
+            }
+            let line = String::from_utf8(buf.clone()).expect(&format!("error in line {}: some character is not UTF-8",i));
+            let columns: Vec<&str> = line.split('\t').collect();
+
+            if columns.len() != 2 {
+                let msg = format!("error in line {}: table must have exactly two columns", i);
+                log::error!("{}", &msg);
+                return Err(Error::new(ErrorKind::InvalidData, msg));
+            }
+
+            let path_seg = PathSegment::from_str(columns[0]);
+            res.push((path_seg, columns[1].to_string()));
+
+            i += 1;
+            buf.clear();
+        }
+
+        Ok(res)
+    }
+
     fn load_groups(
         file_name: &str,
         groupby_haplotype: bool,
@@ -279,7 +311,7 @@ impl AbacusAuxilliary {
         } else if !file_name.is_empty() {
             log::info!("loading groups from {}", file_name);
             let mut data = BufReader::new(fs::File::open(file_name)?);
-            let group_assignments = parse_groups(&mut data)?;
+            let group_assignments = Self::parse_groups(&mut data)?;
             let mut path_to_group = HashMap::default();
             for (i, (path, group)) in group_assignments.into_iter().enumerate() {
                 let path_nocoords = path.clear_coords();
@@ -1177,4 +1209,80 @@ fn quantify_uncovered_bps(
         }
     }
     res
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_test_data() -> (GraphAuxilliary, Params, String) {
+        let test_gfa_file = "test/cdbg.gfa";
+        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, CountType::Node);
+        let mut params = Params::default_histgrowth();
+        if let Params::Histgrowth {
+            ref mut gfa_file,
+            ..
+        } = params {
+            *gfa_file=test_gfa_file.to_string()
+        }
+
+        (graph_aux, params, test_gfa_file.to_string())
+    }
+
+    #[test]
+    fn test_parse_groups_with_valid_input() {
+        let (graph_aux, _, _) = setup_test_data();
+        let file_name = "test/test_groups.txt";
+        let mut test_path_segments = vec![];
+        test_path_segments.push(PathSegment::from_str("a#0"));
+        test_path_segments.push(PathSegment::from_str("b#0"));
+        test_path_segments.push(PathSegment::from_str("c#0"));
+        test_path_segments.push(PathSegment::from_str("c#1"));
+        test_path_segments.push(PathSegment::from_str("d#0"));
+        let mut test_groups = vec!["G1","G1","G2","G2","G2"];
+
+        let mut data = BufReader::new(fs::File::open(file_name).unwrap());
+        let result = AbacusAuxilliary::parse_groups(&mut data);
+        assert!(result.is_ok(), "Expected successful group loading");
+        let path_segments_group = result.unwrap();
+        assert!(path_segments_group.len() > 0, "Expected non-empty group assignments");
+        assert_eq!(path_segments_group.len(), 5); // number of paths == groups
+        for (i, (path_seg, group)) in path_segments_group.into_iter().enumerate() {
+            assert_eq!(path_seg, test_path_segments[i]);
+            assert_eq!(group, test_groups[i]);
+        }
+    }
+
+    #[test]
+    fn test_abacus_auxilliary_from_params_success() {
+        let (graph_aux, params, _) = setup_test_data();
+
+        let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux);
+        assert!(abacus_aux.is_ok(), "Expected successful creation of AbacusAuxilliary");
+
+        let abacus_aux = abacus_aux.unwrap();
+        assert_eq!(abacus_aux.groups.len(), 5); // number of paths == groups
+    }
+
+    #[test]
+    fn test_abacus_by_total_from_gfa() {
+        let (graph_aux, params, test_gfa_file) = setup_test_data();
+        let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
+        let test_abacus_by_total = AbacusByTotal {
+            count: CountType::Node,
+            countable: vec![CountSize::MAX, 5,3,4,2,1],
+            uncovered_bps: Some(HashMap::default()),
+            groups:  vec!["a#0".to_string(), "b#0".to_string(), 
+                          "c#0".to_string(), "c#1".to_string(), 
+                          "d#0".to_string()]
+        };
+
+        let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
+        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node);
+        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Node");
+        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
+        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
+        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
+    }
 }
