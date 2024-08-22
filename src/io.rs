@@ -105,30 +105,6 @@ pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
     res
 }
 
-pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment, String)>, Error> {
-    let mut res: Vec<(PathSegment, String)> = Vec::new();
-
-    let reader = Csv::from_reader(data)
-        .delimiter(b'\t')
-        .flexible(true)
-        .has_header(false);
-    for (i, row) in reader.enumerate() {
-        let row = row.unwrap();
-        let mut row_it = row.bytes_columns();
-        let path_seg =
-            PathSegment::from_str(&str::from_utf8(row_it.next().unwrap()).unwrap().to_string());
-        if let Some(col) = row_it.next() {
-            res.push((path_seg, str::from_utf8(col).unwrap().to_string()));
-        } else {
-            let msg = format!("error in line {}: table must have two columns", i);
-            log::error!("{}", &msg);
-            return Err(Error::new(ErrorKind::InvalidData, msg));
-        }
-    }
-
-    Ok(res)
-}
-
 pub fn parse_tsv<R: Read>(
     data: &mut BufReader<R>,
 ) -> Result<(Vec<Vec<u8>>, Vec<Vec<Vec<u8>>>), Error> {
