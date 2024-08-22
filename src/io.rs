@@ -1339,7 +1339,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
 
     write_histgrowth_html(
         &None,
-        &vec![(count, growths)],
+        &[(count, growths)],
         hist_aux,
         Path::new(gfa_file)
             .file_name()
