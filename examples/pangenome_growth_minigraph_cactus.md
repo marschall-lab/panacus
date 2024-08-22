@@ -1,7 +1,7 @@
 # Pangenome Coverage and Growth Statistics for Minigraph-Cactus
 
 *TIP:*
-You can execute this file by downloading it and running: 
+You can try this example by downloading this file and running: 
 ````bash
 cat pangenome_growth_minigraph_cactus.md | sed -n '/```shell/,/```/p' | sed '/```/d' | bash
 ````

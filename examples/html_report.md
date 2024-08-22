@@ -1,9 +1,24 @@
 # Generate an HTML report for your pangenome graph!
 
+*TIP:*
+You can try this example by downloading this file and running: 
+````bash
+cat html_report.md | sed -n '/```shell/,/```/p' | sed '/```/d' | bash
+````
+
 Instead of tab-separated tables, `panacus` supports for many commands also HTML output. The generated report page is interactive and self-contained. 
 
-1. Follow steps 1-2 from above.
-2. Run `panacus histgrowth` with settings to output stats for all graph features (`-c all`), include coverage histogram in output (`-a`), and set
+1. Download and unpack the graph:
+```shell
+wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chr22.hprc-v1.0-pggb.gfa.gz
+gunzip chr22.hprc-v1.0-pggb.gfa.gz
+```
+2. Prepare file to select subset of paths corresponding to haplotypes:
+```shell
+grep '^P' chr22.hprc-v1.0-pggb.gfa | cut -f2 | grep -ve 'grch38\|chm13' > chr22.hprc-v1.0-pggb.paths.haplotypes.txt
+```
+
+3. Run `panacus histgrowth` with settings to output stats for all graph features (`-c all`), include coverage histogram in output (`-a`), and set
    output to HTML (`-o html`):
 ```shell
 RUST_LOG=info panacus histgrowth -t4 -l 1,2,1,1,1 -q 0,0,1,0.5,0.1 -S -s chr22.hprc-v1.0-pggb.paths.haplotypes.txt -c all -a -o html chr22.hprc-v1.0-pggb.gfa > chr22.hprc-v1.0-pggb.histgrowth.html

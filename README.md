@@ -118,6 +118,14 @@ Options:
   -h, --help     Print help
   -V, --version  Print version
 ```
+
+## Quickstart
+Generate a simple growth plot from a GFA file:
+```shell
+RUST_LOG=info panacus histgrowth -t6 -q 0.1,0.5,1 -S <INPUT_GFA> > output.tsv
+panacus-visualize -e output.tsv > output.pdf
+```
+
 ## Examples
 Examples can be found in the [examples directory](/examples/).
 

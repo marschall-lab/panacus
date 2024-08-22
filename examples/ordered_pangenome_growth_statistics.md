@@ -1,7 +1,7 @@
 # Ordered Pangenome Growth Statistics
 
 *TIP:*
-You can execute this file by downloading it and running: 
+You can try this example by downloading this file and running: 
 ````bash
 cat ordered_pangenome_growth_statistics.md | sed -n '/```shell/,/```/p' | sed '/```/d' | bash
 ````
