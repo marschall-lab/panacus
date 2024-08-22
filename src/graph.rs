@@ -245,7 +245,7 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn path_info(&self, paths_len: &Vec<u32>) -> PathInfo {
+    pub fn path_info(&self, paths_len: &[u32]) -> PathInfo {
         //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
         PathInfo {
             no_paths: paths_len.len(),

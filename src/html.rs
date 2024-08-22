@@ -69,7 +69,7 @@ pub fn populate_constants(vars: &mut HashMap<&str, String>) {
     );
 }
 
-pub fn generate_hist_tabs(hists: &Vec<Hist>) -> String {
+pub fn generate_hist_tabs(hists: &[Hist]) -> String {
     let reg = Handlebars::new();
 
     let mut tab_content = String::new();
@@ -126,7 +126,7 @@ pub fn generate_hist_tabs(hists: &Vec<Hist>) -> String {
     reg.render_template(container, &vars).unwrap()
 }
 
-pub fn generate_growth_tabs(growths: &Vec<(CountType, Vec<Vec<f64>>)>) -> String {
+pub fn generate_growth_tabs(growths: &[(CountType, Vec<Vec<f64>>)]) -> String {
     let reg = Handlebars::new();
 
     let mut tab_content = String::new();
@@ -381,7 +381,7 @@ pub fn write_html<W: Write>(
 }
 
 pub fn write_hist_html<W: Write>(
-    hists: &Vec<Hist>,
+    hists: &[Hist],
     fname: &str,
     stats: Option<Stats>,
     out: &mut BufWriter<W>,
@@ -496,7 +496,7 @@ pub fn write_stats_html<W: Write>(
 
 pub fn write_histgrowth_html<W: Write>(
     hists: &Option<Vec<Hist>>,
-    growths: &Vec<(CountType, Vec<Vec<f64>>)>,
+    growths: &[(CountType, Vec<Vec<f64>>)],
     hist_aux: &HistAuxilliary,
     fname: &str,
     ordered_names: Option<&Vec<String>>,

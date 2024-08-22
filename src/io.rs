@@ -165,7 +165,7 @@ pub fn parse_tsv<R: Read>(
     Ok((comments, table))
 }
 
-fn transpose_table(table: &Vec<Vec<Vec<u8>>>) -> Vec<Vec<&[u8]>> {
+fn transpose_table(table: &[Vec<Vec<u8>>]) -> Vec<Vec<&[u8]>> {
     let n = table.first().unwrap_or(&Vec::new()).len();
 
     let mut res = vec![vec![&table[0][0][..]; table.len()]; n];
@@ -179,7 +179,7 @@ fn transpose_table(table: &Vec<Vec<Vec<u8>>>) -> Vec<Vec<&[u8]>> {
     res
 }
 
-fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, Error> {
+fn parse_column(col: &[&[u8]], offset: usize) -> Result<Vec<usize>, Error> {
     let skip_lines = 2;
     let mut res = vec![0; col.len() - skip_lines];
 
@@ -1119,7 +1119,7 @@ fn update_tables_edgecount(
 }
 
 pub fn write_table<W: Write>(
-    headers: &Vec<Vec<String>>,
+    headers: &[Vec<String>],
     columns: &Vec<Vec<f64>>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
@@ -1147,9 +1147,9 @@ pub fn write_table<W: Write>(
 }
 
 pub fn write_ordered_table<W: Write>(
-    headers: &Vec<Vec<String>>,
+    headers: &[Vec<String>],
     columns: &Vec<Vec<f64>>,
-    index: &Vec<String>,
+    index: &[String],
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
@@ -1175,7 +1175,7 @@ pub fn write_ordered_table<W: Write>(
     Ok(())
 }
 
-pub fn write_hist_table<W: Write>(hists: &Vec<Hist>, out: &mut BufWriter<W>) -> Result<(), Error> {
+pub fn write_hist_table<W: Write>(hists: &[Hist], out: &mut BufWriter<W>) -> Result<(), Error> {
     log::info!("reporting hist table");
     writeln!(
         out,
@@ -1203,7 +1203,7 @@ pub fn write_hist_table<W: Write>(hists: &Vec<Hist>, out: &mut BufWriter<W>) -> 
 }
 
 pub fn write_histgrowth_table<W: Write>(
-    hists: &Vec<Hist>,
+    hists: &[Hist],
     growths: &Vec<(CountType, Vec<Vec<f64>>)>,
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,

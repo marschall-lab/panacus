@@ -319,7 +319,7 @@ impl AbacusAuxilliary {
 
     fn get_path_order<'a>(
         &'a self,
-        path_segments: &Vec<PathSegment>,
+        path_segments: &[PathSegment],
     ) -> Vec<(ItemIdSize, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.include; the returned vector
         // maps indices of path_segments to the group identifier
@@ -365,7 +365,7 @@ impl AbacusAuxilliary {
     }
 
     pub fn build_subpath_map(
-        path_segments: &Vec<PathSegment>,
+        path_segments: &[PathSegment],
     ) -> HashMap<String, Vec<(usize, usize)>> {
         // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
         let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
@@ -843,9 +843,9 @@ impl<'a> AbacusByGroup<'a> {
         log::info!(" ++ assigning storage locations");
         let mut c = 0;
         // can this be simplified?
-        for i in 0..r.len() {
-            let tmp = r[i];
-            r[i] = c;
+        for item in &mut r {
+            let tmp = *item;
+            *item = c;
             c += tmp;
         }
         log::info!(
@@ -858,7 +858,7 @@ impl<'a> AbacusByGroup<'a> {
     fn compute_column_values(
         item_table: &ItemTable,
         path_order: &Vec<(ItemIdSize, GroupSize)>,
-        r: &Vec<usize>,
+        r: &[usize],
         report_values: bool,
     ) -> (Option<Vec<CountSize>>, Vec<GroupSize>) {
         let n = { *r.last().unwrap() };
