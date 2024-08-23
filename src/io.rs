@@ -16,6 +16,7 @@ use strum_macros::{EnumString, EnumVariantNames};
 /* internal use */
 use crate::abacus::*;
 use crate::graph::*;
+use crate::path::*;
 use crate::hist::*;
 use crate::html::*;
 use crate::util::*;
@@ -327,7 +328,7 @@ fn parse_walk_seq_to_item_vec(
         .par_split(|x| &s1 == x)
         .map(|x| {
             if x.is_empty() {
-                // not nice... but Rust expects struct `std::iter::Once<(ItemIdSize, util::Orientation)>`
+                // not nice... but Rust expects struct `std::iter::Once<(ItemId, util::Orientation)>`
                 //
                 // this case shouldn't occur too often, so should be fine in terms for runtime
                 vec![]
@@ -341,7 +342,7 @@ fn parse_walk_seq_to_item_vec(
                     s1,
                 );
                 if i < x.len() {
-                    // not nice... but Rust expects struct `std::iter::Once<(ItemIdSize, util::Orientation)>`
+                    // not nice... but Rust expects struct `std::iter::Once<(ItemId, util::Orientation)>`
                     //
                     // this case can happen more frequently... hopefully it doesn't blow up the
                     // runtime
@@ -413,10 +414,10 @@ fn parse_walk_seq_update_tables(
                 "unknown node {}",
                 &str::from_utf8(node).unwrap()[..]
             ));
-            let idx = (sid.0 as usize) % SIZE_T;
+            let idx = (sid as usize) % SIZE_T;
             if let Ok(_) = mutex_vec[idx].lock() {
                 unsafe {
-                    (*items_ptr.0)[idx].push(sid.0);
+                    (*items_ptr.0)[idx].push(sid);
                     (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
                 }
             }
@@ -493,7 +494,7 @@ pub fn subset_path_gfa<R: Read>(
             let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
             //parse_path_seq_update_tables
             for i in 0..sids.len() {
-                let sid = sids[i].0 .0 as usize;
+                let sid = sids[i].0 as usize;
                 let ori = sids[i].1;
                 let counts = abacus.countable[sid];
                 if counts >= flt_quorum_min
@@ -566,11 +567,11 @@ fn parse_path_seq_update_tables(
         );
         //plus_strands[rayon::current_thread_index().unwrap()] += (o == b'+') as u32;
 
-        let idx = (sid.0 as usize) % SIZE_T;
+        let idx = (sid as usize) % SIZE_T;
 
         if let Ok(_) = mutex_vec[idx].lock() {
             unsafe {
-                (*items_ptr.0)[idx].push(sid.0);
+                (*items_ptr.0)[idx].push(sid);
                 (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
             }
         }
@@ -606,7 +607,7 @@ pub fn parse_graph_aux<R: Read>(
 ) -> Result<
     (
         HashMap<Vec<u8>, ItemId>,
-        Vec<ItemIdSize>,
+        Vec<ItemId>,
         Option<Vec<Vec<u8>>>,
         Vec<PathSegment>,
     ),
@@ -618,9 +619,9 @@ pub fn parse_graph_aux<R: Read>(
     let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
     let mut edges: Option<Vec<Vec<u8>>> = if index_edges { Some(Vec::new()) } else { None };
     let mut path_segments: Vec<PathSegment> = Vec::new();
-    let mut node_len: Vec<ItemIdSize> = Vec::new();
+    let mut node_len: Vec<ItemId> = Vec::new();
     // add empty element to node_len to make it in sync with node_id
-    node_len.push(ItemIdSize::MAX);
+    node_len.push(ItemId::MAX);
 
     let mut buf = vec![];
     let mut i = 1;
@@ -647,7 +648,7 @@ pub fn parse_graph_aux<R: Read>(
                 )
             })?;
             if node2id
-                .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
+                .insert(buf[2..offset + 2].to_vec(), node_id)
                 .is_some()
             {
                 return Err(std::io::Error::new(
@@ -662,7 +663,7 @@ pub fn parse_graph_aux<R: Read>(
             let offset = iter
                 .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
                 .unwrap();
-            node_len.push(offset as ItemIdSize);
+            node_len.push(offset as ItemId);
         } else if index_edges && buf[0] == b'L' {
             edges.as_mut().unwrap().push(buf.to_vec());
         } else if buf[0] == b'P' {
@@ -682,13 +683,13 @@ pub fn parse_graph_aux<R: Read>(
 
 pub fn parse_cdbg_gfa_paths_walks<R: Read>(
     data: &mut BufReader<R>,
-    abacus_aux: &AbacusAuxilliary,
+    _path_aux: &PathAuxilliary,
     graph_aux: &GraphAuxilliary,
     k: usize,
 ) -> ItemTable {
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
     //let mut k_count = 0;
-    //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
+    //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = path_aux.load_optional_subsetting(&graph_aux, &count);
 
     let mut num_path = 0;
     let mut buf = vec![];
@@ -696,10 +697,10 @@ pub fn parse_cdbg_gfa_paths_walks<R: Read>(
         if buf[0] == b'P' {
             let (_path_seg, buf_path_seg) = parse_path_identifier(&buf);
             let sids = parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux);
-            let mut u_sid = sids[0].0 .0 as usize - 1;
+            let mut u_sid = sids[0].0 as usize - 1;
             let mut u_ori = sids[0].1;
             for i in 1..sids.len() {
-                let v_sid = sids[i].0 .0 as usize - 1;
+                let v_sid = sids[i].0 as usize - 1;
                 let v_ori = sids[i].1;
                 let k_plus_one_mer =
                     graph_aux.get_k_plus_one_mer_edge(u_sid, u_ori, v_sid, v_ori, k);
@@ -735,7 +736,7 @@ pub fn parse_cdbg_gfa_paths_walks<R: Read>(
 
 pub fn parse_gfa_paths_walks<R: Read>(
     data: &mut BufReader<R>,
-    abacus_aux: &AbacusAuxilliary,
+    path_aux: &PathAuxilliary,
     graph_aux: &GraphAuxilliary,
     count: &CountType,
 ) -> (
@@ -747,7 +748,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
     log::info!("parsing path + walk sequences");
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
     let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) =
-        abacus_aux.load_optional_subsetting(&graph_aux, &count);
+        path_aux.load_optional_subsetting(&graph_aux, &count);
 
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
@@ -764,7 +765,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
 
             log::debug!("processing path {}", &path_seg);
 
-            let include_coords = if abacus_aux.include_coords.is_none() {
+            let include_coords = if path_aux.include_coords.is_none() {
                 &complete[..]
             } else {
                 match include_map.get(&path_seg.id()) {
@@ -779,7 +780,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     }
                 }
             };
-            let exclude_coords = if abacus_aux.exclude_coords.is_none() {
+            let exclude_coords = if path_aux.exclude_coords.is_none() {
                 &[]
             } else {
                 match exclude_map.get(&path_seg.id()) {
@@ -798,7 +799,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
             let (start, end) = path_seg.coords().unwrap_or((0, usize::MAX));
 
             // do not process the path sequence if path is neither part of subset nor exclude
-            if abacus_aux.include_coords.is_some()
+            if path_aux.include_coords.is_some()
                 && !intersects(include_coords, &(start, end))
                 && !intersects(exclude_coords, &(start, end))
             {
@@ -816,9 +817,9 @@ pub fn parse_gfa_paths_walks<R: Read>(
             }
 
             if count != &CountType::Edge
-                && (abacus_aux.include_coords.is_none()
+                && (path_aux.include_coords.is_none()
                     || is_contained(include_coords, &(start, end)))
-                && (abacus_aux.exclude_coords.is_none()
+                && (path_aux.exclude_coords.is_none()
                     || is_contained(exclude_coords, &(start, end)))
             {
                 log::debug!("path {} is fully contained within subset coordinates {:?} and is eligible for full parallel processing", path_seg, include_coords);
@@ -923,7 +924,7 @@ fn update_tables(
             j += 1;
         }
 
-        let l = graph_aux.node_len(&sid) as usize;
+        let l = graph_aux.node_len(sid) as usize;
 
         // this implementation of include coords for bps is *not exact* as illustrated by the
         // following scenario:
@@ -973,14 +974,14 @@ fn update_tables(
 
             // only count nodes that are completely contained in "include" coords
             if subset_covered_bps.is_some() || b - a == l {
-                let idx = (sid.0 as usize) % SIZE_T;
-                item_table.items[idx].push(sid.0);
+                let idx = (sid as usize) % SIZE_T;
+                item_table.items[idx].push(sid);
                 item_table.id_prefsum[idx][num_path + 1] += 1;
                 if let Some(int) = subset_covered_bps.as_mut() {
                     // if fully covered, we do not need to store anything in the map
                     if b - a == l {
-                        if int.contains(&sid) {
-                            int.remove(&sid);
+                        if int.contains(sid) {
+                            int.remove(sid);
                         }
                     } else {
                         int.add(sid, a, b);
@@ -1012,7 +1013,7 @@ fn update_tables(
                     map.activate_n_annotate(sid, l, a, b)
                         .expect("this error should never occur");
                 } else if b - a == l {
-                    map.activate(&sid);
+                    map.activate(sid);
                 }
                 excluded += 1;
             }
@@ -1053,7 +1054,7 @@ fn update_tables_edgecount(
 
     // edges are positioned between nodes, offset by the first node
     if path.len() > 0 {
-        p += graph_aux.node_len(&path[0].0) as usize;
+        p += graph_aux.node_len(path[0].0) as usize;
     }
 
     log::debug!("checking inclusion/exclusion criteria on {} nodes, inserting successful candidates to corresponding data structures..", path.len());
@@ -1069,7 +1070,7 @@ fn update_tables_edgecount(
             j += 1;
         }
 
-        let l = graph_aux.node_len(&sid2) as usize;
+        let l = graph_aux.node_len(sid2) as usize;
 
         let e = Edge::canonical(sid1, o1, sid2, o2);
         let eid = graph_aux
@@ -1088,12 +1089,12 @@ fn update_tables_edgecount(
             ));
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 < p + l {
-            let idx = (eid.0 as usize) % SIZE_T;
-            item_table.items[idx].push(eid.0);
+            let idx = (*eid as usize) % SIZE_T;
+            item_table.items[idx].push(*eid);
             item_table.id_prefsum[idx][num_path + 1] += 1;
         }
         if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 < p + l {
-            exclude_table.as_mut().unwrap().activate(eid);
+            exclude_table.as_mut().unwrap().activate(*eid);
         } else if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
             break;

@@ -13,6 +13,7 @@ use strum::VariantNames;
 /* private use */
 use crate::abacus::*;
 use crate::graph::*;
+use crate::path::*;
 use crate::hist::*;
 use crate::html::*;
 use crate::io::*;
@@ -718,8 +719,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
                 _ => GraphAuxilliary::from_gfa(gfa_file, count),
             };
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
+            let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
+            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &path_aux)?;
             let mut hists = Vec::new();
             for abacus in abaci {
                 hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
@@ -737,7 +738,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
                     let (_, _, _, paths_len) =
-                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+                        parse_gfa_paths_walks(&mut data, &path_aux, &graph_aux, &CountType::Node);
 
                     let stats = graph_aux.stats(&paths_len);
                     write_histgrowth_html(
@@ -762,8 +763,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
                 _ => GraphAuxilliary::from_gfa(gfa_file, count),
             };
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
+            let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
+            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &path_aux)?;
             let mut hists = Vec::new();
             for abacus in abaci {
                 hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
@@ -775,7 +776,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
                     let (_, _, _, paths_len) =
-                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+                        parse_gfa_paths_walks(&mut data, &path_aux, &graph_aux, &CountType::Node);
 
                     let stats = graph_aux.stats(&paths_len);
                     write_hist_html(&hists, &filename, Some(stats), out)?
@@ -826,10 +827,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
 
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
             let (_, _, _, paths_len) =
-                parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+                parse_gfa_paths_walks(&mut data, &path_aux, &graph_aux, &CountType::Node);
 
             let stats = graph_aux.stats(&paths_len);
             let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
@@ -847,10 +848,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             ..
         } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::Node);
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
             let abacus =
-                AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node);
+                AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
             data = bufreader_from_compressed_gfa(gfa_file);
 
             subset_path_gfa(
@@ -874,9 +875,9 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
                 _ => GraphAuxilliary::from_gfa(gfa_file, count),
             };
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, false)?;
+            let abacus = AbacusByGroup::from_gfa(&mut data, &path_aux, &graph_aux, count, false)?;
             let hist_aux = HistAuxilliary::from_params(&params)?;
             match output_format {
                 OutputFormat::Table => {
@@ -885,7 +886,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
                     let (_, _, _, paths_len) =
-                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+                        parse_gfa_paths_walks(&mut data, &path_aux, &graph_aux, &CountType::Node);
 
                     let stats = graph_aux.stats(&paths_len);
                     write_ordered_histgrowth_html(
@@ -906,9 +907,9 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             ..
         } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = BufReader::new(fs::File::open(&gfa_file)?);
-            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, total)?;
+            let abacus = AbacusByGroup::from_gfa(&mut data, &path_aux, &graph_aux, count, total)?;
 
             abacus.to_tsv(total, out)?;
         }
@@ -916,13 +917,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         //    ref gfa_file, k, ..
         //} => {
         //    let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
-        //    let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+        //    let path_aux = PathAuxilliary::from_params(&params, &graph_aux)?;
 
         //    let mut hists = Vec::new();
         //    let abaci_node =
-        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
+        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &path_aux)?;
         //    let abaci_bp =
-        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
+        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &path_aux)?;
         //    hists.push(Hist::from_abacus(&abaci_node[0], None));
         //    hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
 
@@ -938,7 +939,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 
         //    let mut data = BufReader::new(fs::File::open(&gfa_file)?);
         //    let abaci_infix_eq =
-        //        AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
+        //        AbacusByTotal::from_cdbg_gfa(&mut data, &path_aux, &graph_aux, k, &unimer);
 
         //    println!("# infix_eq");
         //    for v in abaci_infix_eq.countable.iter() {

@@ -1,19 +1,16 @@
 /* standard use */
-use once_cell::sync::Lazy;
-use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::{BufRead, Read};
+use std::io::{BufRead};
 use std::str::{self, FromStr};
 
 /* private use */
 use crate::io::bufreader_from_compressed_gfa;
 use crate::util::*;
-use crate::util::{CountType, ItemIdSize};
+use crate::util::{CountType};
 
-static PATHID_PANSN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#]+)?$").unwrap());
-static PATHID_COORDS: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+):([0-9]+)-([0-9]+)$").unwrap());
+/* private use */
+use crate::path::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Orientation {
@@ -87,14 +84,16 @@ impl PartialEq<u8> for Orientation {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ItemId(pub ItemIdSize);
+pub type ItemId = u64;
 
-impl fmt::Display for ItemId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+//#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//pub struct ItemId(pub ItemId);
+
+//impl fmt::Display for ItemId {
+//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//        write!(f, "{}", self.0)
+//    }
+//}
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Edge(pub ItemId, pub Orientation, pub ItemId, pub Orientation);
@@ -139,7 +138,7 @@ impl Edge {
     }
 
     pub fn canonical(u: ItemId, o1: Orientation, v: ItemId, o2: Orientation) -> Self {
-        if u.0 > v.0 || (u.0 == v.0 && o1 == Orientation::Backward) {
+        if u > v || (u == v && o1 == Orientation::Backward) {
             Self(v, o2.flip(), u, o1.flip())
         } else {
             Self(u, o1, v, o2)
@@ -218,8 +217,8 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn node_len(&self, v: &ItemId) -> u32 {
-        self.node_lens[v.0 as usize]
+    pub fn node_len(&self, v: ItemId) -> u32 {
+        self.node_lens[v as usize]
     }
 
     pub fn stats(&self, paths_len: &Vec<u32>) -> Stats {
@@ -273,7 +272,7 @@ impl GraphAuxilliary {
     ) -> (HashMap<Edge, ItemId>, usize, Vec<u32>) {
         let mut edge2id = HashMap::default();
         let mut degree: Vec<u32> = vec![0; node2id.len() + 1];
-        let mut edge_id: ItemIdSize = 1;
+        let mut edge_id: ItemId = 1;
 
         let mut buf = vec![];
         let mut data = bufreader_from_compressed_gfa(gfa_file);
@@ -283,11 +282,11 @@ impl GraphAuxilliary {
                 if edge2id.contains_key(&edge) {
                     log::warn!("edge {} is duplicated in GFA", &edge);
                 } else {
-                    degree[edge.0 .0 as usize] += 1;
+                    degree[edge.0 as usize] += 1;
                     //if e.0.0 != e.2.0 {
-                    degree[edge.2 .0 as usize] += 1;
+                    degree[edge.2 as usize] += 1;
                     //}
-                    edge2id.insert(edge, ItemId(edge_id));
+                    edge2id.insert(edge, edge_id as ItemId);
                     edge_id += 1;
                 }
             }
@@ -324,7 +323,7 @@ impl GraphAuxilliary {
                 let mut iter = buf[2..].iter();
                 let offset = iter.position(|&x| x == b'\t').unwrap();
                 if node2id
-                    .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
+                    .insert(buf[2..offset + 2].to_vec(), node_id as ItemId)
                     .is_some()
                 {
                     panic!(
@@ -458,164 +457,6 @@ impl GraphAuxilliary {
     //        None => None
     //    }
     //}
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd, Hash, Eq, Ord)]
-pub struct PathSegment {
-    pub sample: String,
-    pub haplotype: Option<String>,
-    pub seqid: Option<String>,
-    pub start: Option<usize>,
-    pub end: Option<usize>,
-}
-
-impl PathSegment {
-    pub fn new(
-        sample: String,
-        haplotype: String,
-        seqid: String,
-        start: Option<usize>,
-        end: Option<usize>,
-    ) -> Self {
-        Self {
-            sample: sample,
-            haplotype: Some(haplotype),
-            seqid: Some(seqid),
-            start: start,
-            end: end,
-        }
-    }
-
-    pub fn from_str(s: &str) -> Self {
-        let mut res = PathSegment {
-            sample: s.to_string(),
-            haplotype: None,
-            seqid: None,
-            start: None,
-            end: None,
-        };
-
-        if let Some(c) = PATHID_PANSN.captures(s) {
-            let segments: Vec<&str> = c.iter().filter_map(|x| x.map(|y| y.as_str())).collect();
-            // first capture group is the string itself
-            //log::debug!(
-            //    "path id {} can be decomposed into capture groups {:?}",
-            //    s,
-            //    segments
-            //);
-            match segments.len() {
-                4 => {
-                    res.sample = segments[1].to_string();
-                    res.haplotype = Some(segments[2][1..].to_string());
-                    match PATHID_COORDS.captures(&segments[3][1..]) {
-                        None => {
-                            res.seqid = Some(segments[3][1..].to_string());
-                        }
-                        Some(cc) => {
-                            log::debug!("path has coodinates {:?}", cc);
-                            res.seqid = Some(cc.get(1).unwrap().as_str().to_string());
-                            res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
-                            res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
-                        }
-                    }
-                }
-                3 => {
-                    res.sample = segments[1].to_string();
-                    match PATHID_COORDS.captures(&segments[2][1..]) {
-                        None => {
-                            res.haplotype = Some(segments[2][1..].to_string());
-                        }
-                        Some(cc) => {
-                            log::debug!("path has coodinates {:?}", cc);
-                            res.haplotype = Some(cc.get(1).unwrap().as_str().to_string());
-                            res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
-                            res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
-                        }
-                    }
-                }
-                2 => {
-                    if let Some(cc) = PATHID_COORDS.captures(segments[1]) {
-                        log::debug!("path has coodinates {:?}", cc);
-                        res.sample = cc.get(1).unwrap().as_str().to_string();
-                        res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
-                        res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
-                    }
-                }
-                _ => (),
-            }
-        }
-        res
-    }
-
-    pub fn id(&self) -> String {
-        if self.haplotype.is_some() {
-            format!(
-                "{}#{}{}",
-                self.sample,
-                self.haplotype.as_ref().unwrap(),
-                if self.seqid.is_some() {
-                    "#".to_owned() + self.seqid.as_ref().unwrap().as_str()
-                } else {
-                    "".to_string()
-                }
-            )
-        } else if self.seqid.is_some() {
-            format!(
-                "{}#*#{}",
-                self.sample,
-                self.seqid.as_ref().unwrap().as_str()
-            )
-        } else {
-            self.sample.clone()
-        }
-    }
-
-    pub fn clear_coords(&self) -> Self {
-        Self {
-            sample: self.sample.clone(),
-            haplotype: self.haplotype.clone(),
-            seqid: self.seqid.clone(),
-            start: None,
-            end: None,
-        }
-    }
-
-    pub fn coords(&self) -> Option<(usize, usize)> {
-        if self.start.is_some() && self.end.is_some() {
-            Some((self.start.unwrap(), self.end.unwrap()))
-        } else {
-            None
-        }
-    }
-
-    //#[allow(dead_code)]
-    //pub fn covers(&self, other: &PathSegment) -> bool {
-    //    self.sample == other.sample
-    //        && (self.haplotype == other.haplotype
-    //            || (self.haplotype.is_none()
-    //                && self.seqid.is_none()
-    //                && self.start.is_none()
-    //                && self.end.is_none()))
-    //        && (self.seqid == other.seqid
-    //            || (self.seqid.is_none() && self.start.is_none() && self.end.is_none()))
-    //        && (self.start == other.start
-    //            || self.start.is_none()
-    //            || (other.start.is_some() && self.start.unwrap() <= other.start.unwrap()))
-    //        && (self.end == other.end
-    //            || self.end.is_none()
-    //            || (other.end.is_some() && self.end.unwrap() >= other.end.unwrap()))
-    //}
-}
-
-impl fmt::Display for PathSegment {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        if let Some((start, end)) = self.coords() {
-            write!(formatter, "{}:{}-{}", self.id(), start, end)?;
-        } else {
-            write!(formatter, "{}", self.id())?;
-        }
-        Ok(())
-    }
 }
 
 pub struct GraphInfo {

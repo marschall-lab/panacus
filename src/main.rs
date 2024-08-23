@@ -6,6 +6,7 @@ use std::time::Instant;
 mod abacus;
 mod cli;
 mod graph;
+mod path;
 mod hist;
 mod html;
 mod io;

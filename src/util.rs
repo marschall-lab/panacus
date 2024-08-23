@@ -10,7 +10,7 @@ use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 use crate::graph::ItemId;
 
 // storage space for item IDs
-pub type ItemIdSize = u64;
+//pub type ItemIdSize = u64;
 pub type CountSize = u32;
 pub type GroupSize = u16;
 
@@ -51,8 +51,8 @@ impl fmt::Display for CountType {
 }
 
 pub struct ItemTable {
-    pub items: [Vec<ItemIdSize>; SIZE_T],
-    pub id_prefsum: [Vec<ItemIdSize>; SIZE_T],
+    pub items: [Vec<ItemId>; SIZE_T],
+    pub id_prefsum: [Vec<ItemId>; SIZE_T],
 }
 
 impl ItemTable {
@@ -105,13 +105,13 @@ impl ActiveTable {
         }
     }
 
-    pub fn activate(&mut self, id: &ItemId) {
-        self.items[id.0 as usize] |= true;
+    pub fn activate(&mut self, id: ItemId) {
+        self.items[id as usize] |= true;
     }
 
     #[allow(dead_code)]
-    pub fn is_active(&self, id: &ItemId) -> bool {
-        self.items[id.0 as usize]
+    pub fn is_active(&self, id: ItemId) -> bool {
+        self.items[id as usize]
     }
 
     pub fn activate_n_annotate(
@@ -126,8 +126,8 @@ impl ActiveTable {
             Some(m) => {
                 // if interval completely covers item, remove it from map
                 if end - start == item_len {
-                    self.items[id.0 as usize] |= true;
-                    m.remove(&id);
+                    self.items[id as usize] |= true;
+                    m.remove(id);
                 } else {
                     if start > end {
                         log::error!(
@@ -139,9 +139,9 @@ impl ActiveTable {
                     } else {
                         m.add(id, start, end);
                     }
-                    if m.get(&id).unwrap()[0] == (0, item_len) {
-                        m.remove(&id);
-                        self.items[id.0 as usize] |= true;
+                    if m.get(id).unwrap()[0] == (0, item_len) {
+                        m.remove(id);
+                        self.items[id as usize] |= true;
                     }
                 }
                 Ok(())
@@ -149,8 +149,8 @@ impl ActiveTable {
         }
     }
 
-    pub fn get_active_intervals(&self, id: &ItemId, item_len: usize) -> Vec<(usize, usize)> {
-        if self.items[id.0 as usize] {
+    pub fn get_active_intervals(&self, id: ItemId, item_len: usize) -> Vec<(usize, usize)> {
+        if self.items[id as usize] {
             vec![(0, item_len)]
         } else if let Some(container) = &self.annotation {
             match container.get(id) {
@@ -184,7 +184,7 @@ impl IntervalContainer {
         self.map
             .entry(id)
             .and_modify(|x| {
-                let i = x
+	               let i = x
                     .binary_search_by_key(&start, |&(y, _)| y)
                     .unwrap_or_else(|z| z);
                 if i > 0 && x[i - 1].1 >= start {
@@ -204,21 +204,21 @@ impl IntervalContainer {
             .or_insert(vec![(start, end)]);
     }
 
-    pub fn get(&self, id: &ItemId) -> Option<&[(usize, usize)]> {
-        self.map.get(id).map(|x| &x[..])
+    pub fn get(&self, id: ItemId) -> Option<&[(usize, usize)]> {
+        self.map.get(&id).map(|x| &x[..])
     }
 
-    pub fn contains(&self, id: &ItemId) -> bool {
-        self.map.contains_key(id)
+    pub fn contains(&self, id: ItemId) -> bool {
+        self.map.contains_key(&id)
     }
 
-    pub fn remove(&mut self, id: &ItemId) -> Option<Vec<(usize, usize)>> {
-        self.map.remove(id)
+    pub fn remove(&mut self, id: ItemId) -> Option<Vec<(usize, usize)>> {
+        self.map.remove(&id)
     }
 
-    pub fn total_coverage(&self, id: &ItemId, exclude: &Option<Vec<(usize, usize)>>) -> usize {
+    pub fn total_coverage(&self, id: ItemId, exclude: &Option<Vec<(usize, usize)>>) -> usize {
         self.map
-            .get(id)
+            .get(&id)
             .as_ref()
             .map(|v| match exclude {
                 None => v.iter().fold(0, |x, (a, b)| x + b - a),
