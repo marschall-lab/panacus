@@ -109,6 +109,44 @@ impl PathSegment {
         res
     }
 
+    pub fn parse_path_segment(data: &[u8]) -> Self {
+        let mut iter = data.iter();
+        let start = iter.position(|&x| x == b'\t').unwrap() + 1;
+        let offset = iter.position(|&x| x == b'\t').unwrap();
+        let path_name = str::from_utf8(&data[start..start + offset]).unwrap();
+        PathSegment::from_str(path_name)
+    }
+
+    pub fn parse_walk_segment(data: &[u8]) -> Self {
+        let mut six_col: Vec<&str> = Vec::with_capacity(6);
+
+        let mut it = data.iter();
+        let mut i = 0;
+        for _ in 0..6 {
+            let j = it.position(|x| x == &b'\t').unwrap();
+            six_col.push(&str::from_utf8(&data[i..i + j]).unwrap());
+            i += j + 1;
+        }
+
+        let seq_start = match six_col[4] {
+            "*" => None,
+            a => Some(usize::from_str(a).unwrap()),
+        };
+
+        let seq_end = match six_col[5] {
+            "*" => None,
+            a => Some(usize::from_str(a).unwrap()),
+        };
+
+        PathSegment::new(
+            six_col[1].to_string(),
+            six_col[2].to_string(),
+            six_col[3].to_string(),
+            seq_start,
+            seq_end,
+        )
+    }
+
     pub fn id(&self) -> String {
         if self.haplotype.is_some() {
             format!(
