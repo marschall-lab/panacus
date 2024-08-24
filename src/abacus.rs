@@ -780,11 +780,12 @@ mod tests {
         let path_aux = PathAuxilliary::from_params(&params, &graph_aux).unwrap();
         let test_abacus_by_total = AbacusByTotal {
             count: CountType::Node,
-            countable: vec![CountSize::MAX, 5,3,4,2,1],
+            countable: vec![CountSize::MAX, 6,4,4,2,1],
             uncovered_bps: Some(HashMap::default()),
-            groups:  vec!["a#0".to_string(), "b#0".to_string(), 
-                          "c#0".to_string(), "c#1".to_string(), 
-                          "d#0".to_string()]
+            groups:  vec!["a#1#h1".to_string(), "b#1#h1".to_string(), 
+                          "c#1#h1".to_string(), "c#1#h2".to_string(), 
+                          "c#2#h1".to_string(), "d#1#h1".to_string()
+            ]
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
