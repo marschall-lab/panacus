@@ -7,6 +7,7 @@ mod abacus;
 mod cli;
 mod graph;
 mod path;
+mod path_parser;
 mod hist;
 mod html;
 mod io;

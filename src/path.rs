@@ -218,6 +218,8 @@ impl fmt::Display for PathSegment {
     }
 }
 
+
+//PathMetadata (?)
 pub struct PathAuxilliary {
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
@@ -561,7 +563,7 @@ impl PathAuxilliary {
         let mut group_to_paths: HashMap<&'a str, Vec<(ItemId, &'a str)>> = HashMap::default();
 
         for (i, p) in path_segments.into_iter().enumerate() {
-            let group: &'a str = self.groups.get(&p.clear_coords()).unwrap();
+            let group: &'a str = self.groups.get(&p.clear_coords()).expect(&format!("{} not found groups", &p.clear_coords()));
             group_to_paths
                 .entry(group)
                 .or_insert(Vec::new())
@@ -747,7 +749,6 @@ mod tests {
         let (graph_aux, _, _) = setup_test_data();
 
         let result = PathAuxilliary::load_groups("", true, false, &graph_aux);
-        let result2 = PathAuxilliary::load_groups("", false, true, &graph_aux);
         let groups = result.unwrap();
         let mut group_count = HashSet::new();
         for (_, g) in groups {
@@ -756,83 +757,78 @@ mod tests {
         assert_eq!(group_count.len(), 5, "Expected 5 groups based on haplotype");
     }
 
-    //#[test]
-    //fn test_complement_with_group_assignments_valid() {
-    //    let groups = HashMap::from([
-    //        (PathSegment::from_str("a#1#h1"), "G1".to_string()),
-    //        (PathSegment::from_str("b#1#h1"), "G1".to_string()),
-    //        (PathSegment::from_str("c#1#h1"), "G2".to_string()),
-    //    ]);
+    #[test]
+    fn test_complement_with_group_assignments_valid() {
+        let groups = HashMap::from([
+            (PathSegment::from_str("a#1#h1"), "G1".to_string()),
+            (PathSegment::from_str("b#1#h1"), "G1".to_string()),
+            (PathSegment::from_str("c#1#h1"), "G2".to_string()),
+        ]);
 
-    //    let coords = Some(vec![PathSegment::from_str("G1")]);
-    //    let result = PathAuxilliary::complement_with_group_assignments(coords, &groups);
-    //    assert!(result.is_ok(), "Expected successful complement with group assignments");
+        let coords = Some(vec![PathSegment::from_str("G1")]);
+        let result = PathAuxilliary::complement_with_group_assignments(coords, &groups);
+        assert!(result.is_ok(), "Expected successful complement with group assignments");
 
-    //    let complemented = result.unwrap();
-    //    assert!(complemented.is_some(), "Expected Some(complemented) coordinates");
-    //    dbg!(&complemented);
-    //    assert_eq!(complemented.unwrap().len(), 2, "Expected 2 path segments in the complemented list");
-    //    assert!(false);
-    //}
+        let complemented = result.unwrap();
+        assert!(complemented.is_some(), "Expected Some(complemented) coordinates");
+        assert_eq!(complemented.unwrap().len(), 2, "Expected 2 path segments in the complemented list");
+    }
 
-    //#[test]
-    //fn test_complement_with_group_assignments_invalid() {
-    //    let groups = HashMap::from([
-    //        (PathSegment::from_str("a#0"), "G1".to_string()),
-    //        (PathSegment::from_str("b#0"), "G1".to_string()),
-    //    ]);
+    #[test]
+    fn test_complement_with_group_assignments_invalid() {
+        let groups = HashMap::from([
+            (PathSegment::from_str("a#0"), "G1".to_string()),
+            (PathSegment::from_str("b#0"), "G1".to_string()),
+        ]);
 
-    //    let coords = Some(vec![PathSegment::from_str("G1:1-5")]);
-    //    let result = PathAuxilliary::complement_with_group_assignments(coords, &groups);
-    //    assert!(result.is_err(), "Expected error due to invalid group identifier with start/stop information");
-    //}
+        let coords = Some(vec![PathSegment::from_str("G1:1-5")]);
+        let result = PathAuxilliary::complement_with_group_assignments(coords, &groups);
+        assert!(result.is_err(), "Expected error due to invalid group identifier with start/stop information");
+    }
 
-    //#[test]
-    //fn test_build_subpath_map_with_overlaps() {
-    //    let path_segments = vec![
-    //        PathSegment::new("sample".to_string(), "hap1".to_string(), "seq1".to_string(), Some(0), Some(100)),
-    //        PathSegment::new("sample".to_string(), "hap1".to_string(), "seq1".to_string(), Some(50), Some(150)),
-    //        PathSegment::new("sample".to_string(), "hap1".to_string(), "seq2".to_string(), Some(0), Some(100)),
-    //    ];
+    #[test]
+    fn test_build_subpath_map_with_overlaps() {
+        let path_segments = vec![
+            PathSegment::new("sample".to_string(), "hap1".to_string(), "seq1".to_string(), Some(0), Some(100)),
+            PathSegment::new("sample".to_string(), "hap1".to_string(), "seq1".to_string(), Some(50), Some(150)),
+            PathSegment::new("sample".to_string(), "hap1".to_string(), "seq2".to_string(), Some(0), Some(100)),
+        ];
 
-    //    let subpath_map = PathAuxilliary::build_subpath_map(&path_segments);
-    //    assert_eq!(subpath_map.len(), 2, "Expected 2 sequences in the subpath map");
-    //    assert_eq!(subpath_map.get("sample#hap1#seq1").unwrap().len(), 1, "Expected 1 non-overlapping interval for seq1");
-    //    assert_eq!(subpath_map.get("sample#hap1#seq2").unwrap().len(), 1, "Expected 1 interval for seq2");
-    //}
+        let subpath_map = PathAuxilliary::build_subpath_map(&path_segments);
+        assert_eq!(subpath_map.len(), 2, "Expected 2 sequences in the subpath map");
+        assert_eq!(subpath_map.get("sample#hap1#seq1").unwrap().len(), 1, "Expected 1 non-overlapping interval for seq1");
+        assert_eq!(subpath_map.get("sample#hap1#seq2").unwrap().len(), 1, "Expected 1 interval for seq2");
+    }
 
-    //#[test]
-    //fn test_get_path_order_with_exclusions() {
-    //    let (graph_aux, _, _) = setup_test_data();
+    #[test]
+    fn test_get_path_order_with_exclusions() {
+        let (graph_aux, _, _) = setup_test_data();
 
-    //    let path_aux = PathAuxilliary {
-    //        groups: HashMap::from([
-    //            (PathSegment::from_str("a#0"), "G1".to_string()),
-    //            (PathSegment::from_str("b#0"), "G1".to_string()),
-    //            (PathSegment::from_str("c#0"), "G2".to_string()),
-    //        ]),
-    //        include_coords: None,
-    //        exclude_coords: Some(vec![PathSegment::from_str("c#0")]),
-    //        order: None,
-    //    };
+        let path_aux = PathAuxilliary {
+            groups: PathAuxilliary::load_groups("", false, false, &graph_aux).unwrap(),
+            include_coords: None,
+            exclude_coords: Some(vec![PathSegment::from_str("a#1#h1"), 
+                                      PathSegment::from_str("b#1#h1"),
+                                      PathSegment::from_str("b#1#h1")]), //duplicates do not cause any error
+            order: None,
+        };
+        let ordered_paths = path_aux.get_path_order(&graph_aux.path_segments);
+        assert_eq!(ordered_paths.len(), 4, "Expected 2 paths in the final order");
+    }
 
-    //    let ordered_paths = path_aux.get_path_order(&graph_aux.path_segments);
-    //    assert_eq!(ordered_paths.len(), 2, "Expected 2 paths in the final order");
-    //}
+    #[test]
+    fn test_path_auxilliary_count_groups() {
+        let path_aux = PathAuxilliary {
+            groups: HashMap::from([
+                (PathSegment::from_str("a#1#h1"), "G1".to_string()),
+                (PathSegment::from_str("b#1#h1"), "G1".to_string()),
+                (PathSegment::from_str("c#1#h1"), "G2".to_string()),
+            ]),
+            include_coords: None,
+            exclude_coords: None,
+            order: None,
+        };
 
-    //#[test]
-    //fn test_path_auxilliary_count_groups() {
-    //    let path_aux = PathAuxilliary {
-    //        groups: HashMap::from([
-    //            (PathSegment::from_str("a#0"), "G1".to_string()),
-    //            (PathSegment::from_str("b#0"), "G1".to_string()),
-    //            (PathSegment::from_str("c#0"), "G2".to_string()),
-    //        ]),
-    //        include_coords: None,
-    //        exclude_coords: None,
-    //        order: None,
-    //    };
-
-    //    assert_eq!(path_aux.count_groups(), 2, "Expected 2 unique groups");
-    //}
+        assert_eq!(path_aux.count_groups(), 2, "Expected 2 unique groups");
+    }
 }

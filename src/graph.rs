@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{BufRead};
-use std::str::{self, FromStr};
+use std::str::{self};
 
 /* private use */
 use crate::io::bufreader_from_compressed_gfa;
