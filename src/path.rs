@@ -13,10 +13,10 @@ use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 
 /* private use */
+use crate::util::*;
 use crate::cli::Params;
 use crate::graph::*;
-use crate::io::*;
-use crate::util::*;
+use crate::path_parser::*;
 
 static PATHID_PANSN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#]+)?$").unwrap());
@@ -107,6 +107,13 @@ impl PathSegment {
             }
         }
         res
+    }
+
+    pub fn from_str_start_end(s: &str, start: usize, end: usize) -> Self {
+        let mut segment = Self::from_str(s);
+        segment.start = Some(start);
+        segment.end = Some(end);
+        segment
     }
 
     pub fn parse_path_segment(data: &[u8]) -> Self {
@@ -361,17 +368,6 @@ impl PathAuxilliary {
                     None
                 };
 
-                //let n_groups = HashSet::<&String>::from_iter(groups.values()).len();
-                //if n_groups > 65534 {
-                //    return Err(Error::new(
-                //        ErrorKind::Unsupported,
-                //        format!(
-                //            "data has {} path groups, but command is not supported for more than 65534",
-                //            n_groups
-                //        ),
-                //    ));
-                //}
-
                 Ok(PathAuxilliary {
                     groups: groups,
                     include_coords: include_coords,
@@ -446,7 +442,8 @@ impl PathAuxilliary {
         } else {
             log::info!("loading coordinates from {}", file_name);
             let mut data = BufReader::new(fs::File::open(file_name)?);
-            let coords = parse_bed(&mut data);
+            let use_block_info = true;
+            let coords = parse_bed_to_path_segments(&mut data, use_block_info);
             log::debug!("loaded {} coordinates", coords.len());
             Some(coords)
         })
@@ -698,12 +695,13 @@ mod tests {
     fn test_parse_groups_with_valid_input() {
         //let (graph_aux, _, _) = setup_test_data();
         let file_name = "test/test_groups.txt";
-        let mut test_path_segments = vec![];
-        test_path_segments.push(PathSegment::from_str("a#0"));
-        test_path_segments.push(PathSegment::from_str("b#0"));
-        test_path_segments.push(PathSegment::from_str("c#0"));
-        test_path_segments.push(PathSegment::from_str("c#1"));
-        test_path_segments.push(PathSegment::from_str("d#0"));
+        let test_path_segments = vec![
+            PathSegment::from_str("a#0"),
+            PathSegment::from_str("b#0"),
+            PathSegment::from_str("c#0"),
+            PathSegment::from_str("c#1"),
+            PathSegment::from_str("d#0")
+        ];
         let test_groups = vec!["G1","G1","G2","G2","G2"];
 
         let mut data = BufReader::new(fs::File::open(file_name).unwrap());
@@ -813,7 +811,7 @@ mod tests {
             order: None,
         };
         let ordered_paths = path_aux.get_path_order(&graph_aux.path_segments);
-        assert_eq!(ordered_paths.len(), 4, "Expected 2 paths in the final order");
+        assert_eq!(ordered_paths.len(), 4, "Expected 4 paths in the final order");
     }
 
     #[test]
