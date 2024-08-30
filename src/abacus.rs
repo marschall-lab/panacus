@@ -101,7 +101,7 @@ impl AbacusByTotal {
         k: usize,
         unimer: &Vec<usize>,
     ) -> Self {
-        let item_table = parse_cdbg_gfa_paths_walks(data, path_aux, graph_aux, k);
+        let item_table = parse_cdbg_gfa_paths_walks(data, graph_aux, k);
         Self::k_plus_one_mer_table_to_abacus(item_table, &path_aux, &graph_aux, k, unimer)
     }
 
