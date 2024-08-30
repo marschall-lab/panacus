@@ -13,7 +13,6 @@ use strum_macros::{EnumString, EnumVariantNames};
 /* internal use */
 use crate::abacus::*;
 use crate::graph::*;
-use crate::path::*;
 use crate::path_parser::*;
 use crate::hist::*;
 use crate::html::*;
