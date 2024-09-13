@@ -117,9 +117,14 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
         df[(t, ct, c, q)].plot.bar(color=f'C{i}', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%', ax=axs[0])
         if c <= 1 and q <= 1/df.shape[0]:
             if estimate_growth:
-                popt, curve = fit_gamma(df.loc[1:, (t, ct, c,q)].array)
-                popts.append((c, q, popt, i))
-                axs[0].plot(df.loc[1:].index, curve, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+                if t != "ordered-growth":
+                    popt, curve = fit_gamma(df.loc[1:, (t, ct, c,q)].array)
+                    popts.append((c, q, popt, i))
+                    axs[0].plot(df.loc[1:].index, curve, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+                else:
+                    popt, curve = fit_gamma(df.loc[:, (t, ct, c,q)].array)
+                    popts.append((c, q, popt, i))
+                    axs[0].plot(df.loc[:].index, curve, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
             else:
                 popts.append((c, q, None, i))
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
