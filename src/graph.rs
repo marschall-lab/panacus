@@ -2,7 +2,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
-use std::fmt;
+use std::{fmt, usize};
 use std::io::{BufRead, Read};
 use std::str::{self, FromStr};
 
@@ -222,8 +222,8 @@ impl GraphAuxilliary {
         self.node_lens[v.0 as usize]
     }
 
-    pub fn stats(&self, paths_len: &Vec<u32>) -> Stats {
-        Stats {
+    pub fn info(&self, paths_len: &Vec<u32>) -> Info {
+        Info {
             graph_info: self.graph_info(),
             path_info: self.path_info(paths_len),
         }
@@ -246,16 +246,37 @@ impl GraphAuxilliary {
             average_node: averageu32(&node_lens_sorted),
             median_node: median_already_sorted(&node_lens_sorted),
             n50_node: n50_already_sorted(&node_lens_sorted).unwrap(),
+            basepairs: self.node_lens.iter().sum(),
         }
     }
 
     pub fn path_info(&self, paths_len: &Vec<u32>) -> PathInfo {
         //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
+        let mut bp_lens: HashMap<(&String, Option<&String>, Option<&String>), u32> = HashMap::new();
+        for segment in &self.path_segments {
+            println!("{:?}", segment);
+            let key = (&segment.sample, segment.haplotype.as_ref(), segment.seqid.as_ref());
+            if segment.start.is_some() && segment.end.is_some() {
+                if bp_lens.contains_key(&key) {
+                    *bp_lens.get_mut(&key).unwrap() += (segment.end.unwrap() - segment.start.unwrap()) as u32;
+                } else {
+                    bp_lens.insert(key, (segment.end.unwrap() - segment.start.unwrap()) as u32);
+                }
+            }
+        }
+        let bp_lens: Vec<u32> = bp_lens.into_values().collect();
         PathInfo {
             no_paths: paths_len.len(),
-            longest_path: *paths_len.iter().max().unwrap(),
-            shortest_path: *paths_len.iter().min().unwrap(),
-            average_path: averageu32(&paths_len),
+            node_len: LenInfo {
+                longest: *paths_len.iter().max().unwrap(),
+                shortest: *paths_len.iter().min().unwrap(),
+                average: averageu32(&paths_len),
+            },
+            bp_len: LenInfo {
+                longest: *bp_lens.iter().max().unwrap(),
+                shortest: *bp_lens.iter().min().unwrap(),
+                average: averageu32(&bp_lens),
+            }
         }
     }
 
@@ -478,11 +499,11 @@ impl PathSegment {
         end: Option<usize>,
     ) -> Self {
         Self {
-            sample: sample,
+            sample,
             haplotype: Some(haplotype),
             seqid: Some(seqid),
-            start: start,
-            end: end,
+            start,
+            end,
         }
     }
 
@@ -630,48 +651,58 @@ pub struct GraphInfo {
     pub average_node: f32,
     pub median_node: f64,
     pub n50_node: u32,
+    pub basepairs: u32,
 }
 
 pub struct PathInfo {
     pub no_paths: usize,
-    pub longest_path: u32,
-    pub shortest_path: u32,
-    pub average_path: f32,
+    pub node_len: LenInfo,
+    pub bp_len: LenInfo,
 }
 
-pub struct Stats {
+pub struct LenInfo {
+    pub longest: u32,
+    pub shortest: u32,
+    pub average: f32,
+}
+
+pub struct Info {
     pub graph_info: GraphInfo,
     pub path_info: PathInfo,
 }
 
-impl fmt::Display for Stats {
+impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Graph Info\tNode Count\t{}\n",
+            "graph\ttotal\tnodes\t{}\n",
             self.graph_info.node_count
         )?;
-        write!(f, "\tEdge Count\t{}\n", self.graph_info.edge_count)?;
-        write!(f, "\tPath Count\t{}\n", self.path_info.no_paths)?;
+        write!(f, "graph\ttotal\tbasepairs\t{}\n", self.graph_info.basepairs)?;
+        write!(f, "graph\ttotal\tedges\t{}\n", self.graph_info.edge_count)?;
+        write!(f, "graph\ttotal\tpaths\t{}\n", self.path_info.no_paths)?;
         write!(
             f,
-            "\t0-degree Node Count\t{}\n",
+            "graph\ttotal\t0-degree nodes\t{}\n",
             self.graph_info.number_0_degree
         )?;
         write!(
             f,
-            "Node Info\tAverage Degree\t{}\n",
+            "node\tdegree\taverage\t{}\n",
             self.graph_info.average_degree
         )?;
-        write!(f, "\tMax Degree\t{}\n", self.graph_info.max_degree)?;
-        write!(f, "\tMin Degree\t{}\n", self.graph_info.min_degree)?;
-        write!(f, "\tLargest\t{}\n", self.graph_info.largest_node)?;
-        write!(f, "\tShortest\t{}\n", self.graph_info.shortest_node)?;
-        write!(f, "\tAverage Length\t{}\n", self.graph_info.average_node)?;
-        write!(f, "\tMedian Length\t{}\n", self.graph_info.median_node)?;
-        write!(f, "\tN50 Node Length\t{}\n", self.graph_info.n50_node)?;
-        write!(f, "Path Info\tLongest\t{}\n", self.path_info.longest_path)?;
-        write!(f, "\tShortest\t{}\n", self.path_info.shortest_path)?;
-        write!(f, "\tAverage Node Count\t{}\n", self.path_info.average_path)
+        write!(f, "node\tdegree\tmax\t{}\n", self.graph_info.max_degree)?;
+        write!(f, "node\tdegree\tmin\t{}\n", self.graph_info.min_degree)?;
+        write!(f, "node\tbp\tlongest\t{}\n", self.graph_info.largest_node)?;
+        write!(f, "node\tbp\tshortest\t{}\n", self.graph_info.shortest_node)?;
+        write!(f, "node\tbp\taverage\t{}\n", self.graph_info.average_node)?;
+        write!(f, "node\tbp\tmedian\t{}\n", self.graph_info.median_node)?;
+        write!(f, "node\tbp\tN50 node\t{}\n", self.graph_info.n50_node)?;
+        write!(f, "path\tnode\tlongest\t{}\n", self.path_info.node_len.longest)?;
+        write!(f, "path\tnode\tshortest\t{}\n", self.path_info.node_len.shortest)?;
+        write!(f, "path\tnode\taverage\t{}\n", self.path_info.node_len.average)?;
+        write!(f, "path\tbp\tlongest\t{}\n", self.path_info.bp_len.longest)?;
+        write!(f, "path\tbp\tshortest\t{}\n", self.path_info.bp_len.shortest)?;
+        write!(f, "path\tbp\taverage\t{}", self.path_info.bp_len.average)
     }
 }

@@ -114,12 +114,12 @@ function buildGrowthTableDownload(chart, obj, prefix) {
     };
 }
 
-function buildStatsTableDownload(table, statsType, prefix) {
-    document.getElementById('btn-download-table-stats-' + statsType).onclick = function() {
+function buildInfoTableDownload(table, infoType, prefix) {
+    document.getElementById('btn-download-table-info-' + infoType).onclick = function() {
         let blob = new Blob([table], {type: 'text/plain'});
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = prefix + '_stats.tsv';
+        a.download = prefix + '_info.tsv';
         a.click();
     };
 }

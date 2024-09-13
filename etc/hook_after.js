@@ -77,9 +77,9 @@ for (let i=0; i < hists.length; i++) {
     buildLogToggle(myChart, h);
 }
 
-buildStatsTableDownload(stats, "graph", fname);
-buildStatsTableDownload(stats, "node", fname);
-buildStatsTableDownload(stats, "path", fname);
+buildInfoTableDownload(info, "graph", fname);
+buildInfoTableDownload(info, "node", fname);
+buildInfoTableDownload(info, "path", fname);
 
 for (let i=0; i < growths.length; i++) {
     var g = growths[i];

@@ -1,5 +1,5 @@
 /* standard use */
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
 use std::path::Path;
@@ -1262,14 +1262,14 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-pub fn write_stats<W: Write>(stats: Stats, out: &mut BufWriter<W>) -> Result<(), Error> {
-    log::info!("reporting graph stats table");
+pub fn write_info<W: Write>(info: Info, out: &mut BufWriter<W>) -> Result<(), Error> {
+    log::info!("reporting graph info table");
     writeln!(
         out,
         "# {}",
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
-    writeln!(out, "{}", stats)
+    writeln!(out, "{}", info)
 }
 
 pub fn write_ordered_histgrowth_table<W: Write>(
@@ -1328,7 +1328,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
     hist_aux: &HistAuxilliary,
     gfa_file: &str,
     count: CountType,
-    stats: Option<Stats>,
+    info: Option<Info>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     let mut growths: Vec<Vec<f64>> = hist_aux
@@ -1361,7 +1361,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
             .unwrap()
             .to_string(),
         Some(&abacus_group.groups),
-        stats,
+        info,
         out,
     )?)
 }

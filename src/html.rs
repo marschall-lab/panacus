@@ -7,7 +7,7 @@ use base64::{engine::general_purpose, Engine as _};
 use handlebars::Handlebars;
 use time::{macros::format_description, OffsetDateTime};
 
-use crate::graph::Stats;
+use crate::graph::Info;
 /* internal use */
 use crate::hist::*;
 use crate::util::*;
@@ -180,112 +180,130 @@ pub fn generate_growth_tabs(growths: &Vec<(CountType, Vec<Vec<f64>>)>) -> String
     reg.render_template(&container, &vars).unwrap()
 }
 
-pub fn generate_stats_tabs(stats: Stats) -> String {
+pub fn generate_info_tabs(info: Info) -> String {
     let reg = Handlebars::new();
 
     let mut tab_content = String::new();
     let mut tab_navigation = String::new();
-    tab_navigation.push_str(r##"<button class="nav-link active" id="nav-stats-1-tab" data-bs-toggle="tab" data-bs-target="#nav-stats-1" type="button" role="tab" aria-controls="nav-stats-1" aria-selected="true">Graph Info</button>"##);
-    tab_navigation.push_str(r##"<button class="nav-link" id="nav-stats-2-tab" data-bs-toggle="tab" data-bs-target="#nav-stats-2" type="button" role="tab" aria-controls="nav-stats-2" aria-selected="false">Node Info</button>"##);
-    tab_navigation.push_str(r##"<button class="nav-link" id="nav-stats-3-tab" data-bs-toggle="tab" data-bs-target="#nav-stats-3" type="button" role="tab" aria-controls="nav-stats-3" aria-selected="false">Path Info</button>"##);
+    tab_navigation.push_str(r##"<button class="nav-link active" id="nav-info-1-tab" data-bs-toggle="tab" data-bs-target="#nav-info-1" type="button" role="tab" aria-controls="nav-info-1" aria-selected="true">graph</button>"##);
+    tab_navigation.push_str(r##"<button class="nav-link" id="nav-info-2-tab" data-bs-toggle="tab" data-bs-target="#nav-info-2" type="button" role="tab" aria-controls="nav-info-2" aria-selected="false">node</button>"##);
+    tab_navigation.push_str(r##"<button class="nav-link" id="nav-info-3-tab" data-bs-toggle="tab" data-bs-target="#nav-info-3" type="button" role="tab" aria-controls="nav-info-3" aria-selected="false">path</button>"##);
 
-    let graph_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-stats-1" role="tabpanel" aria-labelledby="nav-stats-1">
+    let graph_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-1" role="tabpanel" aria-labelledby="nav-info-1">
         <br/>
 <table class="table table-striped table-hover">
   <thead>
     <tr>
-      <th scope="col">Measurement</th>
-      <th scope="col">Value</th>
+      <th scope="col">category</th>
+      <th scope="col">type</th>
+      <th scope="col">value</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody class="table-group-divider">
     <tr>
-      <td>Node count</td>
+      <td>total</td>
+      <td>nodes</td>
       <td>{{{node_count}}}</td>
     </tr>
     <tr>
-      <td>Edge count</td>
+      <td></td>
+      <td>basepairs</td>
+      <td>{{{basepairs}}}</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>edges</td>
       <td>{{{edge_count}}}</td>
     </tr>
     <tr>
-      <td>Path count</td>
+      <td></td>
+      <td>paths</td>
       <td>{{{no_paths}}}</td>
     </tr>
     <tr>
-      <td>0-degree Node count</td>
+      <td></td>
+      <td>0-degree nodes</td>
       <td>{{{number_0_degree}}}</td>
     </tr>
   </tbody>
 </table>
 <br/>
     <div class="d-flex flex-row-reverse">
-        <button id="btn-download-table-stats-graph" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
-            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+        <button id="btn-download-table-info-graph" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
             <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
         </button>
     </div>
 </div>
 "##;
     let graph_vars = HashMap::from([
-        ("node_count", format!("{}", stats.graph_info.node_count)),
-        ("edge_count", format!("{}", stats.graph_info.edge_count)),
-        ("no_paths", format!("{}", stats.path_info.no_paths)),
+        ("node_count", format!("{}", info.graph_info.node_count)),
+        ("basepairs", format!("{}", info.graph_info.basepairs)),
+        ("edge_count", format!("{}", info.graph_info.edge_count)),
+        ("no_paths", format!("{}", info.path_info.no_paths)),
         (
             "number_0_degree",
-            format!("{}", stats.graph_info.number_0_degree),
+            format!("{}", info.graph_info.number_0_degree),
         ),
         ("is_first", String::from("true")),
     ]);
     tab_content.push_str(&reg.render_template(&graph_info, &graph_vars).unwrap());
 
-    let node_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-stats-2" role="tabpanel" aria-labelledby="nav-stats-2">
+    let node_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-2" role="tabpanel" aria-labelledby="nav-info-2">
     </br>
 <table class="table table-striped table-hover">
   <thead>
     <tr>
-      <th scope="col">Measurement</th>
-      <th scope="col">Value</th>
+      <th scope="col">category</th>
+      <th scope="col">type</th>
+      <th scope="col">value</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody class="table-group-divider">
     <tr>
-      <td>Average Degree</td>
+      <td>degree</td>
+      <td>average</td>
       <td>{{{average_degree}}}</td>
     </tr>
     <tr>
-      <td>Maximum Degree</td>
+      <td></td>
+      <td>max</td>
       <td>{{{max_degree}}}</td>
     </tr>
     <tr>
-      <td>Minimum Degree</td>
+      <td></td>
+      <td>min</td>
       <td>{{{min_degree}}}</td>
     </tr>
     <tr>
-      <td>Largest Node (bp)</td>
+      <td>bp</td>
+      <td>longest</td>
       <td>{{{largest_node}}}</td>
     </tr>
     <tr>
-      <td>Shortest Node (bp)</td>
+      <td></td>
+      <td>shortest</td>
       <td>{{{shortest_node}}}</td>
     </tr>
     <tr>
-      <td>Average Node Length (bp)</td>
+      <td></td>
+      <td>average</td>
       <td>{{{average_node}}}</td>
     </tr>
     <tr>
-      <td>Median Node Length (bp)</td>
+      <td></td>
+      <td>median</td>
       <td>{{{median_node}}}</td>
     </tr>
     <tr>
-      <td>N50 Node Length (bp)</td>
+      <td></td>
+      <td>N50 node</td>
       <td>{{{n50_node}}}</td>
     </tr>
   </tbody>
 </table>
 <br/>
     <div class="d-flex flex-row-reverse">
-        <button id="btn-download-table-stats-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
-            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+        <button id="btn-download-table-info-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
             <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
         </button>
     </div>
@@ -294,61 +312,64 @@ pub fn generate_stats_tabs(stats: Stats) -> String {
     let node_vars = HashMap::from([
         (
             "average_degree",
-            format!("{}", stats.graph_info.average_degree),
+            format!("{}", info.graph_info.average_degree),
         ),
-        ("max_degree", format!("{}", stats.graph_info.max_degree)),
-        ("min_degree", format!("{}", stats.graph_info.min_degree)),
-        ("largest_node", format!("{}", stats.graph_info.largest_node)),
+        ("max_degree", format!("{}", info.graph_info.max_degree)),
+        ("min_degree", format!("{}", info.graph_info.min_degree)),
+        ("largest_node", format!("{}", info.graph_info.largest_node)),
         (
             "shortest_node",
-            format!("{}", stats.graph_info.shortest_node),
+            format!("{}", info.graph_info.shortest_node),
         ),
-        ("average_node", format!("{}", stats.graph_info.average_node)),
-        ("median_node", format!("{}", stats.graph_info.median_node)),
-        ("n50_node", format!("{}", stats.graph_info.n50_node)),
+        ("average_node", format!("{}", info.graph_info.average_node)),
+        ("median_node", format!("{}", info.graph_info.median_node)),
+        ("n50_node", format!("{}", info.graph_info.n50_node)),
     ]);
     tab_content.push_str(&reg.render_template(&node_info, &node_vars).unwrap());
 
-    let path_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-stats-3" role="tabpanel" aria-labelledby="nav-stats-3">
+    let path_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-3" role="tabpanel" aria-labelledby="nav-info-3">
     </br>
 <table class="table table-striped table-hover">
   <thead>
     <tr>
-      <th scope="col">Measurement</th>
-      <th scope="col">Value</th>
+      <th scope="col">category</th>
+      <th scope="col">type</th>
+      <th scope="col">value</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody class="table-group-divider">
     <tr>
-      <td>Longest Path (nodes)</td>
+      <td>node</td>
+      <td>longest</td>
       <td>{{{longest_path}}}</td>
     </tr>
     <tr>
-      <td>Shortest Path (nodes)</td>
+      <td></td>
+      <td>shortest</td>
       <td>{{{shortest_path}}}</td>
     </tr>
     <tr>
-      <td>Average Node Count</td>
+      <td></td>
+      <td>average</td>
       <td>{{{average_path}}}</td>
     </tr>
   </tbody>
 <table>
 <br/>
     <div class="d-flex flex-row-reverse">
-        <button id="btn-download-table-stats-path" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
-            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+        <button id="btn-download-table-info-path" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
             <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
         </button>
     </div>
 </div>
 "##;
     let path_vars = HashMap::from([
-        ("longest_path", format!("{}", stats.path_info.longest_path)),
+        ("longest_path", format!("{}", info.path_info.node_len.longest)),
         (
             "shortest_path",
-            format!("{}", stats.path_info.shortest_path),
+            format!("{}", info.path_info.node_len.shortest),
         ),
-        ("average_path", format!("{}", stats.path_info.average_path)),
+        ("average_path", format!("{}", info.path_info.node_len.average)),
     ]);
     tab_content.push_str(&reg.render_template(&path_info, &path_vars).unwrap());
 
@@ -383,7 +404,7 @@ pub fn write_html<W: Write>(
 pub fn write_hist_html<W: Write>(
     hists: &Vec<Hist>,
     fname: &str,
-    stats: Option<Stats>,
+    info: Option<Info>,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
     let mut vars: HashMap<&str, String> = HashMap::default();
@@ -392,14 +413,14 @@ pub fn write_hist_html<W: Write>(
 <div class="d-flex align-items-start">
 	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
     	<button class="nav-link text-nowrap active" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>
-        <button class="nav-link text-nowrap" id="v-pills-stats-tab" data-bs-toggle="pill" data-bs-target="#v-pills-stats" type="button" role="tab" aria-controls="v-pills-stats" aria-selected="false">pangenome stats</button>
+        <button class="nav-link text-nowrap" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="false">pangenome info</button>
  	</div>
   	<div class="tab-content w-100" id="v-pills-tabContent">
 		<div class="tab-pane fade show active" id="v-pills-hist" role="tabpanel" aria-labelledby="v-pills-hist-tab">
 {{{hist_content}}}
 		</div>
-		<div class="tab-pane fade" id="v-pills-stats" role="tabpanel" aria-labelledby="v-pills-stats-tab">
-{{{stats_content}}}
+		<div class="tab-pane fade" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
+{{{info_content}}}
 		</div>
   </div>
 </div>
@@ -421,12 +442,12 @@ pub fn write_hist_html<W: Write>(
     js_objects.push_str("const fname = '");
     js_objects.push_str(fname);
     js_objects.push_str("';\n");
-    js_objects.push_str("const stats = `");
-    let stats_text = match stats {
+    js_objects.push_str("const info = `");
+    let info_text = match info {
         Some(ref s) => s.to_string(),
         _ => "".to_string(),
     };
-    js_objects.push_str(stats_text.as_str());
+    js_objects.push_str(info_text.as_str());
     js_objects.push_str("`;\n");
 
     let reg = Handlebars::new();
@@ -438,7 +459,7 @@ pub fn write_hist_html<W: Write>(
             &content,
             &HashMap::from([
                 ("hist_content", generate_hist_tabs(hists)),
-                ("stats_content", generate_stats_tabs(stats.unwrap())),
+                ("info_content", generate_info_tabs(info.unwrap())),
             ]),
         )
         .unwrap(),
@@ -448,9 +469,9 @@ pub fn write_hist_html<W: Write>(
     write_html(&vars, out)
 }
 
-pub fn write_stats_html<W: Write>(
+pub fn write_info_html<W: Write>(
     fname: &str,
-    stats: Stats,
+    info: Info,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
     let mut vars: HashMap<&str, String> = HashMap::default();
@@ -458,11 +479,11 @@ pub fn write_stats_html<W: Write>(
     let content = r##"
 <div class="d-flex align-items-start">
 	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
-        <button class="nav-link text-nowrap active" id="v-pills-stats-tab" data-bs-toggle="pill" data-bs-target="#v-pills-stats" type="button" role="tab" aria-controls="v-pills-stats" aria-selected="true">pangenome stats</button>
+        <button class="nav-link text-nowrap active" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="true">pangenome info</button>
  	</div>
   	<div class="tab-content w-100" id="v-pills-tabContent">
-		<div class="tab-pane fade show active" id="v-pills-stats" role="tabpanel" aria-labelledby="v-pills-stats-tab">
-{{{stats_content}}}
+		<div class="tab-pane fade show active" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
+{{{info_content}}}
 		</div>
   </div>
 </div>
@@ -473,9 +494,9 @@ pub fn write_stats_html<W: Write>(
     js_objects.push_str("const fname = '");
     js_objects.push_str(fname);
     js_objects.push_str("';\n");
-    js_objects.push_str("const stats = `");
-    let stats_text = stats.to_string();
-    js_objects.push_str(stats_text.as_str());
+    js_objects.push_str("const info = `");
+    let info_text = info.to_string();
+    js_objects.push_str(info_text.as_str());
     js_objects.push_str("`;\n");
 
     let reg = Handlebars::new();
@@ -485,7 +506,7 @@ pub fn write_stats_html<W: Write>(
         "content",
         reg.render_template(
             &content,
-            &HashMap::from([("stats_content", generate_stats_tabs(stats))]),
+            &HashMap::from([("info_content", generate_info_tabs(info))]),
         )
         .unwrap(),
     );
@@ -500,7 +521,7 @@ pub fn write_histgrowth_html<W: Write>(
     hist_aux: &HistAuxilliary,
     fname: &str,
     ordered_names: Option<&Vec<String>>,
-    stats: Option<Stats>,
+    info: Option<Info>,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
     let mut vars: HashMap<&str, String> = HashMap::default();
@@ -517,8 +538,8 @@ pub fn write_histgrowth_html<W: Write>(
 		<div class="tab-pane fade{{#unless hist_content}} show active{{/unless}}" id="v-pills-growth" role="tabpanel" aria-labelledby="v-pills-growth-tab">
 {{{growth_content}}}
 		</div>
-		<div class="tab-pane fade" id="v-pills-stats" role="tabpanel" aria-labelledby="v-pills-stats-tab">
-{{{stats_content}}}
+		<div class="tab-pane fade" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
+{{{info_content}}}
 		</div>
   </div>
 </div>
@@ -529,8 +550,8 @@ pub fn write_histgrowth_html<W: Write>(
         nav.push_str(r##"<button class="nav-link text-nowrap active" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>"##);
     }
     nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-growth-tab" data-bs-toggle="pill" data-bs-target="#v-pills-growth" type="button" role="tab" aria-controls="v-pills-growth" aria-selected="true">{}pangenome growth</button>"##, if hists.is_some() { "" } else { " active"}, if ordered_names.is_some() { "ordered " } else {""} ));
-    if stats.is_some() {
-        nav.push_str(r##"<button class="nav-link text-nowrap" id="v-pills-stats-tab" data-bs-toggle="pill" data-bs-target="#v-pills-stats" type="button" role="tab" aria-controls="v-pills-stats" aria-selected="false">pangenome stats</button>"##);
+    if info.is_some() {
+        nav.push_str(r##"<button class="nav-link text-nowrap" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="false">pangenome info</button>"##);
     }
 
     let mut js_objects = String::from("");
@@ -615,12 +636,12 @@ pub fn write_histgrowth_html<W: Write>(
     js_objects.push_str("];\n\nconst fname = '");
     js_objects.push_str(fname);
     js_objects.push_str("';\n");
-    js_objects.push_str("const stats = `");
-    let stats_text = match stats {
+    js_objects.push_str("const info = `");
+    let info_text = match info {
         Some(ref s) => s.to_string(),
         _ => "".to_string(),
     };
-    js_objects.push_str(stats_text.as_str());
+    js_objects.push_str(info_text.as_str());
     js_objects.push_str("`;\n");
 
     let reg = Handlebars::new();
@@ -631,8 +652,8 @@ pub fn write_histgrowth_html<W: Write>(
     if let Some(hs) = hists {
         prevars.insert("hist_content", generate_hist_tabs(hs));
     }
-    if let Some(st) = stats {
-        prevars.insert("stats_content", generate_stats_tabs(st));
+    if let Some(st) = info {
+        prevars.insert("info_content", generate_info_tabs(st));
     }
 
     vars.insert("fname", fname.to_string());
