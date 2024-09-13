@@ -124,7 +124,7 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
                 else:
                     popt, curve = fit_gamma(df.loc[:, (t, ct, c,q)].array)
                     popts.append((c, q, popt, i))
-                    axs[0].plot(df.loc[:].index, curve, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
+                    axs[0].plot(df.index, curve, '--',  color='black', label=fr'coverage $\geq {c}$, quorum $\geq {q*100:.0f}$%, $k_1 X^γ$ with $k_1$={humanize_number(popt[0],1)}, γ={popt[1]:.3f})')
             else:
                 popts.append((c, q, None, i))
     axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=65)
