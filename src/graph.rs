@@ -11,6 +11,7 @@ use crate::util::{CountType};
 
 /* private use */
 use crate::path::*;
+use crate::path_parser::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Orientation {
@@ -175,17 +176,17 @@ pub struct GraphAuxilliary {
 }
 
 impl GraphAuxilliary {
-    pub fn from_gfa(gfa_file: &str, count_type: CountType) -> Self {
-        let (node2id, path_segments, node_lens, extremities) =
-            Self::parse_nodes_gfa(gfa_file, None);
-        let index_edges: bool = (count_type == CountType::Edge) | (count_type == CountType::All);
+    pub fn from_gfa(gfa_file: &str, index_edges: bool) -> Self {
+        //Nodes
+        let (node2id, path_segments, node_lens, extremities) = Self::parse_nodes_gfa(gfa_file, None);
+        let node_count = node2id.len();
+        //Edges
         let (edge2id, edge_count, degree) = if index_edges {
             let (edge2id, edge_count, degree) = Self::parse_edge_gfa(gfa_file, &node2id);
             (Some(edge2id), edge_count, Some(degree))
         } else {
             (None, 0, None)
         };
-        let node_count = node2id.len();
 
         Self {
             node2id,
@@ -200,8 +201,7 @@ impl GraphAuxilliary {
     }
 
     pub fn from_cdbg_gfa(gfa_file: &str, k: usize) -> Self {
-        let (node2id, path_segments, node_lens, extremities) =
-            Self::parse_nodes_gfa(gfa_file, Some(k));
+        let (node2id, path_segments, node_lens, extremities) = Self::parse_nodes_gfa(gfa_file, Some(k));
         let (edge2id, edge_count, degree) = (None, 0, None);
         let node_count = node2id.len();
 
@@ -343,9 +343,11 @@ impl GraphAuxilliary {
                 node_lens.push(offset as u32);
                 node_id += 1;
             } else if buf[0] == b'P' {
-                path_segments.push(PathSegment::parse_path_segment(&buf));
+                let (path_segment, _buf_path_seg) = parse_path_identifier(&buf);
+                path_segments.push(path_segment);
             } else if buf[0] == b'W' {
-                path_segments.push(PathSegment::parse_walk_segment(&buf));
+                let (path_segment, _buf_path_seg) = parse_walk_identifier(&buf);
+                path_segments.push(path_segment);
             }
             buf.clear();
         }
