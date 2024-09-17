@@ -283,9 +283,9 @@ impl GraphAuxilliary {
                     log::warn!("edge {} is duplicated in GFA", &edge);
                 } else {
                     degree[edge.0 as usize] += 1;
-                    //if e.0.0 != e.2.0 {
-                    degree[edge.2 as usize] += 1;
-                    //}
+                    if edge.0 != edge.2 {
+                        degree[edge.2 as usize] += 1;
+                    }
                     edge2id.insert(edge, edge_id as ItemId);
                     edge_id += 1;
                 }
