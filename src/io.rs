@@ -1,7 +1,6 @@
 /* standard use */
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
-use std::path::Path;
 use std::str::{self, FromStr};
 
 /* external use */
@@ -329,6 +328,7 @@ pub fn write_histgrowth_table<W: Write>(
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
+    log::info!("reporting histgrowth table");
     writeln!(
         out,
         "# {}",
@@ -434,7 +434,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
 pub fn write_ordered_histgrowth_html<W: Write>(
     abacus_group: &AbacusByGroup,
     hist_aux: &HistAuxilliary,
-    gfa_file: &str,
+    gfa_filename: &str,
     count: CountType,
     stats: Option<Stats>,
     out: &mut BufWriter<W>,
@@ -462,12 +462,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
         &None,
         &vec![(count, growths)],
         &hist_aux,
-        &Path::new(gfa_file)
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string(),
+        &gfa_filename.to_string(),
         Some(&abacus_group.groups),
         stats,
         out,
