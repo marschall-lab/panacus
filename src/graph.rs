@@ -222,10 +222,10 @@ impl GraphAuxilliary {
         self.node_lens[v.0 as usize]
     }
 
-    pub fn info(&self, paths_len: &Vec<u32>) -> Info {
+    pub fn info(&self, paths_len: &Vec<u32>, paths_bp_len: &Vec<u32>) -> Info {
         Info {
             graph_info: self.graph_info(),
-            path_info: self.path_info(paths_len),
+            path_info: self.path_info(paths_len, paths_bp_len),
         }
     }
 
@@ -250,21 +250,8 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn path_info(&self, paths_len: &Vec<u32>) -> PathInfo {
+    pub fn path_info(&self, paths_len: &Vec<u32>, paths_bp_len: &Vec<u32>) -> PathInfo {
         //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
-        let mut bp_lens: HashMap<(&String, Option<&String>, Option<&String>), u32> = HashMap::new();
-        for segment in &self.path_segments {
-            println!("{:?}", segment);
-            let key = (&segment.sample, segment.haplotype.as_ref(), segment.seqid.as_ref());
-            if segment.start.is_some() && segment.end.is_some() {
-                if bp_lens.contains_key(&key) {
-                    *bp_lens.get_mut(&key).unwrap() += (segment.end.unwrap() - segment.start.unwrap()) as u32;
-                } else {
-                    bp_lens.insert(key, (segment.end.unwrap() - segment.start.unwrap()) as u32);
-                }
-            }
-        }
-        let bp_lens: Vec<u32> = bp_lens.into_values().collect();
         PathInfo {
             no_paths: paths_len.len(),
             node_len: LenInfo {
@@ -273,9 +260,9 @@ impl GraphAuxilliary {
                 average: averageu32(&paths_len),
             },
             bp_len: LenInfo {
-                longest: *bp_lens.iter().max().unwrap(),
-                shortest: *bp_lens.iter().min().unwrap(),
-                average: averageu32(&bp_lens),
+                longest: *paths_bp_len.iter().max().unwrap(),
+                shortest: *paths_bp_len.iter().min().unwrap(),
+                average: averageu32(&paths_bp_len),
             }
         }
     }

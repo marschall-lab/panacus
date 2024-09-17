@@ -719,10 +719,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
                 OutputFormat::Html => {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let (_, _, _, paths_len) =
+                    let (_, _, _, paths_len, paths_bp_len) =
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-                    let info = graph_aux.info(&paths_len);
+                    let info = graph_aux.info(&paths_len, &paths_bp_len);
                     write_histgrowth_html(
                         &Some(hists),
                         &growths,
@@ -757,10 +757,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Table => write_hist_table(&hists, out)?,
                 OutputFormat::Html => {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let (_, _, _, paths_len) =
+                    let (_, _, _, paths_len, paths_bp_len) =
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-                    let info = graph_aux.info(&paths_len);
+                    let info = graph_aux.info(&paths_len, &paths_bp_len);
                     write_hist_html(&hists, &filename, Some(info), out)?
                 }
             };
@@ -811,10 +811,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
 
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let (_, _, _, paths_len) =
+            let (_, _, _, paths_len, paths_bp_len) =
                 parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-            let info = graph_aux.info(&paths_len);
+            let info = graph_aux.info(&paths_len, &paths_bp_len);
             let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
             match output_format {
                 OutputFormat::Table => write_info(info, out)?,
@@ -867,10 +867,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 }
                 OutputFormat::Html => {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let (_, _, _, paths_len) =
+                    let (_, _, _, paths_len, paths_bp_len) =
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-                    let info = graph_aux.info(&paths_len);
+                    let info = graph_aux.info(&paths_len, &paths_bp_len);
                     write_ordered_histgrowth_html(
                         &abacus,
                         &hist_aux,
