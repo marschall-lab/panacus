@@ -4,7 +4,8 @@ use std::io::{Error, ErrorKind};
 use std::str::{self, FromStr};
 
 /* external use */
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
+use itertools::Itertools;
 use quick_csv::Csv;
 use rayon::prelude::*;
 use strum_macros::{EnumString, EnumVariantNames};
@@ -29,7 +30,7 @@ pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> BufReader<Box<dyn Read>>
     let f = std::fs::File::open(&gfa_file).expect(&format!("Error opening gfa file {}", &gfa_file));
     let reader: Box<dyn Read> = if gfa_file.ends_with(".gz") {
         log::info!("assuming that {} is gzip compressed..", &gfa_file);
-        Box::new(GzDecoder::new(f))
+        Box::new(MultiGzDecoder::new(f))
     } else {
         Box::new(f)
     };
