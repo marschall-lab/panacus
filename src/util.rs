@@ -2,6 +2,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
+use std::path::Path;
 
 /* external use */
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
@@ -25,6 +26,10 @@ unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
 unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
 unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
+
+pub fn path_basename(string: &str) -> &str {
+    Path::new(string).file_name().expect(&format!("Error basename in {}", string)).to_str().unwrap()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
 #[strum(serialize_all = "lowercase")]
