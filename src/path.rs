@@ -116,44 +116,6 @@ impl PathSegment {
         segment
     }
 
-    pub fn parse_path_segment(data: &[u8]) -> Self {
-        let mut iter = data.iter();
-        let start = iter.position(|&x| x == b'\t').unwrap() + 1;
-        let offset = iter.position(|&x| x == b'\t').unwrap();
-        let path_name = str::from_utf8(&data[start..start + offset]).unwrap();
-        PathSegment::from_str(path_name)
-    }
-
-    pub fn parse_walk_segment(data: &[u8]) -> Self {
-        let mut six_col: Vec<&str> = Vec::with_capacity(6);
-
-        let mut it = data.iter();
-        let mut i = 0;
-        for _ in 0..6 {
-            let j = it.position(|x| x == &b'\t').unwrap();
-            six_col.push(&str::from_utf8(&data[i..i + j]).unwrap());
-            i += j + 1;
-        }
-
-        let seq_start = match six_col[4] {
-            "*" => None,
-            a => Some(usize::from_str(a).unwrap()),
-        };
-
-        let seq_end = match six_col[5] {
-            "*" => None,
-            a => Some(usize::from_str(a).unwrap()),
-        };
-
-        PathSegment::new(
-            six_col[1].to_string(),
-            six_col[2].to_string(),
-            six_col[3].to_string(),
-            seq_start,
-            seq_end,
-        )
-    }
-
     pub fn id(&self) -> String {
         if self.haplotype.is_some() {
             format!(
@@ -225,8 +187,6 @@ impl fmt::Display for PathSegment {
     }
 }
 
-
-//PathMetadata (?)
 pub struct PathAuxilliary {
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
@@ -236,149 +196,102 @@ pub struct PathAuxilliary {
 
 impl PathAuxilliary {
     pub fn from_params(params: &Params, graph_aux: &GraphAuxilliary) -> Result<Self, Error> {
-        match params {
-            Params::Histgrowth {
-                positive_list,
-                negative_list,
+        if let Params::Histgrowth {
+            positive_list,
+            negative_list,
+            groupby,
+            groupby_sample,
+            groupby_haplotype,
+            ..
+        }
+        | Params::Hist {
+            positive_list,
+            negative_list,
+            groupby,
+            groupby_sample,
+            groupby_haplotype,
+            ..
+        }
+        | Params::Stats {
+            positive_list,
+            negative_list,
+            groupby,
+            groupby_sample,
+            groupby_haplotype,
+            ..
+        }
+        | Params::Subset {
+            positive_list,
+            negative_list,
+            groupby,
+            groupby_sample,
+            groupby_haplotype,
+            ..
+        }
+        | Params::OrderedHistgrowth {
+            positive_list,
+            negative_list,
+            groupby,
+            groupby_sample,
+            groupby_haplotype,
+            ..
+        }
+        | Params::Table {
+            positive_list,
+            negative_list,
+            groupby,
+            groupby_sample,
+            groupby_haplotype,
+            ..
+        }
+        //| Params::Cdbg {
+        //    positive_list,
+        //    negative_list,
+        //    groupby,
+        //    groupby_sample,
+        //    groupby_haplotype,
+        //    ..
+        //} 
+        = params {
+            let groups = Self::load_groups(
                 groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Hist {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Stats {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Subset {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::OrderedHistgrowth {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            | Params::Table {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
-            //| Params::Cdbg {
-            //    positive_list,
-            //    negative_list,
-            //    groupby,
-            //    groupby_sample,
-            //    groupby_haplotype,
-            //    ..
-            //} 
-            => {
-                let groups = PathAuxilliary::load_groups(
-                    groupby,
-                    *groupby_haplotype,
-                    *groupby_sample,
-                    graph_aux,
-                )?;
-                let include_coords = PathAuxilliary::complement_with_group_assignments(
-                    PathAuxilliary::load_coord_list(positive_list)?,
+                *groupby_haplotype,
+                *groupby_sample,
+                graph_aux,
+            )?;
+            let include_coords = Self::complement_with_group_assignments(
+                Self::load_coord_list(positive_list),
+                &groups,
+            )?;
+            let exclude_coords = Self::complement_with_group_assignments(
+                Self::load_coord_list(negative_list),
+                &groups,
+            )?;
+            let some_order = if let Params::OrderedHistgrowth { order, .. } = params {
+                Self::complement_with_group_assignments(
+                    Self::load_coord_list(order),
                     &groups,
-                )?;
-                let exclude_coords = PathAuxilliary::complement_with_group_assignments(
-                    PathAuxilliary::load_coord_list(negative_list)?,
-                    &groups,
-                )?;
+                )?
+            } else {
+                None
+            };
 
-                let order = if let Params::OrderedHistgrowth { order, .. } = params {
-                    let maybe_order = PathAuxilliary::complement_with_group_assignments(
-                        PathAuxilliary::load_coord_list(order)?,
-                        &groups,
-                    )?;
-                    if let Some(o) = &maybe_order {
-                        // if order is given, check that it comprises all included coords
-                        let all_included_paths: Vec<PathSegment> = match &include_coords {
-                            None => {
-                                let exclude: HashSet<&PathSegment> = match &exclude_coords {
-                                    Some(e) => e.iter().collect(),
-                                    None => HashSet::new(),
-                                };
-                                graph_aux
-                                    .path_segments
-                                    .iter()
-                                    .filter_map(|x| {
-                                        if !exclude.contains(x) {
-                                            Some(x.clear_coords())
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect()
-                            }
-                            Some(include) => include.iter().map(|x| x.clear_coords()).collect(),
-                        };
-                        let order_set: HashSet<&PathSegment> = HashSet::from_iter(o.iter());
-
-                        for p in all_included_paths.iter() {
-                            if !order_set.contains(p) {
-                                let msg = format!(
-                                    "order list does not contain information about path {}",
-                                    p
-                                );
-                                log::error!("{}", &msg);
-                                // let's not be that harsh, shall we?
-                                // return Err(Error::new( ErrorKind::InvalidData, msg));
-                            }
-                        }
-
-                        // check that groups are not scrambled in include
-                        let mut visited: HashSet<&str> = HashSet::new();
-                        let mut cur: &str = groups.get(&o[0]).unwrap();
-                        for p in o.iter() {
-                            let g: &str = groups.get(p).unwrap();
-                            if cur != g && !visited.insert(g) {
-                                let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
-                                log::error!("{}", &msg);
-                                return Err(Error::new(ErrorKind::InvalidData, msg));
-                            }
-                            cur = g;
-                        }
-                    }
-                    maybe_order
-                } else {
-                    None
-                };
-
-                Ok(PathAuxilliary {
-                    groups: groups,
-                    include_coords: include_coords,
-                    exclude_coords: exclude_coords,
-                    order: order,
-                })
+            if let Some(order) = &some_order {
+                Self::check_order_comprises_all_included_coords(&order, &graph_aux, &include_coords, &exclude_coords);
+                Self::check_order_groups_are_not_scrambled(&order, &groups)?;
             }
-            _ => Err(Error::new(
+
+            Ok(PathAuxilliary {
+                groups: groups,
+                include_coords: include_coords,
+                exclude_coords: exclude_coords,
+                order: some_order,
+            })
+        } else {
+            Err(Error::new(
                 ErrorKind::InvalidData,
                 "cannot produce PathAuxilliary from other Param items",
-            )),
+            ))
         }
     }
 
@@ -386,14 +299,11 @@ impl PathAuxilliary {
         coords: Option<Vec<PathSegment>>,
         groups: &HashMap<PathSegment, String>,
     ) -> Result<Option<Vec<PathSegment>>, Error> {
-        //
-        // We allow coords to be defined via groups; the following code
-        // 1. complements coords with path segments from group assignments
-        // 2. checks that group-based coordinates don't have start/stop information
-        //
-        let mut group2paths: HashMap<String, Vec<PathSegment>> = HashMap::default();
+        // We allow coords to be defined via groups
+        // This code adds all the paths from a group in specified in coords
+        let mut group_to_path: HashMap<String, Vec<PathSegment>> = HashMap::default();
         for (p, g) in groups.iter() {
-            group2paths
+            group_to_path
                 .entry(g.clone())
                 .or_insert(Vec::new())
                 .push(p.clone())
@@ -403,50 +313,45 @@ impl PathAuxilliary {
             .map(|(ps, g)| (ps.clear_coords(), g.clone()))
             .collect();
 
-        match coords {
-            None => Ok(None),
-            Some(v) => {
-                v.into_iter()
-                    .map(|p| {
-                        // check if path segment defined in coords associated with a specific path,
-                        // it is not considered a group 
-                        if path_to_group.contains_key(&p.clear_coords()) {
-                            Ok(vec![p])
-                        } else if group2paths.contains_key(&p.id()) {
-                            if p.coords().is_some() {
-                                let msg = format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p);
-                                log::error!("{}", &msg);
-                                Err(Error::new( ErrorKind::InvalidData, msg))
-                            } else {
-                                let paths = group2paths.get(&p.id()).unwrap().clone();
-                                log::debug!("complementing coordinate list with {} paths associted with group {}", paths.len(), p.id());
-                                Ok(paths)
-                            }
-                        } else {
-                            let msg = format!("unknown path/group {}", &p);
-                            log::error!("{}", &msg);
-                            // let's not be so harsh as to throw an error, ok?
-                            // Err(Error::new(ErrorKind::InvalidData, msg))
-                            Ok(Vec::new())
-                        }
-                    })
-                    .collect::<Result<Vec<Vec<PathSegment>>, Error>>().map(|x| Some(x[..]
-                    .concat()))
+        if let Some(v) = coords {
+            let mut complemented_path_segments = Vec::new();
+            for path_segment in v.iter() {
+                if path_to_group.contains_key(&path_segment.clear_coords()) {
+                    complemented_path_segments.push(path_segment.clone());
+                } else if group_to_path.contains_key(&path_segment.id()) {
+                    // checks that group-based coordinates don't have start/stop information
+                    if path_segment.coords().is_some() {
+                        let msg = format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &path_segment);
+                        log::error!("{}", &msg);
+                        return Err(Error::new( ErrorKind::InvalidData, msg))
+                    } else {
+                        // complements coords with path segments from group assignments
+                        let mut paths = group_to_path.get(&path_segment.id()).unwrap().clone();
+                        log::debug!("complementing coordinate list with {} paths associted with group {}", paths.len(), path_segment.id());
+                        complemented_path_segments.append(&mut paths);
+                    }
+                } else {
+                    let msg = format!("unknown path/group {}", &path_segment);
+                    log::error!("{}", &msg);
+                    // let's not be so harsh as to throw an error, ok?
+                    // Err(Error::new(ErrorKind::InvalidData, msg))
+                }
             }
-        }
+            return Ok(Some(complemented_path_segments))
+        } 
+        Ok(None)
     }
 
-    fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
-        Ok(if file_name.is_empty() {
-            None
-        } else {
+    fn load_coord_list(file_name: &str) -> Option<Vec<PathSegment>> {
+        if !file_name.is_empty() {
             log::info!("loading coordinates from {}", file_name);
-            let mut data = BufReader::new(fs::File::open(file_name)?);
+            let mut data = BufReader::new(fs::File::open(file_name).expect(&format!("Could not open file {}", file_name)));
             let use_block_info = true;
             let coords = parse_bed_to_path_segments(&mut data, use_block_info);
             log::debug!("loaded {} coordinates", coords.len());
-            Some(coords)
-        })
+            return Some(coords)
+        }
+        None
     }
 
     fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment, String)>, Error> {
@@ -671,6 +576,65 @@ impl PathAuxilliary {
 
         (subset_covered_bps, exclude_table, include_map, exclude_map)
     }
+
+    fn check_order_comprises_all_included_coords(
+        order: &Vec<PathSegment>, 
+        graph_aux: &GraphAuxilliary, 
+        include_coords: &Option<Vec<PathSegment>>, 
+        exclude_coords: &Option<Vec<PathSegment>>,
+    ) {
+        let all_included_paths: Vec<PathSegment> = match include_coords {
+            None => {
+                let exclude: HashSet<&PathSegment> = match exclude_coords {
+                    Some(e) => e.iter().collect(),
+                    None => HashSet::new(),
+                };
+                graph_aux
+                    .path_segments
+                    .iter()
+                    .filter_map(|x| {
+                        if !exclude.contains(x) {
+                            Some(x.clear_coords())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            }
+            Some(include) => include.iter().map(|x| x.clear_coords()).collect(),
+        };
+        let order_set: HashSet<&PathSegment> = HashSet::from_iter(order.iter());
+
+        for p in all_included_paths.iter() {
+            if !order_set.contains(p) {
+                let msg = format!(
+                    "order list does not contain information about path {}",
+                    p
+                );
+                log::error!("{}", &msg);
+                // let's not be that harsh, shall we?
+                // return Err(Error::new( ErrorKind::InvalidData, msg));
+            }
+        }
+    }
+    fn check_order_groups_are_not_scrambled(
+        order: &Vec<PathSegment>, 
+        groups: &HashMap<PathSegment, String>
+    ) -> Result<(), Error> {
+        let mut visited: HashSet<&str> = HashSet::new();
+        let mut cur: &str = groups.get(&order[0]).unwrap();
+        for p in order.iter() {
+            let g: &str = groups.get(p).unwrap();
+            if cur != g && !visited.insert(g) {
+                let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
+                log::error!("{}", &msg);
+                return Err(Error::new(ErrorKind::InvalidData, msg));
+            }
+            cur = g;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -679,7 +643,7 @@ mod tests {
 
     fn setup_test_data() -> (GraphAuxilliary, Params, String) {
         let test_gfa_file = "test/cdbg.gfa";
-        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, CountType::Node);
+        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, false);
         let mut params = Params::default_histgrowth();
         if let Params::Histgrowth {
             ref mut gfa_file,
