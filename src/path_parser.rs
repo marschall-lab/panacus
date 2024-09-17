@@ -12,7 +12,7 @@ use crate::graph::*;
 use crate::path::*;
 use crate::util::*;
 
-pub fn parse_walk_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
+pub fn parse_walk_identifier(data: &[u8]) -> (PathSegment, &[u8]) {
     let mut six_col: Vec<&str> = Vec::with_capacity(6);
 
     let mut it = data.iter();
@@ -44,9 +44,8 @@ pub fn parse_walk_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
     (path_seg, &data[i..])
 }
 
-pub fn parse_path_identifier<'a>(data: &'a [u8]) -> (PathSegment, &'a [u8]) {
+pub fn parse_path_identifier(data: &[u8]) -> (PathSegment, &[u8]) {
     let mut iter = data.iter();
-
     let start = iter.position(|&x| x == b'\t').unwrap() + 1;
     let offset = iter.position(|&x| x == b'\t').unwrap();
     let path_name = str::from_utf8(&data[start..start + offset]).unwrap();
@@ -76,6 +75,10 @@ fn parse_walk_seq_to_item_vec(
         .unwrap();
 
     log::debug!("parsing walk sequences of size {}..", end);
+    if end == 0 {
+        log::warn!("empty walk, skipping.");
+        return Vec::new();
+    }
 
     // ignore first > | < so that no empty is created for 1st node
     let sids: Vec<(ItemId, Orientation)> = data[..end]
@@ -159,6 +162,10 @@ fn parse_walk_seq_update_tables(
         .unwrap();
 
     log::debug!("parsing walk sequences of size {}..", end);
+    if end == 0 {
+        log::warn!("empty walk, skipping.");
+        return 0;
+    }
 
     // ignore first > | < so that no empty is created for 1st node
     data[1..end]
@@ -210,6 +217,10 @@ pub fn parse_path_seq_to_item_vec(
         .unwrap();
 
     log::debug!("parsing path sequences of size {}..", end);
+    if end == 0 {
+        log::warn!("empty walk, skipping.");
+        return Vec::new();
+    }
 
     let sids: Vec<(ItemId, Orientation)> = data[..end]
         .par_split(|&x| x == b',')
@@ -244,6 +255,10 @@ fn parse_path_seq_update_tables(
         .unwrap();
 
     log::debug!("parsing path sequences of size {} bytes..", end);
+    if end == 0 {
+        log::warn!("empty path, skipping.");
+        return 0;
+    }
 
     let items_ptr = Wrap(&mut item_table.items);
     let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
@@ -424,7 +439,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
             // do not process the path sequence if path is neither part of subset nor exclude
             if path_aux.include_coords.is_some()
                 && !intersects(include_coords, &(start, end))
-                && !intersects(exclude_coords, &(start, end))
+                && !intersects(exclude_coords, &(start, end)) //This is superfluos
             {
                 log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", 
                     &path_seg, &include_coords, &exclude_coords);
