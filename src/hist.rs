@@ -17,7 +17,7 @@ pub struct Hist {
     pub coverage: Vec<usize>,
 }
 
-pub fn choose(n: usize, k: usize) -> f64 {
+fn choose(n: usize, k: usize) -> f64 {
     let mut res: f64 = 0.0;
     if k > n {
         return 0.0;
