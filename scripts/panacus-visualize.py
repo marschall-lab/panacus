@@ -254,6 +254,7 @@ if __name__ == '__main__':
             elif t == 'ordered-growth':
                 if args.estimate_growth_params:
                     print(f'Cannot estimate growth using heaps law (-e parameter) when working with an ordered growth plot', file=stderr)
+                    exit(1)
                 axs_tc = axs[j, -1:]
                 if non_cum_plots:
                     axs_tc = axs[j, -2:]
