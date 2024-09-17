@@ -263,11 +263,9 @@ impl AbacusByTotal {
         let mut abaci = Vec::new();
         if let CountType::All = count {
             for count_type in CountType::iter() {
-                if let CountType::All = count_type {
-                } else {
+                if count_type != CountType::All {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let abacus =
-                        AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+                    let abacus = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
                     abaci.push(abacus);
                 }
             }
@@ -763,7 +761,7 @@ mod tests {
 
     fn setup_test_data() -> (GraphAuxilliary, Params, String) {
         let test_gfa_file = "test/cdbg.gfa";
-        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, CountType::Node);
+        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, false);
         let mut params = Params::default_histgrowth();
         if let Params::Histgrowth {
             ref mut gfa_file,
