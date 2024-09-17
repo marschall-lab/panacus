@@ -503,6 +503,8 @@ pub fn write_histgrowth_html<W: Write>(
     stats: Option<Stats>,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
+    log::info!("reporting histgrowth html");
+
     let mut vars: HashMap<&str, String> = HashMap::default();
 
     let content = r##"
