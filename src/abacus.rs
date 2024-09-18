@@ -457,7 +457,7 @@ impl AbacusByTotal {
         graph_aux: &GraphAuxilliary,
         count: CountType,
     ) -> Self {
-        let (item_table, exclude_table, subset_covered_bps, _paths_len, _) =
+        let (item_table, exclude_table, subset_covered_bps, _paths_len) =
             parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
         Self::item_table_to_abacus(
             abacus_aux,
@@ -767,7 +767,7 @@ impl<'a> AbacusByGroup<'a> {
         report_values: bool,
     ) -> Result<Self, Error> {
         log::info!("parsing path + walk sequences");
-        let (item_table, exclude_table, subset_covered_bps, _paths_len, _) =
+        let (item_table, exclude_table, subset_covered_bps, _paths_len) =
             parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
 
         let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();

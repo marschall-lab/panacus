@@ -775,8 +775,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
     ItemTable,
     Option<ActiveTable>,
     Option<IntervalContainer>,
-    Vec<u32>,
-    Vec<u32>,
+    HashMap<PathSegment, (u32, u32)>,
 ) {
     log::info!("parsing path + walk sequences");
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
@@ -785,8 +784,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
 
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
-    let mut paths_len: Vec<u32> = Vec::new();
-    let mut paths_bp_len: Vec<u32> = Vec::new();
+    let mut paths_len: HashMap<PathSegment, (u32, u32)> = HashMap::new();
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -880,9 +878,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     ),
                     _ => unreachable!(),
                 };
-
-                paths_len.push(num_added_nodes as u32);
-                paths_bp_len.push(bp_len);
+                paths_len.insert(path_seg, (num_added_nodes as u32, bp_len));
             } else {
                 let sids = match buf[0] {
                     b'P' => parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux),
@@ -890,7 +886,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     _ => unreachable!(),
                 };
 
-                paths_len.push(sids.len() as u32);
+                paths_len.insert(path_seg, (sids.len() as u32, 0));
 
                 match count {
                     CountType::Node | CountType::Bp => update_tables(
@@ -921,7 +917,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
         }
         buf.clear();
     }
-    (item_table, exclude_table, subset_covered_bps, paths_len, paths_bp_len)
+    (item_table, exclude_table, subset_covered_bps, paths_len)
 }
 
 fn update_tables(
