@@ -280,7 +280,7 @@ impl GraphAuxilliary {
             if buf[0] == b'L' {
                 let edge = Edge::from_link(&buf[..], node2id, true);
                 if edge2id.contains_key(&edge) {
-                    log::warn!("edge {} is duplicated in GFA", &edge);
+                    log::debug!("edge {} is duplicated in GFA", &edge);
                 } else {
                     degree[edge.0 as usize] += 1;
                     if edge.0 != edge.2 {

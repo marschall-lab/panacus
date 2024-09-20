@@ -76,7 +76,7 @@ fn parse_walk_seq_to_item_vec(
 
     log::debug!("parsing walk sequences of size {}..", end);
     if end == 0 {
-        log::warn!("empty walk, skipping.");
+        log::debug!("empty walk, skipping.");
         return Vec::new();
     }
 
@@ -163,7 +163,7 @@ fn parse_walk_seq_update_tables(
 
     log::debug!("parsing walk sequences of size {}..", end);
     if end == 0 {
-        log::warn!("empty walk, skipping.");
+        log::debug!("empty walk, skipping.");
         return 0;
     }
 
@@ -218,7 +218,7 @@ pub fn parse_path_seq_to_item_vec(
 
     log::debug!("parsing path sequences of size {}..", end);
     if end == 0 {
-        log::warn!("empty walk, skipping.");
+        log::debug!("empty path, skipping.");
         return Vec::new();
     }
 
@@ -242,10 +242,20 @@ pub fn parse_path_seq_to_item_vec(
     sids
 }
 
+//    let items_ptr = Wrap(&mut item_table.items);
+//    let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
+//    let mutex_vec: Vec<_> = item_table
+//
+//        pub items: [Vec<ItemId>; SIZE_T],
+//    pub id_prefsum: [Vec<ItemId>; SIZE_T],
+
 fn parse_path_seq_update_tables(
     data: &[u8],
     graph_aux: &GraphAuxilliary,
     item_table: &mut ItemTable,
+    items_ptr: &Wrap<[Vec<ItemId>; SIZE_T]>,
+    id_prefsum_ptr: &Wrap<[Vec<ItemId>; SIZE_T]>,
+    mutex_vec: &Vec<Arc<Mutex<i32>>>,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
 ) -> u32 {
@@ -256,18 +266,22 @@ fn parse_path_seq_update_tables(
 
     log::debug!("parsing path sequences of size {} bytes..", end);
     if end == 0 {
-        log::warn!("empty path, skipping.");
+        log::debug!("empty path, skipping.");
         return 0;
     }
 
-    let items_ptr = Wrap(&mut item_table.items);
-    let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
 
-    let mutex_vec: Vec<_> = item_table
-        .items
-        .iter()
-        .map(|x| Arc::new(Mutex::new(x)))
-        .collect();
+    //let items_ptr = Wrap(&mut item_table.items);
+    //let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
+    //let mutex_vec: Vec<Arc<Mutex<i32>>> = (0..SIZE_T)
+    //.map(|_| Arc::new(Mutex::new(0)))
+    //.collect();
+
+    //let mutex_vec: Vec<_> = item_table
+    //    .items
+    //    .iter()
+    //    .map(|x| Arc::new(Mutex::new(x)))
+    //    .collect();
 
     //let mut plus_strands: Vec<u32> = vec![0; rayon::current_num_threads()];
     data[..end].par_split(|&x| x == b',').for_each(|node| {
@@ -278,13 +292,13 @@ fn parse_path_seq_update_tables(
                 "unknown node {}",
                 &str::from_utf8(node).unwrap()[..]
             ));
-        let o = node[node.len() - 1];
-        assert!(
-            o == b'-' || o == b'+',
-            "unknown orientation of segment {}",
-            str::from_utf8(&node).unwrap()
-        );
-        //plus_strands[rayon::current_thread_index().unwrap()] += (o == b'+') as u32;
+        //let o = node[node.len() - 1];
+        //assert!(
+        //    o == b'-' || o == b'+',
+        //    "unknown orientation of segment {}",
+        //    str::from_utf8(&node).unwrap()
+        //);
+        ////plus_strands[rayon::current_thread_index().unwrap()] += (o == b'+') as u32;
 
         let idx = (sid as usize) % SIZE_T;
 
@@ -388,9 +402,18 @@ pub fn parse_gfa_paths_walks<R: Read>(
     let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) =
         path_aux.load_optional_subsetting(&graph_aux, &count);
 
+    let mutex_vec: Vec<Arc<Mutex<i32>>> = (0..SIZE_T)
+        .map(|_| Arc::new(Mutex::new(0)))
+        .collect();
+
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
     let mut paths_len: Vec<u32> = Vec::new();
+
+    //prepare mutex for item_table and prefix sum 
+    let items_ptr = Wrap(&mut item_table.items);
+    let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
+    //let mutex_vec = Arc::new(Mutex::new((0..SIZE_T).collect()));
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -470,6 +493,9 @@ pub fn parse_gfa_paths_walks<R: Read>(
                         &buf_path_seg,
                         &graph_aux,
                         &mut item_table,
+                        &items_ptr,
+                        &id_prefsum_ptr,
+                        &mutex_vec,
                         ex,
                         num_path,
                     ),
