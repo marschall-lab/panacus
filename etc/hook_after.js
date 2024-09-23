@@ -77,9 +77,117 @@ for (let i=0; i < hists.length; i++) {
     buildLogToggle(myChart, h);
 }
 
+console.log(groups);
+
+for (let i=0; i < groups.length; i++) {
+    var g = groups[i];
+    var ctx = document.getElementById('chart-groups-' + g.count);
+    var myChart;
+    if (g.is_hist) {
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: g.index,
+                datasets: [{
+                    label: fname,
+                    data: g.length,
+                    borderWidth: 1,
+                    backgroundColor: PCOLORS[0],
+                    borderColor: '#FFFFFF'
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: '#groups',
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            color: '#FFFFFF',
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '#' + g.count + 's',
+                        },
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 65
+                        }
+                    },
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        buildPlotDownload(myChart, g, fname);
+
+    } else {
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: g.index,
+                datasets: [{
+                    label: fname,
+                    data: g.length,
+                    borderWidth: 1,
+                    backgroundColor: PCOLORS[0],
+                    borderColor: '#FFFFFF'
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: '#' + g.count + 's',
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            color: '#FFFFFF',
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'groups',
+                        },
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 65
+                        }
+                    },
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        buildPlotDownload(myChart, g, fname);
+    }
+    // buildLogToggle(myChart, g);
+}
+
 buildInfoTableDownload(info, "graph", fname);
 buildInfoTableDownload(info, "node", fname);
 buildInfoTableDownload(info, "path", fname);
+buildInfoTableDownload(info, "group", fname);
 
 for (let i=0; i < growths.length; i++) {
     var g = growths[i];

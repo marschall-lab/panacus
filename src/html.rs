@@ -5,6 +5,8 @@ use std::io::{BufWriter, Write};
 /* external use */
 use base64::{engine::general_purpose, Engine as _};
 use handlebars::Handlebars;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use time::{macros::format_description, OffsetDateTime};
 
 use crate::graph::Info;
@@ -188,6 +190,7 @@ pub fn generate_info_tabs(info: Info) -> String {
     tab_navigation.push_str(r##"<button class="nav-link active" id="nav-info-1-tab" data-bs-toggle="tab" data-bs-target="#nav-info-1" type="button" role="tab" aria-controls="nav-info-1" aria-selected="true">graph</button>"##);
     tab_navigation.push_str(r##"<button class="nav-link" id="nav-info-2-tab" data-bs-toggle="tab" data-bs-target="#nav-info-2" type="button" role="tab" aria-controls="nav-info-2" aria-selected="false">node</button>"##);
     tab_navigation.push_str(r##"<button class="nav-link" id="nav-info-3-tab" data-bs-toggle="tab" data-bs-target="#nav-info-3" type="button" role="tab" aria-controls="nav-info-3" aria-selected="false">path</button>"##);
+    tab_navigation.push_str(r##"<button class="nav-link" id="nav-info-4-tab" data-bs-toggle="tab" data-bs-target="#nav-info-4" type="button" role="tab" aria-controls="nav-info-4" aria-selected="false">groups</button>"##);
 
     let graph_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-1" role="tabpanel" aria-labelledby="nav-info-1">
         <br/>
@@ -207,29 +210,40 @@ pub fn generate_info_tabs(info: Info) -> String {
     </tr>
     <tr>
       <td></td>
-      <td>basepairs</td>
+      <td>bp</td>
       <td>{{{basepairs}}}</td>
     </tr>
     <tr>
       <td></td>
-      <td>edges</td>
+      <td>edge</td>
       <td>{{{edge_count}}}</td>
     </tr>
     <tr>
       <td></td>
-      <td>paths</td>
+      <td>path</td>
       <td>{{{no_paths}}}</td>
     </tr>
     <tr>
       <td></td>
-      <td>0-degree nodes</td>
+      <td>group</td>
+      <td>{{{no_groups}}}</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>0-degree node</td>
       <td>{{{number_0_degree}}}</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>component</td>
+      <td>{{{components}}}</td>
     </tr>
   </tbody>
 </table>
 <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-table-info-graph" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
             <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
         </button>
     </div>
@@ -240,6 +254,8 @@ pub fn generate_info_tabs(info: Info) -> String {
         ("basepairs", format!("{}", info.graph_info.basepairs)),
         ("edge_count", format!("{}", info.graph_info.edge_count)),
         ("no_paths", format!("{}", info.path_info.no_paths)),
+        ("no_groups", format!("{}", info.graph_info.group_count)),
+        ("components", format!("{}", info.graph_info.connected_components)),
         (
             "number_0_degree",
             format!("{}", info.graph_info.number_0_degree),
@@ -260,50 +276,51 @@ pub fn generate_info_tabs(info: Info) -> String {
   </thead>
   <tbody class="table-group-divider">
     <tr>
-      <td>degree</td>
       <td>average</td>
-      <td>{{{average_degree}}}</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>max</td>
-      <td>{{{max_degree}}}</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>min</td>
-      <td>{{{min_degree}}}</td>
-    </tr>
-    <tr>
       <td>bp</td>
-      <td>longest</td>
-      <td>{{{largest_node}}}</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>shortest</td>
-      <td>{{{shortest_node}}}</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>average</td>
       <td>{{{average_node}}}</td>
     </tr>
     <tr>
       <td></td>
+      <td>degree</td>
+      <td>{{{average_degree}}}</td>
+    </tr>
+    <tr>
+      <td>longest</td>
+      <td>bp</td>
+      <td>{{{largest_node}}}</td>
+    </tr>
+    <tr>
+      <td>shortest</td>
+      <td>bp</td>
+      <td>{{{shortest_node}}}</td>
+    </tr>
+    <tr>
       <td>median</td>
+      <td>bp</td>
       <td>{{{median_node}}}</td>
     </tr>
     <tr>
-      <td></td>
       <td>N50 node</td>
+      <td>bp</td>
       <td>{{{n50_node}}}</td>
+    </tr>
+    <tr>
+      <td>max</td>
+      <td>degree</td>
+      <td>{{{max_degree}}}</td>
+    </tr>
+    <tr>
+      <td>min</td>
+      <td>degree</td>
+      <td>{{{min_degree}}}</td>
     </tr>
   </tbody>
 </table>
 <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-table-info-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
             <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
         </button>
     </div>
@@ -339,25 +356,41 @@ pub fn generate_info_tabs(info: Info) -> String {
   </thead>
   <tbody class="table-group-divider">
     <tr>
+      <td>average</td>
+      <td>bp</td>
+      <td>{{{average_path_bp}}}</td>
+    </tr>
+    <tr>
+      <td></td>
       <td>node</td>
+      <td>{{{average_path}}}</td>
+    </tr>
+    <tr>
       <td>longest</td>
+      <td>bp</td>
+      <td>{{{longest_path_bp}}}</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>node</td>
       <td>{{{longest_path}}}</td>
     </tr>
     <tr>
-      <td></td>
       <td>shortest</td>
-      <td>{{{shortest_path}}}</td>
+      <td>bp</td>
+      <td>{{{shortest_path_bp}}}</td>
     </tr>
     <tr>
       <td></td>
-      <td>average</td>
-      <td>{{{average_path}}}</td>
+      <td>node</td>
+      <td>{{{shortest_path}}}</td>
     </tr>
   </tbody>
-<table>
+</table>
 <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-table-info-path" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
             <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
         </button>
     </div>
@@ -370,8 +403,54 @@ pub fn generate_info_tabs(info: Info) -> String {
             format!("{}", info.path_info.node_len.shortest),
         ),
         ("average_path", format!("{}", info.path_info.node_len.average)),
+        ("longest_path_bp", format!("{}", info.path_info.bp_len.longest)),
+        (
+            "shortest_path_bp",
+            format!("{}", info.path_info.bp_len.shortest),
+        ),
+        ("average_path_bp", format!("{}", info.path_info.bp_len.average)),
     ]);
     tab_content.push_str(&reg.render_template(&path_info, &path_vars).unwrap());
+
+    let group_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-4" role="tabpanel" aria-labelledby="nav-info-4">
+    </br>
+    <canvas id="chart-groups-node"></canvas>
+    <br/>
+    <div class="d-flex flex-row-reverse">
+        <button id="btn-download-plot-group-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#card-image"></use></svg>
+        </button>
+    </div>
+<br/>
+    <canvas id="chart-groups-bp"></canvas>
+<br/>
+    <div class="d-flex flex-row-reverse">
+        <button id="btn-download-table-info-group" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#table"></use></svg>
+        </button>
+        <button id="btn-download-plot-group-bp" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#download"></use></svg>
+            <svg class="bi opacity-50 m-1" width="15" height="15"><use href="#card-image"></use></svg>
+        </button>
+    </div>
+</div>
+"##;
+    let group_vars = HashMap::from([
+        ("groups", match info.group_info {
+            Some(group_info) => {
+                group_info.groups.iter().map(|(k, v)| {
+                    HashMap::from([
+                        ("name", format!("{}", k)),
+                        ("node_len", format!("{}", v.0)),
+                        ("bp_len", format!("{}", v.1))
+                ])}).collect::<Vec<_>>()
+            }
+            None => Vec::new(),
+        }),
+    ]);
+    tab_content.push_str(&reg.render_template(&group_info, &group_vars).unwrap());
 
     let container = r##"<div class="container p-5">
 	<nav>
@@ -450,6 +529,11 @@ pub fn write_hist_html<W: Write>(
     js_objects.push_str(info_text.as_str());
     js_objects.push_str("`;\n");
 
+    if let Some(info_obj) = &info {
+        let info_object = get_info_js_object(&info_obj);
+        js_objects.push_str(&info_object[..]);
+    }
+
     let reg = Handlebars::new();
     vars.insert("fname", fname.to_string());
     vars.insert("data_hook", js_objects);
@@ -469,6 +553,60 @@ pub fn write_hist_html<W: Write>(
     write_html(&vars, out)
 }
 
+fn bin_values(list: &Vec<u32>) -> (Vec<String>, Vec<usize>) {
+    if list.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let n_bins = 50;
+    let max = *list.iter().max().unwrap();
+    let min = *list.iter().min().unwrap();
+    let bin_size = ((max - min) as f32 / n_bins as f32).round();
+    let bins: Vec<_> = (min..max).step_by(bin_size as usize)
+        .zip((min+(bin_size as u32)..max+1).step_by(bin_size as usize)).collect();
+    let values = bins.iter().map(|(s, e)| list.iter().filter(|a| **a >= *s && **a < *e).count()).collect::<Vec<_>>();
+    let bin_names = bins.iter().map(|(s, e)| format!("{}-{}", s, e)).collect::<Vec<_>>();
+    (bin_names, values)
+}
+
+fn get_info_js_object(info: &Info) -> String {
+    let mut js_objects = String::new();
+
+    js_objects.push_str("const groups = [\n");
+    let nodes = info.group_info.as_ref().unwrap().groups.values().map(|x| x.0).collect::<Vec<_>>();
+    let bps = info.group_info.as_ref().unwrap().groups.values().map(|x| x.1).collect::<Vec<_>>();
+
+    if nodes.len() >= 400 {
+        let binned_nodes = bin_values(&nodes);
+        let binned_bps = bin_values(&bps);
+        js_objects.push_str(&format!(
+            "new Group('node', {:?}, {:?}, true)",
+            binned_nodes.0,
+            binned_nodes.1,
+        ));
+        js_objects.push_str(",\n");
+        js_objects.push_str(&format!(
+            "new Group('bp', {:?}, {:?}, true)",
+            binned_bps.0,
+            binned_bps.1,
+        ));
+    } else {
+        let group_names = info.group_info.as_ref().unwrap().groups.keys().collect::<Vec<_>>();
+        js_objects.push_str(&format!(
+            "new Group('node', {:?}, {:?}, false)",
+            group_names,
+            nodes,
+        ));
+        js_objects.push_str(",\n");
+        js_objects.push_str(&format!(
+            "new Group('bp', {:?}, {:?}, false)",
+            group_names,
+            bps,
+        ));
+    }
+    js_objects.push_str("];\n");
+    js_objects
+}
+
 pub fn write_info_html<W: Write>(
     fname: &str,
     info: Info,
@@ -481,7 +619,8 @@ pub fn write_info_html<W: Write>(
 	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
         <button class="nav-link text-nowrap active" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="true">pangenome info</button>
  	</div>
-  	<div class="tab-content w-100" id="v-pills-tabContent">
+  	<div class="tab-connologies to provide
+instantly aggregated statistical or similarity measures, humans otent w-100" id="v-pills-tabContent">
 		<div class="tab-pane fade show active" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
 {{{info_content}}}
 		</div>
@@ -498,6 +637,10 @@ pub fn write_info_html<W: Write>(
     let info_text = info.to_string();
     js_objects.push_str(info_text.as_str());
     js_objects.push_str("`;\n");
+
+    let info_object = get_info_js_object(&info);
+    js_objects.push_str(&info_object[..]);
+    eprintln!("JS: {}", js_objects);
 
     let reg = Handlebars::new();
     vars.insert("fname", fname.to_string());
@@ -643,6 +786,13 @@ pub fn write_histgrowth_html<W: Write>(
     };
     js_objects.push_str(info_text.as_str());
     js_objects.push_str("`;\n");
+
+    if let Some(info_obj) = &info {
+        let info_object = get_info_js_object(&info_obj);
+        js_objects.push_str(&info_object[..]);
+    }
+
+    eprintln!("{}", js_objects);
 
     let reg = Handlebars::new();
     let mut prevars = HashMap::from([
