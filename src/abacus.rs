@@ -1167,3 +1167,143 @@ fn quantify_uncovered_bps(
     }
     res
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_test_data_cdbg() -> (GraphAuxilliary, Params, String) {
+        let test_gfa_file = "test/cdbg.gfa";
+        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, CountType::Node);
+        let params = Params::test_default_histgrowth();
+        (graph_aux, params, test_gfa_file.to_string())
+    }
+
+    #[test]
+    fn test_abacus_by_total_from_cdbg_gfa() {
+        let (graph_aux, params, test_gfa_file) = setup_test_data_cdbg();
+        let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
+        let test_abacus_by_total = AbacusByTotal {
+            count: CountType::Node,
+            countable: vec![CountSize::MAX, 6,4,4,2,1],
+            uncovered_bps: Some(HashMap::default()),
+            groups:  vec!["a#1#h1".to_string(), "b#1#h1".to_string(), 
+                          "c#1#h1".to_string(), "c#1#h2".to_string(), 
+                          "c#2#h1".to_string(), "d#1#h1".to_string()
+            ]
+        };
+
+        let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
+        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
+        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Node");
+        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
+        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
+        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
+    }
+
+    fn setup_test_data_chr_m(count_type: CountType) -> (GraphAuxilliary, Params, String) {
+        let test_gfa_file = "test/chrM_test.gfa";
+        let graph_aux = GraphAuxilliary::from_gfa(test_gfa_file, count_type);
+        let params = Params::Histgrowth {
+            gfa_file: test_gfa_file.to_string(),
+            count: count_type,
+            positive_list: String::new(),
+            negative_list: String::new(),
+            groupby: String::new(),
+            groupby_haplotype: false,
+            groupby_sample: true,
+            coverage: "1".to_string(),
+            quorum: "0".to_string(),
+            hist: false,
+            output_format: OutputFormat::Table,
+            threads: 0,
+        };
+
+        (graph_aux, params, test_gfa_file.to_string())
+    }
+
+    #[test]
+    fn test_abacus_by_total_from_chr_m_node() {
+        let count_type = CountType::Node;
+        let (graph_aux, params, test_gfa_file) = setup_test_data_chr_m(count_type);
+        let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
+        let test_abacus_by_total = AbacusByTotal {
+            count: count_type,
+            countable: vec![CountSize::MAX,3,2,1,3,1,2,3,1,2,3,2,3,2,1,3,1,3,2,3,2,3,4,2,2,4,3,1,4,2,2,4,3,1,4,2,2,4,1
+                ,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,2,2,4,3,1,4,1,3,4,1,3,4,1,3
+                ,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,2,2,4,2,2,4,2,2,4,3,1
+                ,4,3,1,4,3,1,4,3,1,4,3,1,4,1],
+            uncovered_bps: Some(HashMap::default()),
+            groups:  vec!["chm13".to_string(),  "grch38".to_string(), 
+                          "HG00438".to_string(),"HG00621".to_string(), 
+            ],
+        };
+
+        let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
+        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
+        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Node");
+        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
+        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
+        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
+        let test_hist =  vec![0,39,29,41,45];
+        let hist = abacus_by_total.construct_hist();
+        assert_eq!(hist, test_hist, "Expected same hist");
+    }
+
+    #[test]
+    fn test_abacus_by_total_from_chr_m_edge() {
+        let count_type = CountType::Edge;
+        let (graph_aux, params, test_gfa_file) = setup_test_data_chr_m(count_type);
+        let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
+        let test_abacus_by_total = AbacusByTotal {
+            count: count_type,
+            countable: vec![CountSize::MAX,2,1,2,1,2,1,1,2,1,2,1,2,2,1,2,1,2,2,1,2,1,1,1,2,2,2,1,2,3,2,2,2,2,3,1,3,1,2
+                ,2,2,2,3,1,3,1,2,2,2,2,1,3,1,1,3,1,3,1,3,1,3,2,2,2,2,3,1,1,3,3,1,1,3,1,3,1,3,3,1,1,3,1,3,1,3,3,1,1,3,2
+                ,2,2,2,1,3,1,3,1,3,1,3,2,2,2,2,1,3,3,1,3,1,1,3,1,3,1,3,1,3,1,3,3,1,1,3,2,2,2,2,3,1,1,3,3,1,1,3,3,1,1,3
+                ,3,1,1,3,1,3,1,3,3,1,1,3,3,1,1,3,3,1,1,3,3,1,1,3,2,2,2,2,3,1,1,3,2,2,2,2,2,2,2,2,2,2,2,2,1,3,3,1,3,1,3
+                ,1,1,3,3,1,1,3,3,1,1,3,3,1,1],
+            uncovered_bps: Some(HashMap::default()),
+            groups:  vec!["chm13".to_string(),  "grch38".to_string(), 
+                          "HG00438".to_string(),"HG00621".to_string(), 
+            ]
+        };
+
+        let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
+        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Edge");
+        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
+        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
+        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
+        let test_hist =  vec![0,80,59,66,0];
+        let hist = abacus_by_total.construct_hist();
+        assert_eq!(hist, test_hist, "Expected same hist");
+    }
+
+    #[test]
+    fn test_abacus_by_total_from_chr_m_bp() {
+        let count_type = CountType::Bp;
+        let (graph_aux, params, test_gfa_file) = setup_test_data_chr_m(count_type);
+        let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
+        let test_abacus_by_total = AbacusByTotal {
+            count: count_type,
+            countable: vec![CountSize::MAX,3,2,1,3,1,2,3,1,2,3,2,3,2,1,3,1,3,2,3,2,3,4,2,2,4,3,1,4,2,2,4,3,1,4,2,2,4,1
+                ,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,2,2,4,3,1,4,1,3,4,1,3,4,1,3
+                ,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,2,2,4,2,2,4,2,2,4,3,1
+                ,4,3,1,4,3,1,4,3,1,4,3,1,4,1],
+            uncovered_bps: Some(HashMap::default()),
+            groups:  vec!["chm13".to_string(),  "grch38".to_string(), 
+                          "HG00438".to_string(),"HG00621".to_string(), 
+            ]
+        };
+
+        let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
+        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Edge");
+        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
+        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
+        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
+        let test_hist =  vec![0,616,31,601,15949];
+        let hist = abacus_by_total.construct_hist_bps(&graph_aux);
+        assert_eq!(hist, test_hist, "Expected same hist");
+    }
+}
