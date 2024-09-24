@@ -107,10 +107,11 @@ Calculate count statistics for pangenomic data
 Usage: panacus <COMMAND>
 
 Commands:
-  histgrowth          Run in default mode, i.e., run hist and growth successively and output the results of the latter
-  hist                Calculate coverage histogram from GFA file
-  growth              Construct growth table from coverage histogram
-  ordered-histgrowth  Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)
+  info                Return general graph and paths info
+  histgrowth          Run hist and growth. Return the growth curve
+  hist                Calculate coverage histogram
+  growth              Calculate growth curve from coverage histogram
+  ordered-histgrowth  Calculate growth curve based on group file order (if order is unspecified, use path order in GFA)
   table               Compute coverage table for count type
   help                Print this message or the help of the given subcommand(s)
 
