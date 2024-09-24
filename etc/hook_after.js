@@ -77,11 +77,11 @@ for (let i=0; i < hists.length; i++) {
     buildLogToggle(myChart, h);
 }
 
-console.log(groups);
+//console.log(groups);
 
 for (let i=0; i < groups.length; i++) {
     var g = groups[i];
-    var ctx = document.getElementById('chart-groups-' + g.count);
+    var ctx = document.getElementById('chart-group-' + g.count);
     var myChart;
     if (g.is_hist) {
         myChart = new Chart(ctx, {
@@ -131,7 +131,6 @@ for (let i=0; i < groups.length; i++) {
             plugins: [pluginCanvasBackgroundColor],
         });
         buildPlotDownload(myChart, g, fname);
-
     } else {
         myChart = new Chart(ctx, {
             type: 'bar',
@@ -181,7 +180,7 @@ for (let i=0; i < groups.length; i++) {
         });
         buildPlotDownload(myChart, g, fname);
     }
-    // buildLogToggle(myChart, g);
+    buildLogToggle(myChart, g);
 }
 
 buildInfoTableDownload(info, "graph", fname);

@@ -58,6 +58,60 @@ struct Command {
 
 #[derive(Subcommand, Debug)]
 pub enum Params {
+    #[clap(alias = "I", about = "Return general graph and paths info")]
+    Info {
+        #[clap(
+            index = 1,
+            help = "graph in GFA1 format, accepts also compressed (.gz) file",
+            required = true
+        )]
+        gfa_file: String,
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
+            default_value = ""
+        )]
+        negative_list: String,
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
+        output_format: OutputFormat,
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
+        )]
+        threads: usize,
+    },
+
     #[clap(alias = "hg", about = "Run hist and growth. Return the growth curve")]
     Histgrowth {
         #[clap(
@@ -210,60 +264,6 @@ pub enum Params {
         quorum: String,
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
-        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
-        output_format: OutputFormat,
-        #[clap(
-            short,
-            long,
-            help = "Run in parallel on N threads (0 for number of CPU cores)",
-            default_value = "0"
-        )]
-        threads: usize,
-    },
-
-    #[clap(alias = "I", about = "Return general graph and paths info")]
-    Info {
-        #[clap(
-            index = 1,
-            help = "graph in GFA1 format, accepts also compressed (.gz) file",
-            required = true
-        )]
-        gfa_file: String,
-        #[clap(
-            name = "subset",
-            short,
-            long,
-            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
-            default_value = ""
-        )]
-        positive_list: String,
-        #[clap(
-            name = "exclude",
-            short,
-            long,
-            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
-            default_value = ""
-        )]
-        negative_list: String,
-        #[clap(
-            short,
-            long,
-            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
-            default_value = ""
-        )]
-        groupby: String,
-        #[clap(
-            short = 'H',
-            long,
-            help = "Merge counts from paths belonging to same haplotype"
-        )]
-        groupby_haplotype: bool,
-        #[clap(
-            short = 'S',
-            long,
-            help = "Merge counts from paths belonging to same sample"
-        )]
-        groupby_sample: bool,
         #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
         #[clap(
