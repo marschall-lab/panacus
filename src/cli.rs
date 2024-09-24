@@ -58,6 +58,60 @@ struct Command {
 
 #[derive(Subcommand, Debug)]
 pub enum Params {
+    #[clap(alias = "I", about = "Return general graph and paths info")]
+    Info {
+        #[clap(
+            index = 1,
+            help = "graph in GFA1 format, accepts also compressed (.gz) file",
+            required = true
+        )]
+        gfa_file: String,
+        #[clap(
+            name = "subset",
+            short,
+            long,
+            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
+            default_value = ""
+        )]
+        positive_list: String,
+        #[clap(
+            name = "exclude",
+            short,
+            long,
+            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
+            default_value = ""
+        )]
+        negative_list: String,
+        #[clap(
+            short,
+            long,
+            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
+            default_value = ""
+        )]
+        groupby: String,
+        #[clap(
+            short = 'H',
+            long,
+            help = "Merge counts from paths belonging to same haplotype"
+        )]
+        groupby_haplotype: bool,
+        #[clap(
+            short = 'S',
+            long,
+            help = "Merge counts from paths belonging to same sample"
+        )]
+        groupby_sample: bool,
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
+        output_format: OutputFormat,
+        #[clap(
+            short,
+            long,
+            help = "Run in parallel on N threads (0 for number of CPU cores)",
+            default_value = "0"
+        )]
+        threads: usize,
+    },
+
     #[clap(alias = "hg", about = "Run hist and growth. Return the growth curve")]
     Histgrowth {
         #[clap(
@@ -212,140 +266,6 @@ pub enum Params {
         hist: bool,
         #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
-        #[clap(
-            short,
-            long,
-            help = "Run in parallel on N threads (0 for number of CPU cores)",
-            default_value = "0"
-        )]
-        threads: usize,
-    },
-
-    #[clap(alias = "I", about = "Return general graph and paths info")]
-    Info {
-        #[clap(
-            index = 1,
-            help = "graph in GFA1 format, accepts also compressed (.gz) file",
-            required = true
-        )]
-        gfa_file: String,
-        #[clap(
-            name = "subset",
-            short,
-            long,
-            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
-            default_value = ""
-        )]
-        positive_list: String,
-        #[clap(
-            name = "exclude",
-            short,
-            long,
-            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
-            default_value = ""
-        )]
-        negative_list: String,
-        #[clap(
-            short,
-            long,
-            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
-            default_value = ""
-        )]
-        groupby: String,
-        #[clap(
-            short = 'H',
-            long,
-            help = "Merge counts from paths belonging to same haplotype"
-        )]
-        groupby_haplotype: bool,
-        #[clap(
-            short = 'S',
-            long,
-            help = "Merge counts from paths belonging to same sample"
-        )]
-        groupby_sample: bool,
-        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
-        output_format: OutputFormat,
-        #[clap(
-            short,
-            long,
-            help = "Run in parallel on N threads (0 for number of CPU cores)",
-            default_value = "0"
-        )]
-        threads: usize,
-    },
-
-    #[clap(alias = "s", about = "Subsets the paths")]
-    Subset {
-        #[clap(
-            short = 'q',
-            long,
-            help = "Report nodes only if present at least in flt_quorum_min groups",
-            default_value = "0"
-        )]
-        flt_quorum_min: u32,
-        #[clap(
-            short = 'Q',
-            long,
-            help = "Report nodes only if present at most in flt_quorum_max groups",
-            default_value = "4294967295"
-        )]
-        flt_quorum_max: u32,
-        #[clap(
-            short = 'l',
-            long,
-            help = "Report nodes only if their length is at least flt_length_min base pairs",
-            default_value = "0"
-        )]
-        flt_length_min: u32,
-        #[clap(
-            short = 'L',
-            long,
-            help = "Report nodes only if their length is at most flt_length_max base pairs",
-            default_value = "4294967295"
-        )]
-        flt_length_max: u32,
-        #[clap(
-            index = 1,
-            help = "graph in GFA1 format, accepts also compressed (.gz) file",
-            required = true
-        )]
-        gfa_file: String,
-        #[clap(
-            name = "subset",
-            short,
-            long,
-            help = "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)",
-            default_value = ""
-        )]
-        positive_list: String,
-        #[clap(
-            name = "exclude",
-            short,
-            long,
-            help = "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list",
-            default_value = ""
-        )]
-        negative_list: String,
-        #[clap(
-            short,
-            long,
-            help = "Merge counts from paths by path-group mapping from given tab-separated two-column file",
-            default_value = ""
-        )]
-        groupby: String,
-        #[clap(
-            short = 'H',
-            long,
-            help = "Merge counts from paths belonging to same haplotype"
-        )]
-        groupby_haplotype: bool,
-        #[clap(
-            short = 'S',
-            long,
-            help = "Merge counts from paths belonging to same sample"
-        )]
-        groupby_sample: bool,
         #[clap(
             short,
             long,
@@ -645,7 +565,6 @@ pub fn set_number_of_threads(params: &Params) {
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
     | Params::Info { threads, .. }
-    | Params::Subset { threads, .. }
     | Params::OrderedHistgrowth { threads, .. }
     | Params::Table { threads, .. }
     //| Params::Cdbg { threads, .. } 
@@ -692,12 +611,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         ..
     }
     | Params::Info {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
-    }
-    | Params::Subset {
         ref groupby,
         groupby_haplotype,
         groupby_sample,
@@ -871,32 +784,6 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     write_info_html(filename, info, out)?
                 }
             };
-        }
-        Params::Subset {
-            ref gfa_file,
-            flt_quorum_min,
-            flt_quorum_max,
-            flt_length_min,
-            flt_length_max,
-            ..
-        } => {
-            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::Node);
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus =
-                AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, CountType::Node);
-            data = bufreader_from_compressed_gfa(gfa_file);
-
-            subset_path_gfa(
-                &mut data,
-                &abacus,
-                &graph_aux,
-                flt_quorum_min,
-                flt_quorum_max,
-                flt_length_min,
-                flt_length_max,
-            );
-            //println!("{}", abacus.countable.len()-1);
         }
         Params::OrderedHistgrowth {
             ref gfa_file,
