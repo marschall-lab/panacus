@@ -239,6 +239,21 @@ pub fn generate_info_tabs(info: Info) -> String {
       <td>component</td>
       <td>{{{components}}}</td>
     </tr>
+    <tr>
+      <td>largest</td>
+      <td>component</td>
+      <td>{{{largest_component}}}</td>
+    </tr>
+    <tr>
+      <td>smallest</td>
+      <td>component</td>
+      <td>{{{smallest_component}}}</td>
+    </tr>
+    <tr>
+      <td>median</td>
+      <td>component</td>
+      <td>{{{median_component}}}</td>
+    </tr>
   </tbody>
 </table>
 <br/>
@@ -257,6 +272,9 @@ pub fn generate_info_tabs(info: Info) -> String {
         ("no_paths", info.path_info.no_paths.separate_with_commas()),
         ("no_groups", info.graph_info.group_count.separate_with_commas()),
         ("components", info.graph_info.connected_components.separate_with_commas()),
+        ("largest_component", info.graph_info.largest_component.separate_with_commas()),
+        ("smallest_component", info.graph_info.smallest_component.separate_with_commas()),
+        ("median_component", info.graph_info.median_component.separate_with_commas()),
         (
             "number_0_degree",
             info.graph_info.number_0_degree.separate_with_commas(),

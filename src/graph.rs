@@ -761,6 +761,9 @@ impl fmt::Display for Info {
             self.graph_info.number_0_degree
         )?;
         write!(f, "graph\ttotal\tcomponent\t{}\n", self.graph_info.connected_components)?;
+        write!(f, "graph\tlargest\tcomponent\t{}\n", self.graph_info.largest_component)?;
+        write!(f, "graph\tsmallest\tcomponent\t{}\n", self.graph_info.smallest_component)?;
+        write!(f, "graph\tmedian\tcomponent\t{}\n", self.graph_info.median_component)?;
         write!(f, "node\taverage\tbp\t{}\n", self.graph_info.average_node)?;
         write!(f, "node\taverage\tdegree\t{}\n", self.graph_info.average_degree)?;
         write!(f, "node\tlongest\tbp\t{}\n", self.graph_info.largest_node)?;
