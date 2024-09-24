@@ -75,12 +75,12 @@ impl Hist {
                     &c,
                     &q
                 );
-                self.calc_growth(&c, &q)
+                self.calc_growth(c, q)
             })
             .collect();
         // insert empty row for 0 element
         for g in &mut growths {
-            g.insert(0, std::f64::NAN);
+            g.insert(0, f64::NAN);
         }
         growths
     }
@@ -220,8 +220,7 @@ impl HistAuxilliary {
     fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {
-            quorum_thresholds =
-                cli::parse_threshold_cli(&quorum[..], cli::RequireThreshold::Relative)?;
+            quorum_thresholds = cli::parse_threshold_cli(quorum, cli::RequireThreshold::Relative)?;
             log::debug!(
                 "loaded {} quorum thresholds: {}",
                 quorum_thresholds.len(),
@@ -242,7 +241,7 @@ impl HistAuxilliary {
         let mut coverage_thresholds = Vec::new();
         if !coverage.is_empty() {
             coverage_thresholds =
-                cli::parse_threshold_cli(&coverage[..], cli::RequireThreshold::Absolute)?;
+                cli::parse_threshold_cli(coverage, cli::RequireThreshold::Absolute)?;
             log::debug!(
                 "loaded {} coverage thresholds: {}",
                 coverage_thresholds.len(),
