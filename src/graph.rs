@@ -62,13 +62,6 @@ impl Orientation {
         }
     }
 
-    pub fn to_pm(self) -> char {
-        match self {
-            Orientation::Forward => '+',
-            Orientation::Backward => '-',
-        }
-    }
-
     pub fn flip(&self) -> Self {
         match *self {
             Orientation::Forward => Orientation::Backward,
@@ -295,7 +288,6 @@ impl GraphAuxilliary {
         let mut length = 0;
         s.push(node);
         while let Some(v) = s.pop() {
-            
             if visited.contains(&v) {
                 continue;
             }
@@ -818,18 +810,14 @@ impl fmt::Display for Info {
             "path\tlongest\tnode\t{}",
             self.path_info.node_len.longest
         )?;
-        writeln!(
-            f,
-            "path\tshortest\tbp\t{}",
-            self.path_info.bp_len.shortest
-        )?;
+        writeln!(f, "path\tshortest\tbp\t{}", self.path_info.bp_len.shortest)?;
         write!(
             f,
             "path\tshortest\tnode\t{}",
             self.path_info.node_len.shortest
         )?;
         if let Some(group_info) = &self.group_info {
-            let mut sorted: Vec<_> = group_info.groups.clone().into_iter().collect(); 
+            let mut sorted: Vec<_> = group_info.groups.clone().into_iter().collect();
             sorted.sort_by(|(k0, _v0), (k1, _v1)| k0.cmp(k1));
             for (k, v) in sorted {
                 write!(f, "\ngroup\t{}\tbp\t{}\n", k, v.1)?;

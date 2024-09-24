@@ -656,14 +656,8 @@ fn get_info_js_object(info: &Info) -> String {
     let groups = &info.group_info.as_ref().unwrap().groups;
 
     if groups.len() >= 100 {
-        let nodes = groups
-            .values()
-            .map(|x| x.0)
-            .collect::<Vec<_>>();
-        let bps = groups
-            .values()
-            .map(|x| x.1)
-            .collect::<Vec<_>>();
+        let nodes = groups.values().map(|x| x.0).collect::<Vec<_>>();
+        let bps = groups.values().map(|x| x.1).collect::<Vec<_>>();
         let binned_nodes = bin_values(&nodes);
         let binned_bps = bin_values(&bps);
         js_objects.push_str(&format!(

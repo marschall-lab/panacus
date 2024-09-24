@@ -51,14 +51,6 @@ impl AbacusAuxilliary {
                 groupby_haplotype,
                 ..
             }
-            | Params::Subset {
-                positive_list,
-                negative_list,
-                groupby,
-                groupby_sample,
-                groupby_haplotype,
-                ..
-            }
             | Params::OrderedHistgrowth {
                 positive_list,
                 negative_list,
