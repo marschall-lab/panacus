@@ -20,6 +20,7 @@ fn main() -> Result<(), std::io::Error> {
 
     // read parameters and store them in memory
     let params = cli::read_params();
+    cli::set_number_of_threads(&params);
 
     // ride on!
     cli::run(params, &mut out)?;

@@ -659,8 +659,6 @@ pub fn validate_single_groupby_option(
 }
 
 pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error> {
-    set_number_of_threads(&params);
-
     if let Params::Histgrowth {
         ref groupby,
         groupby_haplotype,
