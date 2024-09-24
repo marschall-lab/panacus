@@ -352,7 +352,7 @@ pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
 }
 
 pub fn averageu32(v: &[u32]) -> f32 {
-    v.iter().sum::<u32>() as f32 / v.len() as f32
+    (v.iter().map(|x| *x as u64).sum::<u64>() as f64 / v.len() as f64) as f32
 }
 
 //pub fn averageu64 (v: &[u64]) -> f64 {

@@ -221,8 +221,8 @@ pub enum Params {
         threads: usize,
     },
 
-    #[clap(alias = "S", about = "Return general graph and paths statistics")]
-    Stats {
+    #[clap(alias = "I", about = "Return general graph and paths info")]
+    Info {
         #[clap(
             index = 1,
             help = "graph in GFA1 format, accepts also compressed (.gz) file",
@@ -620,7 +620,7 @@ pub fn parse_threshold_cli(
 pub fn set_number_of_threads(params: &Params) {
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
-    | Params::Stats { threads, .. }
+    | Params::Info { threads, .. }
     | Params::Subset { threads, .. }
     | Params::OrderedHistgrowth { threads, .. }
     | Params::Table { threads, .. }
@@ -673,7 +673,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         groupby_sample,
         ..
     }
-    | Params::Stats {
+    | Params::Info {
         ref groupby,
         groupby_haplotype,
         groupby_sample,
@@ -741,14 +741,14 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     let (_, _, _, paths_len) =
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-                    let stats = graph_aux.stats(&paths_len);
+                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
                     write_histgrowth_html(
                         &Some(hists),
                         &growths,
                         &hist_aux,
                         filename,
                         None,
-                        Some(stats),
+                        Some(info),
                         out,
                     )?
                 }
@@ -779,8 +779,8 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     let (_, _, _, paths_len) =
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-                    let stats = graph_aux.stats(&paths_len);
-                    write_hist_html(&hists, filename, Some(stats), out)?
+                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+                    write_hist_html(&hists, &filename, Some(info), out)?
                 }
             };
         }
@@ -821,7 +821,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 )?,
             };
         }
-        Params::Stats {
+        Params::Info {
             ref gfa_file,
             output_format,
             ..
@@ -833,11 +833,22 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             let (_, _, _, paths_len) =
                 parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-            let stats = graph_aux.stats(&paths_len);
-            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
             match output_format {
-                OutputFormat::Table => write_stats(stats, out)?,
-                OutputFormat::Html => write_stats_html(filename, stats, out)?,
+                OutputFormat::Table => {
+                    let has_groups = match params {
+                        Params::Info { ref groupby, groupby_haplotype, groupby_sample, .. } => {
+                            groupby != "" || groupby_haplotype || groupby_sample
+                        },
+                        _ => false
+                    };            
+                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
+                    write_info(info, out)?
+                },
+                OutputFormat::Html => {
+                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+                    let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+                    write_info_html(&filename, info, out)?
+                },
             };
         }
         Params::Subset {
@@ -878,7 +889,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             };
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, false)?;
+            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, true)?;
             let hist_aux = HistAuxilliary::from_params(&params)?;
             match output_format {
                 OutputFormat::Table => {
@@ -889,13 +900,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     let (_, _, _, paths_len) =
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-                    let stats = graph_aux.stats(&paths_len);
+                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
                     write_ordered_histgrowth_html(
                         &abacus,
                         &hist_aux,
                         gfa_file,
                         count,
-                        Some(stats),
+                        Some(info),
                         out,
                     )?;
                 }

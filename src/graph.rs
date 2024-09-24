@@ -1,9 +1,9 @@
 /* standard use */
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::HashMap;
-use std::fmt;
-use std::io::BufRead;
+use std::collections::{HashMap, HashSet};
+use std::{fmt, usize};
+use std::io::{BufRead, Read};
 use std::str::{self, FromStr};
 
 /* private use */
@@ -218,17 +218,85 @@ impl GraphAuxilliary {
         self.node_lens[v.0 as usize]
     }
 
-    pub fn stats(&self, paths_len: &Vec<u32>) -> Stats {
-        Stats {
-            graph_info: self.graph_info(),
-            path_info: self.path_info(paths_len),
+    pub fn info(&self, paths_len: &HashMap<PathSegment, (u32, u32)>, groups: &HashMap<PathSegment, String>, has_groups: bool) -> Info {
+        if has_groups {
+            Info {
+                graph_info: self.graph_info(groups),
+                path_info: self.path_info(paths_len),
+                group_info: Some(self.group_info(paths_len, groups)),
+            }
+        } else {
+            Info {
+                graph_info: self.graph_info(groups),
+                path_info: self.path_info(paths_len),
+                group_info: None,
+            }
         }
     }
 
-    pub fn graph_info(&self) -> GraphInfo {
+    pub fn group_info(&self, paths_len: &HashMap<PathSegment, (u32, u32)>, groups: &HashMap<PathSegment, String>) -> GroupInfo {
+        let mut group_map: HashMap<String, (u32, u32)> = HashMap::new();
+        for (k, v) in paths_len {
+            let group = groups[k].clone();
+            let tmp = group_map.entry(group).or_insert((0, 0));
+            tmp.0 += v.0;
+            tmp.1 += v.1;
+        }
+
+        GroupInfo { groups: group_map }
+    }
+
+    fn connected_components(&self) -> Vec<u32> {
+        let mut component_lengths = Vec::new();
+        let mut visited: HashSet<ItemId> = HashSet::new();
+        let edges: HashMap<ItemId, Vec<ItemId>> = match &self.edge2id {
+            Some(edge_map) => edge_map.keys().map(|x| (x.0, x.2))
+                .chain(edge_map.keys().map(|x| (x.2, x.0)))
+                .fold(HashMap::new(), |mut acc, (k, v)| { acc.entry(k)
+                    .and_modify(|x| x.push(v))
+                        .or_insert(vec![v]);
+                    acc
+                }),
+            None => HashMap::new(),
+        };
+        let nodes: Vec<ItemId> = self.node2id.values().copied().collect();
+        for node in &nodes {
+            if !visited.contains(node) {
+                component_lengths.push(Self::dfs(&edges, *node, &mut visited));
+            }
+        }
+        component_lengths
+    }
+
+    fn dfs(edges: &HashMap<ItemId, Vec<ItemId>>, node: ItemId, visited: &mut HashSet<ItemId>) -> u32 {
+        let mut s = Vec::new();
+        let mut length = 0;
+        s.push(node);
+        while !s.is_empty() {
+            let v = s.pop().unwrap();
+            if visited.contains(&v) {
+                continue;
+            }
+            visited.insert(v);
+            length += 1;
+            if !edges.contains_key(&v) {
+                continue;
+            }
+            for neigh in &edges[&v] {
+                if !visited.contains(neigh) {
+                    s.push(*neigh);
+                }
+            }
+        }
+        length
+    }
+
+    pub fn graph_info(&self, groups: &HashMap<PathSegment, String>) -> GraphInfo {
         let degree = self.degree.as_ref().unwrap();
         let mut node_lens_sorted = self.node_lens[1..].to_vec();
         node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
+        let mut components = self.connected_components();
+        components.sort();
 
         GraphInfo {
             node_count: self.node_count,
@@ -237,21 +305,36 @@ impl GraphAuxilliary {
             max_degree: *degree[1..].iter().max().unwrap(),
             min_degree: *degree[1..].iter().min().unwrap(),
             number_0_degree: degree[1..].iter().filter(|&x| *x == 0).count(),
+            connected_components: components.len() as u32,
+            largest_component: *components.iter().max().unwrap_or(&0),
+            smallest_component: *components.iter().min().unwrap_or(&0),
+            median_component: median_already_sorted(&components),
             largest_node: *node_lens_sorted.iter().max().unwrap(),
             shortest_node: *node_lens_sorted.iter().min().unwrap(),
             average_node: averageu32(&node_lens_sorted),
             median_node: median_already_sorted(&node_lens_sorted),
             n50_node: n50_already_sorted(&node_lens_sorted).unwrap(),
+            basepairs: self.node_lens.iter().sum(),
+            group_count: groups.values().collect::<HashSet<_>>().len(),
         }
     }
 
-    pub fn path_info(&self, paths_len: &[u32]) -> PathInfo {
+    pub fn path_info(&self, paths_len: &HashMap<PathSegment, (u32, u32)>) -> PathInfo {
         //println!("\tDistribution of Strands in the Paths/Walks: TODO +/-");
+        let paths_bp_len: Vec<_> = paths_len.values().map(|x| x.1).collect();
+        let paths_len: Vec<_> = paths_len.values().map(|x| x.0).collect();
         PathInfo {
             no_paths: paths_len.len(),
-            longest_path: *paths_len.iter().max().unwrap(),
-            shortest_path: *paths_len.iter().min().unwrap(),
-            average_path: averageu32(paths_len),
+            node_len: LenInfo {
+                longest: *paths_len.iter().max().unwrap(),
+                shortest: *paths_len.iter().min().unwrap(),
+                average: averageu32(&paths_len),
+            },
+            bp_len: LenInfo {
+                longest: *paths_bp_len.iter().max().unwrap(),
+                shortest: *paths_bp_len.iter().min().unwrap(),
+                average: averageu32(&paths_bp_len),
+            }
         }
     }
 
@@ -621,53 +704,82 @@ pub struct GraphInfo {
     pub max_degree: u32,
     pub min_degree: u32,
     pub number_0_degree: usize,
+    pub connected_components: u32,
+    pub largest_component: u32,
+    pub smallest_component: u32,
+    pub median_component: f64,
     pub largest_node: u32,
     pub shortest_node: u32,
     pub average_node: f32,
     pub median_node: f64,
     pub n50_node: u32,
+    pub basepairs: u32,
+    pub group_count: usize,
 }
 
 pub struct PathInfo {
     pub no_paths: usize,
-    pub longest_path: u32,
-    pub shortest_path: u32,
-    pub average_path: f32,
+    pub node_len: LenInfo,
+    pub bp_len: LenInfo,
 }
 
-pub struct Stats {
+pub struct LenInfo {
+    pub longest: u32,
+    pub shortest: u32,
+    pub average: f32,
+}
+
+pub struct GroupInfo {
+    pub groups: HashMap<String, (u32, u32)>
+}
+
+pub struct Info {
     pub graph_info: GraphInfo,
     pub path_info: PathInfo,
+    pub group_info: Option<GroupInfo>,
 }
 
-impl fmt::Display for Stats {
+impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
+        write!(f, "feature\tcategory\tcountable\tvalue\n");
+        write!(
             f,
-            "Graph Info\tNode Count\t{}",
+            "graph\ttotal\tnode\t{}\n",
             self.graph_info.node_count
         )?;
-        writeln!(f, "\tEdge Count\t{}", self.graph_info.edge_count)?;
-        writeln!(f, "\tPath Count\t{}", self.path_info.no_paths)?;
-        writeln!(
+        write!(f, "graph\ttotal\tbp\t{}\n", self.graph_info.basepairs)?;
+        write!(f, "graph\ttotal\tedge\t{}\n", self.graph_info.edge_count)?;
+        write!(f, "graph\ttotal\tpath\t{}\n", self.path_info.no_paths)?;
+        write!(f, "graph\ttotal\tgroup\t{}\n", self.graph_info.group_count)?;
+        write!(
             f,
-            "\t0-degree Node Count\t{}",
+            "graph\ttotal\t0-degree node\t{}\n",
             self.graph_info.number_0_degree
         )?;
-        writeln!(
-            f,
-            "Node Info\tAverage Degree\t{}",
-            self.graph_info.average_degree
-        )?;
-        writeln!(f, "\tMax Degree\t{}", self.graph_info.max_degree)?;
-        writeln!(f, "\tMin Degree\t{}", self.graph_info.min_degree)?;
-        writeln!(f, "\tLargest\t{}", self.graph_info.largest_node)?;
-        writeln!(f, "\tShortest\t{}", self.graph_info.shortest_node)?;
-        writeln!(f, "\tAverage Length\t{}", self.graph_info.average_node)?;
-        writeln!(f, "\tMedian Length\t{}", self.graph_info.median_node)?;
-        writeln!(f, "\tN50 Node Length\t{}", self.graph_info.n50_node)?;
-        writeln!(f, "Path Info\tLongest\t{}", self.path_info.longest_path)?;
-        writeln!(f, "\tShortest\t{}", self.path_info.shortest_path)?;
-        writeln!(f, "\tAverage Node Count\t{}", self.path_info.average_path)
+        write!(f, "graph\ttotal\tcomponent\t{}\n", self.graph_info.connected_components)?;
+        write!(f, "graph\tlargest\tcomponent\t{}\n", self.graph_info.largest_component)?;
+        write!(f, "graph\tsmallest\tcomponent\t{}\n", self.graph_info.smallest_component)?;
+        write!(f, "graph\tmedian\tcomponent\t{}\n", self.graph_info.median_component)?;
+        write!(f, "node\taverage\tbp\t{}\n", self.graph_info.average_node)?;
+        write!(f, "node\taverage\tdegree\t{}\n", self.graph_info.average_degree)?;
+        write!(f, "node\tlongest\tbp\t{}\n", self.graph_info.largest_node)?;
+        write!(f, "node\tshortest\tbp\t{}\n", self.graph_info.shortest_node)?;
+        write!(f, "node\tmedian\tbp\t{}\n", self.graph_info.median_node)?;
+        write!(f, "node\tN50 node\tbp\t{}\n", self.graph_info.n50_node)?;
+        write!(f, "node\tmax\tdegree\t{}\n", self.graph_info.max_degree)?;
+        write!(f, "node\tmin\tdegree\t{}\n", self.graph_info.min_degree)?;
+        write!(f, "path\taverage\tbp\t{}\n", self.path_info.bp_len.average)?;
+        write!(f, "path\taverage\tnode\t{}\n", self.path_info.node_len.average)?;
+        write!(f, "path\tlongest\tbp\t{}\n", self.path_info.bp_len.longest)?;
+        write!(f, "path\tlongest\tnode\t{}\n", self.path_info.node_len.longest)?;
+        write!(f, "path\tshortest\tbp\t{}\n", self.path_info.bp_len.shortest)?;
+        write!(f, "path\tshortest\tnode\t{}", self.path_info.node_len.shortest)?;
+        if let Some(group_info) = &self.group_info {
+            for (k, v) in &group_info.groups {
+                write!(f, "\ngroup\t{}\tbp\t{}\n", k, v.1)?;
+                write!(f, "group\t{}\tnode\t{}", k, v.0)?;
+            }
+        }
+        Ok(())
     }
 }

@@ -43,7 +43,7 @@ impl AbacusAuxilliary {
                 groupby_haplotype,
                 ..
             }
-            | Params::Stats {
+            | Params::Info {
                 positive_list,
                 negative_list,
                 groupby,
