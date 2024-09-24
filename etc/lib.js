@@ -12,6 +12,15 @@ class Hist {
     }
 }
 
+class Group {
+    constructor(count_type, index, length, is_hist) {
+        this.count = count_type;
+        this.index = index;
+        this.length = length;
+        this.is_hist = is_hist;
+    }
+}
+
 
 class Growth {
     constructor(count_type, index, coverage_t, quorum_t, growths) {
@@ -45,6 +54,7 @@ class Growth {
 
 
 function buildPlotDownload(chart, obj, prefix) {
+    console.log('btn-download-plot-' + obj.constructor.name.toLowerCase() + '-' + obj.count);
     document.getElementById('btn-download-plot-' + obj.constructor.name.toLowerCase() + '-' + obj.count).onclick = function() {
         var a = document.createElement('a');
         a.href = chart.toBase64Image();
@@ -114,12 +124,12 @@ function buildGrowthTableDownload(chart, obj, prefix) {
     };
 }
 
-function buildStatsTableDownload(table, statsType, prefix) {
-    document.getElementById('btn-download-table-stats-' + statsType).onclick = function() {
+function buildInfoTableDownload(table, infoType, prefix) {
+    document.getElementById('btn-download-table-info-' + infoType).onclick = function() {
         let blob = new Blob([table], {type: 'text/plain'});
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = prefix + '_stats.tsv';
+        a.download = prefix + '_info.tsv';
         a.click();
     };
 }

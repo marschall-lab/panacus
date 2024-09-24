@@ -1,9 +1,11 @@
+use std::cell::RefCell;
 /* standard use */
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::io::{Error, ErrorKind};
 use std::path::Path;
 use std::str::{self, FromStr};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 /* external use */
@@ -407,10 +409,10 @@ fn parse_walk_seq_update_tables(
     item_table: &mut ItemTable,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
-) -> u32 {
+) -> (u32, u32) {
     // later codes assumes that data is non-empty...
     if data.is_empty() {
-        return 0;
+        return (0, 0);
     }
 
     let items_ptr = Wrap(&mut item_table.items);
@@ -429,6 +431,7 @@ fn parse_walk_seq_update_tables(
 
     log::debug!("parsing walk sequences of size {}..", end);
 
+    let bp_len = Arc::new(AtomicU32::new(0));
     // ignore first > | < so that no empty is created for 1st node
     data[1..end]
         .par_split(|&x| x == b'>' || x == b'<')
@@ -444,7 +447,9 @@ fn parse_walk_seq_update_tables(
                     (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
                 }
             }
+            bp_len.fetch_add(graph_aux.node_len(&sid), Ordering::SeqCst);
         });
+    let bp_len = bp_len.load(Ordering::SeqCst);
 
     // compute prefix sum
     let mut num_nodes_path = 0;
@@ -466,7 +471,7 @@ fn parse_walk_seq_update_tables(
     }
 
     log::debug!("..done");
-    num_nodes_path as u32
+    (num_nodes_path as u32, bp_len)
 }
 
 fn parse_path_seq_to_item_vec(
@@ -556,7 +561,7 @@ fn parse_path_seq_update_tables(
     item_table: &mut ItemTable,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
-) -> u32 {
+) -> (u32, u32) {
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -573,6 +578,7 @@ fn parse_path_seq_update_tables(
         .map(|x| Arc::new(Mutex::new(x)))
         .collect();
 
+    let bp_len = Arc::new(AtomicU32::new(0));
     //let mut plus_strands: Vec<u32> = vec![0; rayon::current_num_threads()];
     data[..end].par_split(|&x| x == b',').for_each(|node| {
         let sid = *graph_aux
@@ -598,7 +604,10 @@ fn parse_path_seq_update_tables(
                 (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
             }
         }
+        bp_len.fetch_add(graph_aux.node_len(&sid), Ordering::SeqCst);
     });
+    let bp_len = bp_len.load(Ordering::SeqCst);
+
 
     // compute prefix sum
     let mut num_nodes_path = 0;
@@ -620,7 +629,7 @@ fn parse_path_seq_update_tables(
     }
 
     log::debug!("..done");
-    num_nodes_path as u32
+    (num_nodes_path as u32, bp_len)
 }
 
 #[allow(dead_code)]
@@ -766,7 +775,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
     ItemTable,
     Option<ActiveTable>,
     Option<IntervalContainer>,
-    Vec<u32>,
+    HashMap<PathSegment, (u32, u32)>,
 ) {
     log::info!("parsing path + walk sequences");
     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
@@ -775,7 +784,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
 
     let mut num_path = 0;
     let complete: Vec<(usize, usize)> = vec![(0, usize::MAX)];
-    let mut paths_len: Vec<u32> = Vec::new();
+    let mut paths_len: HashMap<PathSegment, (u32, u32)> = HashMap::new();
 
     let mut buf = vec![];
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -852,7 +861,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     exclude_table.as_mut()
                 };
 
-                let num_added_nodes = match buf[0] {
+                let (num_added_nodes, bp_len) = match buf[0] {
                     b'P' => parse_path_seq_update_tables(
                         &buf_path_seg,
                         &graph_aux,
@@ -869,8 +878,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     ),
                     _ => unreachable!(),
                 };
-
-                paths_len.push(num_added_nodes as u32);
+                paths_len.insert(path_seg, (num_added_nodes as u32, bp_len));
             } else {
                 let sids = match buf[0] {
                     b'P' => parse_path_seq_to_item_vec(&buf_path_seg, &graph_aux),
@@ -878,7 +886,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     _ => unreachable!(),
                 };
 
-                paths_len.push(sids.len() as u32);
+                paths_len.insert(path_seg, (sids.len() as u32, 0));
 
                 match count {
                     CountType::Node | CountType::Bp => update_tables(
@@ -1262,14 +1270,14 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-pub fn write_stats<W: Write>(stats: Stats, out: &mut BufWriter<W>) -> Result<(), Error> {
-    log::info!("reporting graph stats table");
+pub fn write_info<W: Write>(info: Info, out: &mut BufWriter<W>) -> Result<(), Error> {
+    log::info!("reporting graph info table");
     writeln!(
         out,
         "# {}",
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
-    writeln!(out, "{}", stats)
+    writeln!(out, "{}", info)
 }
 
 pub fn write_ordered_histgrowth_table<W: Write>(
@@ -1328,7 +1336,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
     hist_aux: &HistAuxilliary,
     gfa_file: &str,
     count: CountType,
-    stats: Option<Stats>,
+    info: Option<Info>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     let mut growths: Vec<Vec<f64>> = hist_aux
@@ -1361,7 +1369,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
             .unwrap()
             .to_string(),
         Some(&abacus_group.groups),
-        stats,
+        info,
         out,
     )?)
 }
