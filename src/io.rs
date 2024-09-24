@@ -103,21 +103,29 @@ pub fn parse_bed_to_path_segments<R: Read>(data: &mut BufReader<R>, use_block_in
 pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment, String)>, Error> {
     let mut res: Vec<(PathSegment, String)> = Vec::new();
 
-    let reader = Csv::from_reader(data)
-        .delimiter(b'\t')
-        .flexible(true)
-        .has_header(false);
-    for (i, row) in reader.enumerate() {
-        let row = row.unwrap();
-        let mut row_it = row.bytes_columns();
-        let path_seg = PathSegment::from_str(str::from_utf8(row_it.next().unwrap()).unwrap());
-        if let Some(col) = row_it.next() {
-            res.push((path_seg, str::from_utf8(col).unwrap().to_string()));
-        } else {
-            let msg = format!("error in line {}: table must have two columns", i);
+    let mut i = 1;
+    let mut buf = vec![];
+    while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        //Remove new line at the end
+        if let Some(&last_byte) = buf.last() {
+            if last_byte == b'\n' || last_byte == b'\r' {
+                buf.pop();
+            }
+        }
+        let line = String::from_utf8(buf.clone()).expect(&format!("error in line {}: some character is not UTF-8",i));
+        let columns: Vec<&str> = line.split('\t').collect();
+
+        if columns.len() != 2 {
+            let msg = format!("error in line {}: table must have exactly two columns", i);
             log::error!("{}", &msg);
             return Err(Error::new(ErrorKind::InvalidData, msg));
         }
+
+        let path_seg = PathSegment::from_str(columns[0]);
+        res.push((path_seg, columns[1].to_string()));
+
+        i += 1;
+        buf.clear();
     }
 
     Ok(res)
@@ -1607,6 +1615,31 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_groups_with_valid_input() {
+        //let (graph_aux, _, _) = setup_test_data();
+        let file_name = "test/test_groups.txt";
+        let test_path_segments = vec![
+            PathSegment::from_str("a#0"),
+            PathSegment::from_str("b#0"),
+            PathSegment::from_str("c#0"),
+            PathSegment::from_str("c#1"),
+            PathSegment::from_str("d#0")
+        ];
+        let test_groups = vec!["G1","G1","G2","G2","G2"];
+
+        let mut data = BufReader::new(std::fs::File::open(file_name).unwrap());
+        let result = parse_groups(&mut data);
+        assert!(result.is_ok(), "Expected successful group loading");
+        let path_segments_group = result.unwrap();
+        assert!(path_segments_group.len() > 0, "Expected non-empty group assignments");
+        assert_eq!(path_segments_group.len(), 5); // number of paths == groups
+        for (i, (path_seg, group)) in path_segments_group.into_iter().enumerate() {
+            assert_eq!(path_seg, test_path_segments[i]);
+            assert_eq!(group, test_groups[i]);
+        }
     }
 }
 
