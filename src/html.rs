@@ -5,8 +5,6 @@ use std::io::{BufWriter, Write};
 /* external use */
 use base64::{engine::general_purpose, Engine as _};
 use handlebars::Handlebars;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 use thousands::Separable;
 use time::{macros::format_description, OffsetDateTime};
 
@@ -266,15 +264,39 @@ pub fn generate_info_tabs(info: Info) -> String {
 </div>
 "##;
     let graph_vars = HashMap::from([
-        ("node_count", info.graph_info.node_count.separate_with_commas()),
-        ("basepairs", info.graph_info.basepairs.separate_with_commas()),
-        ("edge_count", info.graph_info.edge_count.separate_with_commas()),
+        (
+            "node_count",
+            info.graph_info.node_count.separate_with_commas(),
+        ),
+        (
+            "basepairs",
+            info.graph_info.basepairs.separate_with_commas(),
+        ),
+        (
+            "edge_count",
+            info.graph_info.edge_count.separate_with_commas(),
+        ),
         ("no_paths", info.path_info.no_paths.separate_with_commas()),
-        ("no_groups", info.graph_info.group_count.separate_with_commas()),
-        ("components", info.graph_info.connected_components.separate_with_commas()),
-        ("largest_component", info.graph_info.largest_component.separate_with_commas()),
-        ("smallest_component", info.graph_info.smallest_component.separate_with_commas()),
-        ("median_component", info.graph_info.median_component.separate_with_commas()),
+        (
+            "no_groups",
+            info.graph_info.group_count.separate_with_commas(),
+        ),
+        (
+            "components",
+            info.graph_info.connected_components.separate_with_commas(),
+        ),
+        (
+            "largest_component",
+            info.graph_info.largest_component.separate_with_commas(),
+        ),
+        (
+            "smallest_component",
+            info.graph_info.smallest_component.separate_with_commas(),
+        ),
+        (
+            "median_component",
+            info.graph_info.median_component.separate_with_commas(),
+        ),
         (
             "number_0_degree",
             info.graph_info.number_0_degree.separate_with_commas(),
@@ -350,15 +372,30 @@ pub fn generate_info_tabs(info: Info) -> String {
             "average_degree",
             info.graph_info.average_degree.separate_with_commas(),
         ),
-        ("max_degree", info.graph_info.max_degree.separate_with_commas()),
-        ("min_degree", info.graph_info.min_degree.separate_with_commas()),
-        ("largest_node", info.graph_info.largest_node.separate_with_commas()),
+        (
+            "max_degree",
+            info.graph_info.max_degree.separate_with_commas(),
+        ),
+        (
+            "min_degree",
+            info.graph_info.min_degree.separate_with_commas(),
+        ),
+        (
+            "largest_node",
+            info.graph_info.largest_node.separate_with_commas(),
+        ),
         (
             "shortest_node",
             info.graph_info.shortest_node.separate_with_commas(),
         ),
-        ("average_node", info.graph_info.average_node.separate_with_commas()),
-        ("median_node", info.graph_info.median_node.separate_with_commas()),
+        (
+            "average_node",
+            info.graph_info.average_node.separate_with_commas(),
+        ),
+        (
+            "median_node",
+            info.graph_info.median_node.separate_with_commas(),
+        ),
         ("n50_node", info.graph_info.n50_node.separate_with_commas()),
     ]);
     tab_content.push_str(&reg.render_template(node_info, &node_vars).unwrap());
@@ -416,18 +453,30 @@ pub fn generate_info_tabs(info: Info) -> String {
 </div>
 "##;
     let path_vars = HashMap::from([
-        ("longest_path", info.path_info.node_len.longest.separate_with_commas()),
+        (
+            "longest_path",
+            info.path_info.node_len.longest.separate_with_commas(),
+        ),
         (
             "shortest_path",
             info.path_info.node_len.shortest.separate_with_commas(),
         ),
-        ("average_path", info.path_info.node_len.average.separate_with_commas()),
-        ("longest_path_bp", info.path_info.bp_len.longest.separate_with_commas()),
+        (
+            "average_path",
+            info.path_info.node_len.average.separate_with_commas(),
+        ),
+        (
+            "longest_path_bp",
+            info.path_info.bp_len.longest.separate_with_commas(),
+        ),
         (
             "shortest_path_bp",
             info.path_info.bp_len.shortest.separate_with_commas(),
         ),
-        ("average_path_bp", info.path_info.bp_len.average.separate_with_commas()),
+        (
+            "average_path_bp",
+            info.path_info.bp_len.average.separate_with_commas(),
+        ),
     ]);
     tab_content.push_str(&reg.render_template(path_info, &path_vars).unwrap());
 
@@ -456,19 +505,23 @@ pub fn generate_info_tabs(info: Info) -> String {
     </div>
 </div>
 "##;
-    let group_vars = HashMap::from([
-        ("groups", match info.group_info {
-            Some(group_info) => {
-                group_info.groups.iter().map(|(k, v)| {
+    let group_vars = HashMap::from([(
+        "groups",
+        match info.group_info {
+            Some(group_info) => group_info
+                .groups
+                .iter()
+                .map(|(k, v)| {
                     HashMap::from([
                         ("name", format!("{}", k)),
                         ("node_len", format!("{}", v.0)),
-                        ("bp_len", format!("{}", v.1))
-                ])}).collect::<Vec<_>>()
-            }
+                        ("bp_len", format!("{}", v.1)),
+                    ])
+                })
+                .collect::<Vec<_>>(),
             None => Vec::new(),
-        }),
-    ]);
+        },
+    )]);
     tab_content.push_str(&reg.render_template(&group_info, &group_vars).unwrap());
 
     let container = r##"<div class="container p-5">
@@ -580,10 +633,18 @@ fn bin_values(list: &Vec<u32>) -> (Vec<String>, Vec<usize>) {
     let max = *list.iter().max().unwrap();
     let min = *list.iter().min().unwrap();
     let bin_size = ((max - min) as f32 / n_bins as f32).round();
-    let bins: Vec<_> = (min..max).step_by(bin_size as usize)
-        .zip((min+(bin_size as u32)..max+1).step_by(bin_size as usize)).collect();
-    let values = bins.iter().map(|(s, e)| list.iter().filter(|a| **a >= *s && **a < *e).count()).collect::<Vec<_>>();
-    let bin_names = bins.iter().map(|(s, e)| format!("{}-{}", s, e)).collect::<Vec<_>>();
+    let bins: Vec<_> = (min..max)
+        .step_by(bin_size as usize)
+        .zip((min + (bin_size as u32)..max + 1).step_by(bin_size as usize))
+        .collect();
+    let values = bins
+        .iter()
+        .map(|(s, e)| list.iter().filter(|a| **a >= *s && **a < *e).count())
+        .collect::<Vec<_>>();
+    let bin_names = bins
+        .iter()
+        .map(|(s, e)| format!("{}-{}", s, e))
+        .collect::<Vec<_>>();
     (bin_names, values)
 }
 
@@ -591,35 +652,51 @@ fn get_info_js_object(info: &Info) -> String {
     let mut js_objects = String::new();
 
     js_objects.push_str("const groups = [\n");
-    let nodes = info.group_info.as_ref().unwrap().groups.values().map(|x| x.0).collect::<Vec<_>>();
-    let bps = info.group_info.as_ref().unwrap().groups.values().map(|x| x.1).collect::<Vec<_>>();
+    let nodes = info
+        .group_info
+        .as_ref()
+        .unwrap()
+        .groups
+        .values()
+        .map(|x| x.0)
+        .collect::<Vec<_>>();
+    let bps = info
+        .group_info
+        .as_ref()
+        .unwrap()
+        .groups
+        .values()
+        .map(|x| x.1)
+        .collect::<Vec<_>>();
 
     if nodes.len() >= 100 {
         let binned_nodes = bin_values(&nodes);
         let binned_bps = bin_values(&bps);
         js_objects.push_str(&format!(
             "new Group('node', {:?}, {:?}, true)",
-            binned_nodes.0,
-            binned_nodes.1,
+            binned_nodes.0, binned_nodes.1,
         ));
         js_objects.push_str(",\n");
         js_objects.push_str(&format!(
             "new Group('bp', {:?}, {:?}, true)",
-            binned_bps.0,
-            binned_bps.1,
+            binned_bps.0, binned_bps.1,
         ));
     } else {
-        let group_names = info.group_info.as_ref().unwrap().groups.keys().collect::<Vec<_>>();
+        let group_names = info
+            .group_info
+            .as_ref()
+            .unwrap()
+            .groups
+            .keys()
+            .collect::<Vec<_>>();
         js_objects.push_str(&format!(
             "new Group('node', {:?}, {:?}, false)",
-            group_names,
-            nodes,
+            group_names, nodes,
         ));
         js_objects.push_str(",\n");
         js_objects.push_str(&format!(
             "new Group('bp', {:?}, {:?}, false)",
-            group_names,
-            bps,
+            group_names, bps,
         ));
     }
     js_objects.push_str("];\n");

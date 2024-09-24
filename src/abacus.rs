@@ -194,10 +194,7 @@ impl AbacusAuxilliary {
         //
         let mut group2paths: HashMap<String, Vec<PathSegment>> = HashMap::default();
         for (p, g) in groups.iter() {
-            group2paths
-                .entry(g.clone())
-                .or_default()
-                .push(p.clone())
+            group2paths.entry(g.clone()).or_default().push(p.clone())
         }
         let path_to_group: HashMap<PathSegment, String> = groups
             .iter()
@@ -317,10 +314,7 @@ impl AbacusAuxilliary {
         }
     }
 
-    fn get_path_order<'a>(
-        &'a self,
-        path_segments: &[PathSegment],
-    ) -> Vec<(ItemIdSize, &'a str)> {
+    fn get_path_order<'a>(&'a self, path_segments: &[PathSegment]) -> Vec<(ItemIdSize, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.include; the returned vector
         // maps indices of path_segments to the group identifier
 
@@ -371,12 +365,10 @@ impl AbacusAuxilliary {
         let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
 
         path_segments.iter().for_each(|x| {
-            res.entry(x.id())
-                .or_default()
-                .insert(match x.coords() {
-                    None => (0, usize::MAX),
-                    Some((i, j)) => (i, j),
-                });
+            res.entry(x.id()).or_default().insert(match x.coords() {
+                None => (0, usize::MAX),
+                Some((i, j)) => (i, j),
+            });
         });
 
         HashMap::from_iter(res.into_iter().map(|(pid, coords)| {

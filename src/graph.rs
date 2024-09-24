@@ -2,9 +2,9 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
-use std::{fmt, usize};
-use std::io::{BufRead, Read};
+use std::io::BufRead;
 use std::str::{self, FromStr};
+use std::{fmt, usize};
 
 /* private use */
 use crate::io::bufreader_from_compressed_gfa;
@@ -107,8 +107,12 @@ impl Edge {
         };
 
         let end = start + iter.position(|&x| x == b'\t').unwrap();
-        let u = node2id.get(&data[start..end]).unwrap_or_else(|| panic!("unknown node {}",
-            str::from_utf8(&data[start..end]).unwrap()));
+        let u = node2id.get(&data[start..end]).unwrap_or_else(|| {
+            panic!(
+                "unknown node {}",
+                str::from_utf8(&data[start..end]).unwrap()
+            )
+        });
 
         // we know that 3rd colum is either '+' or '-', so it has always length 1; still, we
         // need to advance in the buffer (and  therefore call iter.position(..))
@@ -118,8 +122,12 @@ impl Edge {
         let start = end + 3;
         let end = start + iter.position(|&x| x == b'\t').unwrap();
 
-        let v = node2id.get(&data[start..end]).unwrap_or_else(|| panic!("unknown node {}",
-            str::from_utf8(&data[start..end]).unwrap()));
+        let v = node2id.get(&data[start..end]).unwrap_or_else(|| {
+            panic!(
+                "unknown node {}",
+                str::from_utf8(&data[start..end]).unwrap()
+            )
+        });
         let o2 = Orientation::from_pm(data[end + 1]);
 
         if canonical {
@@ -218,7 +226,12 @@ impl GraphAuxilliary {
         self.node_lens[v.0 as usize]
     }
 
-    pub fn info(&self, paths_len: &HashMap<PathSegment, (u32, u32)>, groups: &HashMap<PathSegment, String>, has_groups: bool) -> Info {
+    pub fn info(
+        &self,
+        paths_len: &HashMap<PathSegment, (u32, u32)>,
+        groups: &HashMap<PathSegment, String>,
+        has_groups: bool,
+    ) -> Info {
         if has_groups {
             Info {
                 graph_info: self.graph_info(groups),
@@ -234,7 +247,11 @@ impl GraphAuxilliary {
         }
     }
 
-    pub fn group_info(&self, paths_len: &HashMap<PathSegment, (u32, u32)>, groups: &HashMap<PathSegment, String>) -> GroupInfo {
+    pub fn group_info(
+        &self,
+        paths_len: &HashMap<PathSegment, (u32, u32)>,
+        groups: &HashMap<PathSegment, String>,
+    ) -> GroupInfo {
         let mut group_map: HashMap<String, (u32, u32)> = HashMap::new();
         for (k, v) in paths_len {
             let group = groups[k].clone();
@@ -250,11 +267,12 @@ impl GraphAuxilliary {
         let mut component_lengths = Vec::new();
         let mut visited: HashSet<ItemId> = HashSet::new();
         let edges: HashMap<ItemId, Vec<ItemId>> = match &self.edge2id {
-            Some(edge_map) => edge_map.keys().map(|x| (x.0, x.2))
+            Some(edge_map) => edge_map
+                .keys()
+                .map(|x| (x.0, x.2))
                 .chain(edge_map.keys().map(|x| (x.2, x.0)))
-                .fold(HashMap::new(), |mut acc, (k, v)| { acc.entry(k)
-                    .and_modify(|x| x.push(v))
-                        .or_insert(vec![v]);
+                .fold(HashMap::new(), |mut acc, (k, v)| {
+                    acc.entry(k).and_modify(|x| x.push(v)).or_insert(vec![v]);
                     acc
                 }),
             None => HashMap::new(),
@@ -268,7 +286,11 @@ impl GraphAuxilliary {
         component_lengths
     }
 
-    fn dfs(edges: &HashMap<ItemId, Vec<ItemId>>, node: ItemId, visited: &mut HashSet<ItemId>) -> u32 {
+    fn dfs(
+        edges: &HashMap<ItemId, Vec<ItemId>>,
+        node: ItemId,
+        visited: &mut HashSet<ItemId>,
+    ) -> u32 {
         let mut s = Vec::new();
         let mut length = 0;
         s.push(node);
@@ -334,7 +356,7 @@ impl GraphAuxilliary {
                 longest: *paths_bp_len.iter().max().unwrap(),
                 shortest: *paths_bp_len.iter().min().unwrap(),
                 average: averageu32(&paths_bp_len),
-            }
+            },
         }
     }
 
@@ -730,7 +752,7 @@ pub struct LenInfo {
 }
 
 pub struct GroupInfo {
-    pub groups: HashMap<String, (u32, u32)>
+    pub groups: HashMap<String, (u32, u32)>,
 }
 
 pub struct Info {
@@ -741,12 +763,8 @@ pub struct Info {
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "feature\tcategory\tcountable\tvalue\n");
-        write!(
-            f,
-            "graph\ttotal\tnode\t{}\n",
-            self.graph_info.node_count
-        )?;
+        write!(f, "feature\tcategory\tcountable\tvalue\n")?;
+        write!(f, "graph\ttotal\tnode\t{}\n", self.graph_info.node_count)?;
         write!(f, "graph\ttotal\tbp\t{}\n", self.graph_info.basepairs)?;
         write!(f, "graph\ttotal\tedge\t{}\n", self.graph_info.edge_count)?;
         write!(f, "graph\ttotal\tpath\t{}\n", self.path_info.no_paths)?;
@@ -756,12 +774,32 @@ impl fmt::Display for Info {
             "graph\ttotal\t0-degree node\t{}\n",
             self.graph_info.number_0_degree
         )?;
-        write!(f, "graph\ttotal\tcomponent\t{}\n", self.graph_info.connected_components)?;
-        write!(f, "graph\tlargest\tcomponent\t{}\n", self.graph_info.largest_component)?;
-        write!(f, "graph\tsmallest\tcomponent\t{}\n", self.graph_info.smallest_component)?;
-        write!(f, "graph\tmedian\tcomponent\t{}\n", self.graph_info.median_component)?;
+        write!(
+            f,
+            "graph\ttotal\tcomponent\t{}\n",
+            self.graph_info.connected_components
+        )?;
+        write!(
+            f,
+            "graph\tlargest\tcomponent\t{}\n",
+            self.graph_info.largest_component
+        )?;
+        write!(
+            f,
+            "graph\tsmallest\tcomponent\t{}\n",
+            self.graph_info.smallest_component
+        )?;
+        write!(
+            f,
+            "graph\tmedian\tcomponent\t{}\n",
+            self.graph_info.median_component
+        )?;
         write!(f, "node\taverage\tbp\t{}\n", self.graph_info.average_node)?;
-        write!(f, "node\taverage\tdegree\t{}\n", self.graph_info.average_degree)?;
+        write!(
+            f,
+            "node\taverage\tdegree\t{}\n",
+            self.graph_info.average_degree
+        )?;
         write!(f, "node\tlongest\tbp\t{}\n", self.graph_info.largest_node)?;
         write!(f, "node\tshortest\tbp\t{}\n", self.graph_info.shortest_node)?;
         write!(f, "node\tmedian\tbp\t{}\n", self.graph_info.median_node)?;
@@ -769,11 +807,27 @@ impl fmt::Display for Info {
         write!(f, "node\tmax\tdegree\t{}\n", self.graph_info.max_degree)?;
         write!(f, "node\tmin\tdegree\t{}\n", self.graph_info.min_degree)?;
         write!(f, "path\taverage\tbp\t{}\n", self.path_info.bp_len.average)?;
-        write!(f, "path\taverage\tnode\t{}\n", self.path_info.node_len.average)?;
+        write!(
+            f,
+            "path\taverage\tnode\t{}\n",
+            self.path_info.node_len.average
+        )?;
         write!(f, "path\tlongest\tbp\t{}\n", self.path_info.bp_len.longest)?;
-        write!(f, "path\tlongest\tnode\t{}\n", self.path_info.node_len.longest)?;
-        write!(f, "path\tshortest\tbp\t{}\n", self.path_info.bp_len.shortest)?;
-        write!(f, "path\tshortest\tnode\t{}", self.path_info.node_len.shortest)?;
+        write!(
+            f,
+            "path\tlongest\tnode\t{}\n",
+            self.path_info.node_len.longest
+        )?;
+        write!(
+            f,
+            "path\tshortest\tbp\t{}\n",
+            self.path_info.bp_len.shortest
+        )?;
+        write!(
+            f,
+            "path\tshortest\tnode\t{}",
+            self.path_info.node_len.shortest
+        )?;
         if let Some(group_info) = &self.group_info {
             for (k, v) in &group_info.groups {
                 write!(f, "\ngroup\t{}\tbp\t{}\n", k, v.1)?;

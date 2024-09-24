@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 /* standard use */
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
@@ -117,8 +116,7 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment
     for (i, row) in reader.enumerate() {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
-        let path_seg =
-            PathSegment::from_str(str::from_utf8(row_it.next().unwrap()).unwrap());
+        let path_seg = PathSegment::from_str(str::from_utf8(row_it.next().unwrap()).unwrap());
         if let Some(col) = row_it.next() {
             res.push((path_seg, str::from_utf8(col).unwrap().to_string()));
         } else {
@@ -360,8 +358,12 @@ fn parse_walk_seq_to_item_vec(
             } else {
                 let i = x.iter().position(|z| &s2 == z).unwrap_or(x.len());
                 let sid = (
-                    *graph_aux.node2id.get(&x[..i]).unwrap_or_else(|| panic!("walk contains unknown node {{{}}}'",
-                        str::from_utf8(&x[..i]).unwrap())),
+                    *graph_aux.node2id.get(&x[..i]).unwrap_or_else(|| {
+                        panic!(
+                            "walk contains unknown node {{{}}}'",
+                            str::from_utf8(&x[..i]).unwrap()
+                        )
+                    }),
                     s1,
                 );
                 if i < x.len() {
@@ -379,8 +381,12 @@ fn parse_walk_seq_to_item_vec(
                                         vec![]
                                     } else {
                                         vec![(
-                                            *graph_aux.node2id.get(y).unwrap_or_else(|| panic!("walk contains unknown node {{{}}}",
-                                                str::from_utf8(y).unwrap())),
+                                            *graph_aux.node2id.get(y).unwrap_or_else(|| {
+                                                panic!(
+                                                    "walk contains unknown node {{{}}}",
+                                                    str::from_utf8(y).unwrap()
+                                                )
+                                            }),
                                             s2,
                                         )]
                                     }
@@ -432,8 +438,10 @@ fn parse_walk_seq_update_tables(
     data[1..end]
         .par_split(|&x| x == b'>' || x == b'<')
         .for_each(|node| {
-            let sid = *graph_aux.node2id.get(node).unwrap_or_else(|| panic!("unknown node {}",
-                str::from_utf8(node).unwrap()));
+            let sid = *graph_aux
+                .node2id
+                .get(node)
+                .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
             let idx = (sid.0 as usize) % SIZE_T;
             if mutex_vec[idx].lock().is_ok() {
                 unsafe {
@@ -486,8 +494,12 @@ fn parse_path_seq_to_item_vec(
             let sid = *graph_aux
                 .node2id
                 .get(&node[..node.len() - 1])
-                .unwrap_or_else(|| panic!("unknown node {}",
-                    str::from_utf8(&node[..node.len() - 1]).unwrap()));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "unknown node {}",
+                        str::from_utf8(&node[..node.len() - 1]).unwrap()
+                    )
+                });
             (sid, Orientation::from_pm(node[node.len() - 1]))
         })
         .collect();
@@ -575,8 +587,7 @@ fn parse_path_seq_update_tables(
         let sid = *graph_aux
             .node2id
             .get(&node[0..node.len() - 1])
-            .unwrap_or_else(|| panic!("unknown node {}",
-                str::from_utf8(node).unwrap()));
+            .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
         let o = node[node.len() - 1];
         assert!(
             o == b'-' || o == b'+',
@@ -596,7 +607,6 @@ fn parse_path_seq_update_tables(
         bp_len.fetch_add(graph_aux.node_len(&sid), Ordering::SeqCst);
     });
     let bp_len = bp_len.load(Ordering::SeqCst);
-
 
     // compute prefix sum
     let mut num_nodes_path = 0;
@@ -711,7 +721,7 @@ pub fn parse_graph_aux<R: Read>(
 //     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
 //     //let mut k_count = 0;
 //     //let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) = abacus_aux.load_optional_subsetting(&graph_aux, &count);
-// 
+//
 //     let mut num_path = 0;
 //     let mut buf = vec![];
 //     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
@@ -737,21 +747,21 @@ pub fn parse_graph_aux<R: Read>(
 //                     item_table.items[idx].push(revcmp(k_plus_one_mer, k + 1));
 //                     item_table.id_prefsum[idx][num_path + 1] += 1;
 //                 } // else ignore palindrome, since it always breaks the node
-// 
+//
 //                 u_sid = v_sid;
 //                 u_ori = v_ori;
 //             }
-// 
+//
 //             // compute prefix sum
 //             for i in 0..SIZE_T {
 //                 item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
 //             }
-// 
+//
 //             num_path += 1;
 //         }
 //         buf.clear();
 //     }
-// 
+//
 //     item_table
 // }
 
@@ -1098,13 +1108,17 @@ fn update_tables_edgecount(
             .as_ref()
             .expect("update_tables_edgecount requires edge2id map in GraphAuxilliary")
             .get(&e)
-            .unwrap_or_else(|| panic!("unknown edge {}. Is flipped edge known? {}",
-                &e,
-                if graph_aux.edge2id.as_ref().unwrap().contains_key(&e.flip()) {
-                    "Yes"
-                } else {
-                    "No"
-                }));
+            .unwrap_or_else(|| {
+                panic!(
+                    "unknown edge {}. Is flipped edge known? {}",
+                    &e,
+                    if graph_aux.edge2id.as_ref().unwrap().contains_key(&e.flip()) {
+                        "Yes"
+                    } else {
+                        "No"
+                    }
+                )
+            });
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 < p + l {
             let idx = (eid.0 as usize) % SIZE_T;
@@ -1349,11 +1363,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
         &None,
         &[(count, growths)],
         hist_aux,
-        Path::new(gfa_file)
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap(),
+        Path::new(gfa_file).file_name().unwrap().to_str().unwrap(),
         Some(&abacus_group.groups),
         info,
         out,

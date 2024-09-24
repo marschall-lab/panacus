@@ -836,19 +836,22 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             match output_format {
                 OutputFormat::Table => {
                     let has_groups = match params {
-                        Params::Info { ref groupby, groupby_haplotype, groupby_sample, .. } => {
-                            groupby != "" || groupby_haplotype || groupby_sample
-                        },
-                        _ => false
-                    };            
+                        Params::Info {
+                            ref groupby,
+                            groupby_haplotype,
+                            groupby_sample,
+                            ..
+                        } => groupby != "" || groupby_haplotype || groupby_sample,
+                        _ => false,
+                    };
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
                     write_info(info, out)?
-                },
+                }
                 OutputFormat::Html => {
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
                     let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
                     write_info_html(&filename, info, out)?
-                },
+                }
             };
         }
         Params::Subset {
