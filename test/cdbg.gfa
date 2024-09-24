@@ -1,0 +1,25 @@
+H	VN:Z:1.0	BV:Z:1.2.0	KL:Z:4	ML:Z:2
+S	1	AGAAT
+S	2	AATCGCT
+S	3	GCTAG
+S	4	AATGGCT
+S	5	GCTGC
+L	1	+	2	+	3M
+L	1	+	4	+	3M
+L	2	-	1	-	3M
+L	2	+	3	+	3M
+L	2	+	5	+	3M
+L	3	-	2	-	3M
+L	3	-	4	-	3M
+L	3	+	3	-	3M
+L	4	-	1	-	3M
+L	4	+	3	+	3M
+L	4	+	5	+	3M
+L	5	-	2	-	3M
+L	5	-	4	-	3M
+P	a#1#h1	1+,2+,3+	*
+P	b#1#h1	1+,2+,3+	*
+P	c#1#h1	1+,2+,3+	*
+P	c#1#h2	1+,2+	*
+P	c#2#h1	1+,4+,3+	*
+P	d#1#h1	1+,4+,5+	*

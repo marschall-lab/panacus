@@ -40,70 +40,64 @@ pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> BufReader<Box<dyn Read>>
     BufReader::new(reader)
 }
 
-pub fn parse_bed<R: Read>(data: &mut BufReader<R>) -> Vec<PathSegment> {
+pub fn parse_bed_to_path_segments<R: Read>(data: &mut BufReader<R>, use_block_info: bool) -> Vec<PathSegment> {
     // based on https://en.wikipedia.org/wiki/BED_(file_format)
-    let mut res = Vec::new();
+    let mut segments = Vec::new();
 
-    let reader = Csv::from_reader(data)
-        .delimiter(b'\t')
-        .flexible(true)
-        .has_header(false);
-    let mut is_header = true;
-    let mut is_full_bed = false;
-    for (i, row) in reader.enumerate() {
-        let row = row.unwrap();
-        let mut row_it = row.bytes_columns();
-        let path_name = str::from_utf8(row_it.next().unwrap()).unwrap().to_string();
-        // recognize BED header
-        if is_header
-            && (path_name.starts_with("browser ")
-                || path_name.starts_with("track ")
-                || path_name.starts_with('#'))
-        {
+    for (i, line) in data.lines().enumerate() {
+        let line = match line {
+            Ok(l) => l,
+            Err(e) => {
+                panic!("error reading line {}: {}", i + 1, e);
+            }
+        };
+
+        let fields = { 
+            let mut fields: Vec<&str>  = line.split('\t').collect();
+            if fields.is_empty() {
+                fields = vec![&line];
+            }
+            fields
+        };
+        let path_name = fields[0];
+        
+        if path_name.starts_with("browser ") || path_name.starts_with("track ") || path_name.starts_with("#") {
             continue;
         }
-        is_header = false;
-        let mut path_seg = PathSegment::from_str(&path_name);
-        if let Some(start) = row_it.next() {
-            if let Some(end) = row_it.next() {
-                path_seg.start = usize::from_str(str::from_utf8(start).unwrap()).ok();
-                path_seg.end = usize::from_str(str::from_utf8(end).unwrap()).ok();
-            } else {
-                panic!(
-                    "erroneous input in line {}: row must have either 1, 3, or 12 columns, but has 2",
-                    i
-                );
-            }
-            if let Some(block_count_raw) = row_it.nth(6) {
-                if !is_full_bed {
-                    log::debug!("assuming from now (line {}) on that file is in full bed (12 columns) format", i);
-                }
-                let block_count =
-                    usize::from_str(str::from_utf8(block_count_raw).unwrap()).unwrap();
-                is_full_bed = true;
-                let mut block_sizes = str::from_utf8(row_it.next().unwrap()).unwrap().split(',');
-                let mut block_starts = str::from_utf8(row_it.next().unwrap()).unwrap().split(',');
-                for _ in 0..block_count {
-                    let size = usize::from_str(block_sizes.next().unwrap().trim()).unwrap();
-                    let start = usize::from_str(block_starts.next().unwrap().trim()).unwrap();
 
-                    let mut tmp = path_seg.clone();
-                    if tmp.start.is_some() {
-                        tmp.start = Some(tmp.start.unwrap() + start);
-                    } else {
-                        tmp.start = Some(start);
+        if fields.len() == 1 {
+            segments.push(PathSegment::from_str(path_name));
+        } else if fields.len() >= 3 {
+            let start = usize::from_str(fields[1]).expect(&format!("error line {}: `{}` is not an usize",i+1, fields[1]));
+            let end = usize::from_str(fields[2]).expect(&format!("error line {}: `{}` is not an usize",i+1, fields[2]));
+
+            if use_block_info && fields.len() == 12 {
+                let block_count = fields[9].parse::<usize>().unwrap_or(0);
+                let block_sizes: Vec<usize> = fields[10].split(',')
+                    .filter_map(|s| usize::from_str(s.trim()).ok())
+                    .collect();
+                let block_starts: Vec<usize> = fields[11].split(',')
+                    .filter_map(|s| usize::from_str(s.trim()).ok())
+                    .collect();
+
+                if block_count == block_sizes.len() && block_count == block_starts.len() {
+                    for (size, start_offset) in block_sizes.iter().zip(block_starts.iter()) {
+                        let block_start = start + start_offset;
+                        let block_end = block_start + size;
+                        segments.push(PathSegment::from_str_start_end(path_name, block_start, block_end));
                     }
-                    tmp.end = Some(start + size);
-                    res.push(tmp);
+                } else {
+                    panic!("error in block sizes/starts in line {}: counts do not match", i + 1);
                 }
+            } else {
+                segments.push(PathSegment::from_str_start_end(path_name, start, end));
             }
-        }
-        if !is_full_bed {
-            res.push(path_seg);
+        } else {
+            panic!("error in line {}: row must have either 1, 3, or 12 columns, but has 2", i + 1);
         }
     }
 
-    res
+    segments
 }
 
 pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment, String)>, Error> {
@@ -1358,3 +1352,248 @@ pub fn write_ordered_histgrowth_html<W: Write>(
         out,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::str::from_utf8;
+    use std::io::Cursor;
+
+    fn mock_graph_auxilliary() -> GraphAuxilliary {
+        GraphAuxilliary {
+            node2id: {
+                let mut node2id = HashMap::new();
+                node2id.insert(b"node1".to_vec(), ItemId(1));
+                node2id.insert(b"node2".to_vec(), ItemId(2));
+                node2id.insert(b"node3".to_vec(), ItemId(3));
+                node2id
+            },
+            node_lens: Vec::new(),
+            edge2id: None,
+            path_segments: Vec::new(),
+            node_count: 3,
+            edge_count: 0,
+            degree: Some(Vec::new()),
+            //extremities: Some(Vec::new())
+        }
+    }
+
+    // Test parse_walk_identifier function
+    #[test]
+    fn test_parse_walk_identifier() {
+        let data = b"W\tG01\t0\tU00096.3\t3\t4641652\t>3>4>5>7>8>";
+        let (path_segment, data) = parse_walk_identifier(data);
+        dbg!(&path_segment);
+        
+        assert_eq!(path_segment.sample, "G01".to_string());
+        assert_eq!(path_segment.haplotype, Some("0".to_string()));
+        assert_eq!(path_segment.seqid, Some("U00096.3".to_string()));
+        assert_eq!(path_segment.start, Some(3));
+        assert_eq!(path_segment.end, Some(4641652));
+        assert_eq!(from_utf8(data).unwrap(), ">3>4>5>7>8>");
+    }
+
+    #[test]
+    #[should_panic(expected = "unwrap")]
+    fn test_parse_walk_identifier_invalid_utf8() {
+        let data = b"W\tG01\t0\tU00096.3\t3\t>3>4>5>7>8>";
+        parse_walk_identifier(data);
+    }
+
+    // Test parse_path_identifier function
+    #[test]
+    fn test_parse_path_identifier() {
+        let data = b"P\tGCF_000005845.2_ASM584v2_genomic.fna#0#contig1\t1+,2+,3+,4+\t*";
+        let (path_segment, rest) = parse_path_identifier(data);
+
+        assert_eq!(path_segment.to_string(), "GCF_000005845.2_ASM584v2_genomic.fna#0#contig1");
+        assert_eq!(from_utf8(rest).unwrap(), "1+,2+,3+,4+\t*");
+    }
+
+    //// Test parse_walk_seq_to_item_vec function
+    //#[test]
+    //fn test_parse_walk_seq_to_item_vec() {
+    //    let data = b">node1<node2\t";
+    //    let graph_aux = MockGraphAuxilliary::new();
+
+    //    let result = parse_walk_seq_to_item_vec(data, &graph_aux);
+    //    assert_eq!(result.len(), 2);
+    //    assert_eq!(result[0], (1, Orientation::Forward));
+    //    assert_eq!(result[1], (2, Orientation::Backward));
+    //}
+
+    // Test parse_path_seq_to_item_vec function
+    #[test]
+    fn test_parse_path_seq_to_item_vec() {
+        let data = b"node1+,node2-\t*";
+        let graph_aux = mock_graph_auxilliary();
+
+        let result = parse_path_seq_to_item_vec(data, &graph_aux);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], (ItemId(1), Orientation::Forward));
+        assert_eq!(result[1], (ItemId(2), Orientation::Backward));
+    }
+
+    //#[test]
+    //fn test_parse_cdbg_gfa_paths_walks() {
+    //    let data = b"P\tpath1\tnode1+,node2-\n";
+    //    let mut reader = BufReader::new(&data[..]);
+    //    let graph_aux = mock_graph_auxilliary();
+
+    //    let result = parse_cdbg_gfa_paths_walks(&mut reader, &graph_aux, 3);
+    //    dbg!(&result);
+
+    //    assert_eq!(result.items.len(), SIZE_T);
+    //}
+
+    // Test update_tables
+    //#[test]
+    //fn test_update_tables() {
+    //    let mut item_table = ItemTable::new(10);
+    //    let graph_aux = mock_graph_auxilliary();
+    //    let path = vec![(1, Orientation::Forward), (2, Orientation::Backward)];
+    //    let include_coords = &[];
+    //    let exclude_coords = &[];
+    //    let offset = 0;
+
+    //    update_tables(
+    //        &mut item_table,
+    //        &mut None,
+    //        &mut None,
+    //        0,
+    //        &graph_aux,
+    //        path,
+    //        include_coords,
+    //        exclude_coords,
+    //        offset,
+    //    );
+
+    //    dbg!(&item_table);
+    //    assert!(item_table.items[1].contains(&1));
+    //    assert!(item_table.items[2].contains(&2));
+    //}
+
+
+    // parse_bed_to_path_segments testing
+    #[test]
+    fn test_parse_bed_with_1_column() {
+        let bed_data = b"chr1\nchr2";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        let result = parse_bed_to_path_segments(&mut reader, true);
+        assert_eq!(
+            result,
+            vec![
+                PathSegment::from_str("chr1"),
+                PathSegment::from_str("chr2"),
+            ]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "error in line 1: row must have either 1, 3, or 12 columns, but has 2")]
+    fn test_parse_bed_with_2_columns() {
+        let bed_data = b"chr1\t1000\n";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        parse_bed_to_path_segments(&mut reader, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "error line 1: `100.5` is not an usize")]
+    fn test_parse_bed_with_2_columns_no_usize() {
+        let bed_data = b"chr1\t100.5\tACGT\n";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        parse_bed_to_path_segments(&mut reader, false);
+    }
+
+    #[test]
+    fn test_parse_bed_with_3_columns() {
+        let bed_data = b"chr1\t1000\t2000\nchr2\t1500\t2500";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        let result = parse_bed_to_path_segments(&mut reader, false);
+        assert_eq!(
+            result,
+            vec![
+                { 
+                    let mut tmp = PathSegment::from_str("chr1");
+                    tmp.start = Some(1000);
+                    tmp.end = Some(2000);
+                    tmp
+                },
+                { 
+                    let mut tmp = PathSegment::from_str("chr2");
+                    tmp.start = Some(1500);
+                    tmp.end = Some(2500);
+                    tmp
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_bed_with_12_columns_no_block() {
+        let bed_data = b"chr1\t1000\t2000\tname\t0\t+\t1000\t2000\t0\t2\t100,100\t0,900\n";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        let result = parse_bed_to_path_segments(&mut reader, false);
+        assert_eq!(
+            result,
+            vec![
+                { 
+                    let mut tmp = PathSegment::from_str("chr1");
+                    tmp.start = Some(1000);
+                    tmp.end = Some(2000);
+                    tmp
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_bed_with_12_columns_with_block() {
+        let bed_data = b"chr1\t1000\t2000\tname\t0\t+\t1000\t2000\t0\t2\t100,100\t0,900\n";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        let result = parse_bed_to_path_segments(&mut reader, true);
+        assert_eq!(
+            result,
+            vec![
+                { 
+                    let mut tmp = PathSegment::from_str("chr1");
+                    tmp.start = Some(1000);
+                    tmp.end = Some(1100);
+                    tmp
+                },
+                { 
+                    let mut tmp = PathSegment::from_str("chr1");
+                    tmp.start = Some(1900);
+                    tmp.end = Some(2000);
+                    tmp
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_bed_with_header() {
+        let bed_data = b"browser position chr1:1-1000\nbrowser position chr7:127471196-127495720\nbrowser hide all\ntrack name='ItemRGBDemo' description='Item RGB demonstration' visibility=2 itemRgb='On'\nchr1\t1000\t2000\nchr2\t1500\t2500\n";
+        let mut reader = BufReader::new(Cursor::new(bed_data));
+        let result = parse_bed_to_path_segments(&mut reader, false);
+        assert_eq!(
+            result,
+            vec![
+                { 
+                    let mut tmp = PathSegment::from_str("chr1");
+                    tmp.start = Some(1000);
+                    tmp.end = Some(2000);
+                    tmp
+                },
+                { 
+                    let mut tmp = PathSegment::from_str("chr2");
+                    tmp.start = Some(1500);
+                    tmp.end = Some(2500);
+                    tmp
+                }
+            ]
+        );
+    }
+}
+

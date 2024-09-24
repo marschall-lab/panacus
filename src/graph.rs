@@ -648,6 +648,13 @@ impl PathSegment {
         res
     }
 
+    pub fn from_str_start_end(s: &str, start: usize, end: usize) -> Self {
+        let mut segment = Self::from_str(s);
+        segment.start = Some(start);
+        segment.end = Some(end);
+        segment
+    }
+
     pub fn id(&self) -> String {
         if self.haplotype.is_some() {
             format!(

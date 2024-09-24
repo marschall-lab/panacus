@@ -240,7 +240,8 @@ impl AbacusAuxilliary {
         } else {
             log::info!("loading coordinates from {}", file_name);
             let mut data = BufReader::new(fs::File::open(file_name)?);
-            let coords = parse_bed(&mut data);
+            let use_block_info = true;
+            let coords = parse_bed_to_path_segments(&mut data, use_block_info);
             log::debug!("loaded {} coordinates", coords.len());
             Some(coords)
         })
