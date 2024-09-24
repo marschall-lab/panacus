@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 npm install bootstrap
 npm install -g sass

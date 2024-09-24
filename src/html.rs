@@ -432,8 +432,13 @@ pub fn generate_info_tabs(info: Info) -> String {
     tab_content.push_str(&reg.render_template(&path_info, &path_vars).unwrap());
 
     let group_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-4" role="tabpanel" aria-labelledby="nav-info-4">
-    </br>
-    <canvas id="chart-groups-node"></canvas>
+    <div class="d-flex flex-row-reverse">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="btn-logscale-plot-group-node">
+            <label class="form-check-label" for="btn-logscale-plot-group-node">log-scale</label>
+        </div>
+    </div>
+    <canvas id="chart-group-node"></canvas>
     <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-plot-group-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
@@ -442,7 +447,13 @@ pub fn generate_info_tabs(info: Info) -> String {
         </button>
     </div>
 <br/>
-    <canvas id="chart-groups-bp"></canvas>
+    <div class="d-flex flex-row-reverse">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="btn-logscale-plot-group-bp">
+            <label class="form-check-label" for="btn-logscale-plot-group-bp">log-scale</label>
+        </div>
+    </div>
+    <canvas id="chart-group-bp"></canvas>
 <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-table-info-group" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
