@@ -481,8 +481,13 @@ pub fn generate_info_tabs(info: Info) -> String {
     tab_content.push_str(&reg.render_template(path_info, &path_vars).unwrap());
 
     let group_info = r##"<div class="tab-pane fade{{#if is_first}} show active{{else}} d-none{{/if}}" id="nav-info-4" role="tabpanel" aria-labelledby="nav-info-4">
-    </br>
-    <canvas id="chart-groups-node"></canvas>
+    <div class="d-flex flex-row-reverse">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="btn-logscale-plot-group-node">
+            <label class="form-check-label" for="btn-logscale-plot-group-node">log-scale</label>
+        </div>
+    </div>
+    <canvas id="chart-group-node"></canvas>
     <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-plot-group-node" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
@@ -491,7 +496,13 @@ pub fn generate_info_tabs(info: Info) -> String {
         </button>
     </div>
 <br/>
-    <canvas id="chart-groups-bp"></canvas>
+    <div class="d-flex flex-row-reverse">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="btn-logscale-plot-group-bp">
+            <label class="form-check-label" for="btn-logscale-plot-group-bp">log-scale</label>
+        </div>
+    </div>
+    <canvas id="chart-group-bp"></canvas>
 <br/>
     <div class="d-flex flex-row-reverse">
         <button id="btn-download-table-info-group" type="button" class="d-flex align-items-center btn m-1" aria-pressed="false">
@@ -563,15 +574,15 @@ pub fn write_hist_html<W: Write>(
     let content = r##"
 <div class="d-flex align-items-start">
 	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
-    	<button class="nav-link text-nowrap active" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>
-        <button class="nav-link text-nowrap" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="false">pangenome info</button>
+        <button class="nav-link text-nowrap active" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="false">pangenome info</button>
+    	<button class="nav-link text-nowrap" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>
  	</div>
   	<div class="tab-content w-100" id="v-pills-tabContent">
-		<div class="tab-pane fade show active" id="v-pills-hist" role="tabpanel" aria-labelledby="v-pills-hist-tab">
-{{{hist_content}}}
-		</div>
-		<div class="tab-pane fade" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
+		<div class="tab-pane fade show active" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
 {{{info_content}}}
+		</div>
+		<div class="tab-pane fade" id="v-pills-hist" role="tabpanel" aria-labelledby="v-pills-hist-tab">
+{{{hist_content}}}
 		</div>
   </div>
 </div>
@@ -762,27 +773,27 @@ pub fn write_histgrowth_html<W: Write>(
 {{{nav}}}
  	</div>
   	<div class="tab-content w-100" id="v-pills-tabContent">{{#if hist_content}}
-        <div class="tab-pane fade show active" id="v-pills-hist" role="tabpanel" aria-labelledby="v-pills-hist-tab">
+		<div class="tab-pane fade show active" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
+{{{info_content}}}
+		</div>
+        <div class="tab-pane fade {{#unless info_content}} show active{{/unless}}" id="v-pills-hist" role="tabpanel" aria-labelledby="v-pills-hist-tab">
 {{{hist_content}}}
 		</div>{{/if}}
-		<div class="tab-pane fade{{#unless hist_content}} show active{{/unless}}" id="v-pills-growth" role="tabpanel" aria-labelledby="v-pills-growth-tab">
+		<div class="tab-pane fade{{#unless (or info_content hist_content)}} show active{{/unless}}" id="v-pills-growth" role="tabpanel" aria-labelledby="v-pills-growth-tab">
 {{{growth_content}}}
-		</div>
-		<div class="tab-pane fade" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
-{{{info_content}}}
 		</div>
   </div>
 </div>
 "##;
 
     let mut nav = String::new();
-    if hists.is_some() {
-        nav.push_str(r##"<button class="nav-link text-nowrap active" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>"##);
-    }
-    nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-growth-tab" data-bs-toggle="pill" data-bs-target="#v-pills-growth" type="button" role="tab" aria-controls="v-pills-growth" aria-selected="true">{}pangenome growth</button>"##, if hists.is_some() { "" } else { " active"}, if ordered_names.is_some() { "ordered " } else {""} ));
     if info.is_some() {
-        nav.push_str(r##"<button class="nav-link text-nowrap" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="false">pangenome info</button>"##);
+        nav.push_str(r##"<button class="nav-link text-nowrap active" id="v-pills-info-tab" data-bs-toggle="pill" data-bs-target="#v-pills-info" type="button" role="tab" aria-controls="v-pills-info" aria-selected="false">pangenome info</button>"##);
     }
+    if hists.is_some() {
+        nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-hist-tab" data-bs-toggle="pill" data-bs-target="#v-pills-hist" type="button" role="tab" aria-controls="v-pills-hist" aria-selected="true">coverage histogram</button>"##, if info.is_some() { "" } else { " active"}));
+    }
+    nav.push_str(&format!(r##"<button class="nav-link text-nowrap{}" id="v-pills-growth-tab" data-bs-toggle="pill" data-bs-target="#v-pills-growth" type="button" role="tab" aria-controls="v-pills-growth" aria-selected="true">{}pangenome growth</button>"##, if info.is_some() || hists.is_some(){ "" } else { " active"}, if ordered_names.is_some() { "ordered " } else {""} ));
 
     let mut js_objects = String::from("");
     js_objects.push_str("const hists = [\n");

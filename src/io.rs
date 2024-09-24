@@ -918,6 +918,7 @@ fn update_tables(
     let mut p = offset;
 
     let mut included = 0;
+    let mut included_bp = 0;
     let mut excluded = 0;
 
     log::debug!(
@@ -926,18 +927,49 @@ fn update_tables(
     );
 
     for (sid, o) in path {
+        let l = graph_aux.node_len(&sid) as usize;
+
         // update current pointer in include_coords list
         // end is not inclusive, so if end <= p (=offset) then advance to the next interval
         while i < include_coords.len() && include_coords[i].1 <= p {
             i += 1;
         }
+        let include_start = if i < include_coords.len() && include_coords[i].0 < p + l {
+            Some(include_coords[i].0) 
+        } else {
+            None
+        };
+        // if next intervals also overlap with node, then advance already to that interval
+        while i+1 < include_coords.len() && include_coords[i+1].0 < p + l {
+            log::debug!("node {} has multiple overlapping inclusion intervals, combining them...", sid);
+            i += 1;
+        }
+        let include_end = if include_start.is_some() {
+            Some(include_coords[i].1)
+        } else {
+            None
+        };
 
         // update current pointer in exclude_coords list
         while j < exclude_coords.len() && exclude_coords[j].1 <= p {
             j += 1;
         }
+        let exclude_start = if j < exclude_coords.len() && exclude_coords[j].0 < p + l {
+            Some(exclude_coords[j].0)
+        } else {
+            None
+        };
+        // if next intervals also overlap with node, then advance already to that interval
+        while j+1 < exclude_coords.len() && exclude_coords[j+1].0 <= p + l {
+            log::debug!("node {} has multiple overlapping exclusion intervals, combining them...", sid);
+            j += 1;
+        }
+        let exclude_end = if exclude_start.is_some() {
+            Some(exclude_coords[j].1)
+        } else {
+            None
+        };
 
-        let l = graph_aux.node_len(&sid) as usize;
 
         // this implementation of include coords for bps is *not exact* as illustrated by the
         // following scenario:
@@ -946,7 +978,7 @@ fn update_tables(
         //                ______________|_____________________________
         //               |
         //      ___________________________________________     ____
-        //     |                some node                  |---|
+        //  ---|                some node                  |---|
         //      -------------------------------------------     ----
         //
         //
@@ -955,7 +987,24 @@ fn update_tables(
         //               |
         //               |             coverage count
         //      ___________________________________________     ____
-        //     |                some node                  |---|
+        //  ---|                some node                  |---|
+        //      -------------------------------------------     ----
+        //
+        // it also simplifies the following scenario:
+        //
+        //   subset intervals:           
+        //  _______                                      ____________
+        //         |                                    |
+        //      ___________________________________________     ____
+        //  ---|                some node                  |---|
+        //      -------------------------------------------     ----
+        //
+        //
+        //   what the following code does:
+        //  _________________________________________________________
+        //                     coverage count
+        //      ___________________________________________     ____
+        //  ---|                some node                  |---|
         //      -------------------------------------------     ----
         //
         //
@@ -968,14 +1017,14 @@ fn update_tables(
         //
         //
         // check if the current position fits within active segment
-        if i < include_coords.len() && include_coords[i].0 < p + l {
-            let mut a = if include_coords[i].0 > p {
-                include_coords[i].0 - p
+        if let (Some(start), Some(end)) = (include_start, include_end) {
+            let mut a = if start > p {
+                start - p
             } else {
                 0
             };
-            let mut b = if include_coords[i].1 < p + l {
-                include_coords[i].1 - p
+            let mut b = if end < p + l {
+                end - p
             } else {
                 l
             };
@@ -1002,16 +1051,17 @@ fn update_tables(
                 }
                 included += 1;
             }
+            included_bp += b-a;
         }
 
-        if j < exclude_coords.len() && exclude_coords[j].0 < p + l {
-            let mut a = if exclude_coords[j].0 > p {
-                exclude_coords[j].0 - p
+        if let (Some(start), Some(end)) = (exclude_start, exclude_end) {
+            let mut a = if start > p {
+                start - p
             } else {
                 0
             };
-            let mut b = if exclude_coords[j].1 < p + l {
-                exclude_coords[j].1 - p
+            let mut b = if end < p + l {
+                end - p
             } else {
                 l
             };
@@ -1039,8 +1089,9 @@ fn update_tables(
     }
 
     log::debug!(
-        "found {} included and {} excluded nodes, and discarded the rest",
+        "found {} included nodes ({} included bps) and {} excluded nodes, and discarded the rest",
         included,
+        included_bp,
         excluded
     );
 
