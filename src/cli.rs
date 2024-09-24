@@ -560,6 +560,25 @@ pub enum Params {
     //},
 }
 
+impl Params {
+    pub fn test_default_histgrowth() -> Self {
+        Params::Histgrowth {
+            gfa_file: String::new(),
+            count: CountType::Node,
+            positive_list: String::new(),
+            negative_list: String::new(),
+            groupby: String::new(),
+            groupby_haplotype: false,
+            groupby_sample: false,
+            coverage: "1".to_string(),
+            quorum: "0".to_string(),
+            hist: false,
+            output_format: OutputFormat::Table,
+            threads: 0,
+        }
+    }
+}
+
 pub fn read_params() -> Params {
     Command::parse().cmd
 }
@@ -617,6 +636,11 @@ pub fn parse_threshold_cli(
     Ok(thresholds)
 }
 
+// set number of threads can be run only once, otherwise it throws an error of the 
+// GlobalPoolAlreadyInitialized, which unfortunately is not pub therefore we cannot catch it.
+// https://github.com/rayon-rs/rayon/issues/878
+// We run this function in the main otherwise in the tests the second time we run the function
+// "run" it will crush
 pub fn set_number_of_threads(params: &Params) {
     if let Params::Histgrowth { threads, .. }
     | Params::Hist { threads, .. }
@@ -625,18 +649,14 @@ pub fn set_number_of_threads(params: &Params) {
     | Params::OrderedHistgrowth { threads, .. }
     | Params::Table { threads, .. }
     //| Params::Cdbg { threads, .. } 
-    = params
-    {
-        if *threads > 0 {
-            log::info!("running panacus on {} threads", &threads);
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(*threads)
-                .build_global()
-                .unwrap();
-        } else {
-            log::info!("running panacus using all available CPUs");
-            rayon::ThreadPoolBuilder::new().build_global().unwrap();
-        }
+    = params {
+        //if num_threads is 0 then the Rayon will select 
+        //the number of threads to the core number automatically 
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(*threads)
+            .build_global()
+            .expect("Failed to initialize global thread pool");
+        log::info!("running panacus on {} threads", rayon::current_num_threads());
     }
 }
 
@@ -967,4 +987,90 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_threshold_cli_relative_success() {
+        let threshold_str = "0.2,0.5,0.9";
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Relative);
+        assert!(result.is_ok());
+        let thresholds = result.unwrap();
+        assert_eq!(thresholds.len(), 3);
+        assert_eq!(thresholds[0], Threshold::Relative(0.2));
+        assert_eq!(thresholds[1], Threshold::Relative(0.5));
+        assert_eq!(thresholds[2], Threshold::Relative(0.9));
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_absolute_success() {
+        let threshold_str = "5,10,15";
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Absolute);
+        assert!(result.is_ok());
+        let thresholds = result.unwrap();
+        assert_eq!(thresholds.len(), 3);
+        assert_eq!(thresholds[0], Threshold::Absolute(5));
+        assert_eq!(thresholds[1], Threshold::Absolute(10));
+        assert_eq!(thresholds[2], Threshold::Absolute(15));
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_invalid_float_in_absolute() {
+        let threshold_str = "5.5,10,15";
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Absolute);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().kind(),
+            ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn test_parse_threshold_cli_invalid_value_in_relative() {
+        let threshold_str = "0.2,1.2,0.9"; // 1.2 is out of range for relative threshold
+        let result = parse_threshold_cli(threshold_str, RequireThreshold::Relative);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().kind(),
+            ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn test_validate_single_groupby_option() {
+        let test_cases = vec![
+            // Valid cases
+            ("", false, false, true),       // None set
+            ("group1", false, false, true), // Only groupby is set
+            ("", true, false, true),        // Only groupby_haplotype is set
+            ("", false, true, true),        // Only groupby_sample is set
+
+            // Invalid cases
+            ("group1", true, false, false), // groupby and groupby_haplotype set
+            ("group1", false, true, false), // groupby and groupby_sample set
+            ("", true, true, false),        // groupby_haplotype and groupby_sample set
+            ("group1", true, true, false),  // All options set
+        ];
+
+        for (test_groupby, test_groupby_haplotype, test_groupby_sample, should_pass) in test_cases {
+            //let mut params = Params::test_default_histgrowth();
+            let result = validate_single_groupby_option(test_groupby, test_groupby_haplotype, test_groupby_sample);
+            if should_pass {
+                assert!(
+                    result.is_ok(),
+                    "Expected OK, but got error for input: groupby = '{}', groupby_haplotype = {}, groupby_sample = {}",
+                    test_groupby, test_groupby_haplotype, test_groupby_sample
+                );
+            } else {
+                assert!(
+                    result.is_err(),
+                    "Expected error, but got OK for input: groupby = '{}', groupby_haplotype = {}, groupby_sample = {}",
+                    test_groupby, test_groupby_haplotype, test_groupby_sample
+                );
+            }
+        }
+    }
 }
