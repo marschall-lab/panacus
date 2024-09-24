@@ -736,7 +736,6 @@ instantly aggregated statistical or similarity measures, humans otent w-100" id=
 
     let info_object = get_info_js_object(&info);
     js_objects.push_str(&info_object[..]);
-    eprintln!("JS: {}", js_objects);
 
     let reg = Handlebars::new();
     vars.insert("fname", fname.to_string());
@@ -887,8 +886,6 @@ pub fn write_histgrowth_html<W: Write>(
         let info_object = get_info_js_object(&info_obj);
         js_objects.push_str(&info_object[..]);
     }
-
-    eprintln!("{}", js_objects);
 
     let reg = Handlebars::new();
     let mut prevars = HashMap::from([
