@@ -24,7 +24,7 @@ unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
 unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
-unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
+// unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
 #[strum(serialize_all = "lowercase")]
@@ -64,27 +64,27 @@ impl ItemTable {
     }
 }
 
-pub struct InfixEqStorage {
-    pub edges: [u32; 16],
-    pub last_edge: u8,
-    pub last_group: u32,
-    pub sigma: u32, //#edges + psi
-}
+// pub struct InfixEqStorage {
+//     pub edges: [u32; 16],
+//     pub last_edge: u8,
+//     pub last_group: u32,
+//     pub sigma: u32, //#edges + psi
+// }
 
-impl InfixEqStorage {
-    pub fn new() -> Self {
-        let edges = [0; 16];
-        let last_edge = 0;
-        let last_group = 0;
-        let sigma = 0;
-        Self {
-            edges,
-            last_edge,
-            last_group,
-            sigma,
-        }
-    }
-}
+// impl InfixEqStorage {
+//     pub fn new() -> Self {
+//         let edges = [0; 16];
+//         let last_edge = 0;
+//         let last_group = 0;
+//         let sigma = 0;
+//         Self {
+//             edges,
+//             last_edge,
+//             last_group,
+//             sigma,
+//         }
+//     }
+// }
 
 pub struct ActiveTable {
     pub items: Vec<bool>,
@@ -295,24 +295,24 @@ impl fmt::Display for Threshold {
 }
 
 impl Threshold {
-    pub fn to_string(&self) -> String {
+    pub fn get_string(&self) -> String {
         match self {
             Threshold::Relative(c) => format!("{}", c),
             Threshold::Absolute(c) => format!("{}", c),
         }
     }
 
-    pub fn to_absolute(&self, n: usize) -> usize {
+    pub fn to_absolute(self, n: usize) -> usize {
         match self {
-            Threshold::Absolute(c) => *c,
+            Threshold::Absolute(c) => c,
             Threshold::Relative(c) => (n as f64 * c).ceil() as usize,
         }
     }
 
-    pub fn to_relative(&self, n: usize) -> f64 {
+    pub fn to_relative(self, n: usize) -> f64 {
         match self {
-            Threshold::Relative(c) => *c,
-            Threshold::Absolute(c) => *c as f64 / n as f64,
+            Threshold::Relative(c) => c,
+            Threshold::Absolute(c) => c as f64 / n as f64,
         }
     }
 }
@@ -474,10 +474,10 @@ pub fn revcmp(kmer: u64, k: usize) -> u64 {
         >> (64 - k as u64 * 2)
 }
 
-pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
-    let mask: u64 = (1 << (2 * (k - 1))) - 1;
-    (kmer_bits >> 2) & mask
-}
+// pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
+//     let mask: u64 = (1 << (2 * (k - 1))) - 1;
+//     (kmer_bits >> 2) & mask
+// }
 
 #[allow(dead_code)]
 pub fn canonical(kmer_bits: u64, k: usize) -> u64 {

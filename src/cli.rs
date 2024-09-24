@@ -103,10 +103,20 @@ pub enum Params {
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
-        #[clap(short = 'l', long, help = "Ignore all countables with a coverage lower than the specified threshold. The coverage of a countable corresponds to the number of path/walk that contain it. Repeated appearances of a countable in the same path/walk are counted as one. You can pass a comma-separated list of coverage thresholds, each one will produce a separated growth curve (e.g., --coverage 2,3). Use --quorum to set a threshold in conjunction with each coverage (e.g., --quorum 0.5,0.9)", default_value = "1")] 
-        coverage: String, 
-        #[clap(short, long, help = "Unlike the --coverage parameter, which specifies a minimum constant number of paths for all growth point m (1 <= m <= num_paths), --quorum adjust the threshold based on m. At each m, a countable is counted in the average growth if the countable is contained in at least floor(m*quorum) paths. Example: A quorum of 0.9 requires a countable to be in 90% of paths for each subset size m. At m=10, it must appear in at least 9 paths. At m=100, it must appear in at least 90 paths. A quorum of 1 (100%) requires presence in all paths of the subset, corresponding to the core. Default: 0, a countable counts if it is present in any path at each growth point. Specify multiple quorum values with a comma-separated list (e.g., --quorum 0.5,0.9). Use --coverage to set static path thresholds in conjunction with variable quorum percentages (e.g., --coverage 5,10).", default_value = "0")] 
-        quorum: String, 
+        #[clap(
+            short = 'l',
+            long,
+            help = "Ignore all countables with a coverage lower than the specified threshold. The coverage of a countable corresponds to the number of path/walk that contain it. Repeated appearances of a countable in the same path/walk are counted as one. You can pass a comma-separated list of coverage thresholds, each one will produce a separated growth curve (e.g., --coverage 2,3). Use --quorum to set a threshold in conjunction with each coverage (e.g., --quorum 0.5,0.9)",
+            default_value = "1"
+        )]
+        coverage: String,
+        #[clap(
+            short,
+            long,
+            help = "Unlike the --coverage parameter, which specifies a minimum constant number of paths for all growth point m (1 <= m <= num_paths), --quorum adjust the threshold based on m. At each m, a countable is counted in the average growth if the countable is contained in at least floor(m*quorum) paths. Example: A quorum of 0.9 requires a countable to be in 90% of paths for each subset size m. At m=10, it must appear in at least 9 paths. At m=100, it must appear in at least 90 paths. A quorum of 1 (100%) requires presence in all paths of the subset, corresponding to the core. Default: 0, a countable counts if it is present in any path at each growth point. Specify multiple quorum values with a comma-separated list (e.g., --quorum 0.5,0.9). Use --coverage to set static path thresholds in conjunction with variable quorum percentages (e.g., --coverage 5,10).",
+            default_value = "0"
+        )]
+        quorum: String,
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
         #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
@@ -184,10 +194,20 @@ pub enum Params {
             required = true
         )]
         hist_file: String,
-        #[clap(short = 'l', long, help = "Ignore all countables with a coverage lower than the specified threshold. The coverage of a countable corresponds to the number of path/walk that contain it. Repeated appearances of a countable in the same path/walk are counted as one. You can pass a comma-separated list of coverage thresholds, each one will produce a separated growth curve (e.g., --coverage 2,3). Use --quorum to set a threshold in conjunction with each coverage (e.g., --quorum 0.5,0.9)", default_value = "1")] 
-        coverage: String, 
-        #[clap(short, long, help = "Unlike the --coverage parameter, which specifies a minimum constant number of paths for all growth point m (1 <= m <= num_paths), --quorum adjust the threshold based on m. At each m, a countable is counted in the average growth if the countable is contained in at least floor(m*quorum) paths. Example: A quorum of 0.9 requires a countable to be in 90% of paths for each subset size m. At m=10, it must appear in at least 9 paths. At m=100, it must appear in at least 90 paths. A quorum of 1 (100%) requires presence in all paths of the subset, corresponding to the core. Default: 0, a countable counts if it is present in any path at each growth point. Specify multiple quorum values with a comma-separated list (e.g., --quorum 0.5,0.9). Use --coverage to set static path thresholds in conjunction with variable quorum percentages (e.g., --coverage 5,10).", default_value = "0")] 
-        quorum: String, 
+        #[clap(
+            short = 'l',
+            long,
+            help = "Ignore all countables with a coverage lower than the specified threshold. The coverage of a countable corresponds to the number of path/walk that contain it. Repeated appearances of a countable in the same path/walk are counted as one. You can pass a comma-separated list of coverage thresholds, each one will produce a separated growth curve (e.g., --coverage 2,3). Use --quorum to set a threshold in conjunction with each coverage (e.g., --quorum 0.5,0.9)",
+            default_value = "1"
+        )]
+        coverage: String,
+        #[clap(
+            short,
+            long,
+            help = "Unlike the --coverage parameter, which specifies a minimum constant number of paths for all growth point m (1 <= m <= num_paths), --quorum adjust the threshold based on m. At each m, a countable is counted in the average growth if the countable is contained in at least floor(m*quorum) paths. Example: A quorum of 0.9 requires a countable to be in 90% of paths for each subset size m. At m=10, it must appear in at least 9 paths. At m=100, it must appear in at least 90 paths. A quorum of 1 (100%) requires presence in all paths of the subset, corresponding to the core. Default: 0, a countable counts if it is present in any path at each growth point. Specify multiple quorum values with a comma-separated list (e.g., --quorum 0.5,0.9). Use --coverage to set static path thresholds in conjunction with variable quorum percentages (e.g., --coverage 5,10).",
+            default_value = "0"
+        )]
+        quorum: String,
         #[clap(short = 'a', long, help = "Also include histogram in output")]
         hist: bool,
         #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
@@ -476,7 +496,6 @@ pub enum Params {
         )]
         threads: usize,
     },
-
     //#[clap(
     //    alias = "C",
     //    about = "Calculate the histogram and growth of a Compacted de Bruijn Graph"
@@ -554,7 +573,7 @@ pub fn parse_threshold_cli(
     for (i, el) in threshold_str.split(',').enumerate() {
         let rel_val = match f64::from_str(el.trim()) {
             Ok(t) => {
-                if 0.0 <= t && t <= 1.0 {
+                if (0.0..=1.0).contains(&t) {
                     Ok(t)
                 } else {
                     Err(Error::new(
@@ -587,7 +606,7 @@ pub fn parse_threshold_cli(
                     i + 1)))?),
             RequireThreshold::Relative => Threshold::Relative(rel_val?),
             RequireThreshold::Either =>
-        if let Some(t) = usize::from_str(el.trim()).ok() {
+        if let Ok(t) = usize::from_str(el.trim()) {
             Threshold::Absolute(t)
         } else {
             Threshold::Relative(rel_val?)
@@ -727,7 +746,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         &Some(hists),
                         &growths,
                         &hist_aux,
-                        &filename,
+                        filename,
                         None,
                         Some(info),
                         out,
@@ -761,7 +780,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-                    write_hist_html(&hists, &filename, Some(info), out)?
+                    write_hist_html(&hists, filename, Some(info), out)?
                 }
             };
         }
@@ -772,11 +791,11 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
             log::info!("loading coverage histogram from {}", hist_file);
-            let mut data = BufReader::new(fs::File::open(&hist_file)?);
+            let mut data = BufReader::new(fs::File::open(hist_file)?);
             let (coverages, comments) = parse_hists(&mut data)?;
             for c in comments {
-                out.write(&c[..])?;
-                out.write(b"\n")?;
+                out.write_all(&c[..])?;
+                out.write_all(b"\n")?;
             }
             let hists: Vec<Hist> = coverages
                 .into_iter()
@@ -795,7 +814,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     &Some(hists),
                     &growths,
                     &hist_aux,
-                    &filename,
+                    filename,
                     None,
                     None,
                     out,
@@ -817,19 +836,22 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
             match output_format {
                 OutputFormat::Table => {
                     let has_groups = match params {
-                        Params::Info { ref groupby, groupby_haplotype, groupby_sample, .. } => {
-                            groupby != "" || groupby_haplotype || groupby_sample
-                        },
-                        _ => false
-                    };            
+                        Params::Info {
+                            ref groupby,
+                            groupby_haplotype,
+                            groupby_sample,
+                            ..
+                        } => !groupby.is_empty() || groupby_haplotype || groupby_sample,
+                        _ => false,
+                    };
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
                     write_info(info, out)?
-                },
+                }
                 OutputFormat::Html => {
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
                     let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-                    write_info_html(&filename, info, out)?
-                },
+                    write_info_html(filename, info, out)?
+                }
             };
         }
         Params::Subset {
@@ -885,7 +907,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                     write_ordered_histgrowth_html(
                         &abacus,
                         &hist_aux,
-                        &gfa_file,
+                        gfa_file,
                         count,
                         Some(info),
                         out,
@@ -901,50 +923,49 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         } => {
             let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
             let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+            let mut data = BufReader::new(fs::File::open(gfa_file)?);
             let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, total)?;
 
             abacus.to_tsv(total, out)?;
-        }
-        //Params::Cdbg {
-        //    ref gfa_file, k, ..
-        //} => {
-        //    let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
-        //    let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+        } //Params::Cdbg {
+          //    ref gfa_file, k, ..
+          //} => {
+          //    let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
+          //    let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
 
-        //    let mut hists = Vec::new();
-        //    let abaci_node =
-        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
-        //    let abaci_bp =
-        //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
-        //    hists.push(Hist::from_abacus(&abaci_node[0], None));
-        //    hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
+          //    let mut hists = Vec::new();
+          //    let abaci_node =
+          //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
+          //    let abaci_bp =
+          //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
+          //    hists.push(Hist::from_abacus(&abaci_node[0], None));
+          //    hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
 
-        //    // k-mers and unimer
-        //    let n = hists[0].coverage.len();
-        //    let mut kmer: Vec<usize> = vec![0; n];
-        //    let mut unimer: Vec<usize> = vec![0; n];
+          //    // k-mers and unimer
+          //    let n = hists[0].coverage.len();
+          //    let mut kmer: Vec<usize> = vec![0; n];
+          //    let mut unimer: Vec<usize> = vec![0; n];
 
-        //    for i in 0..n {
-        //        kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
-        //        unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
-        //    }
+          //    for i in 0..n {
+          //        kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
+          //        unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
+          //    }
 
-        //    let mut data = BufReader::new(fs::File::open(&gfa_file)?);
-        //    let abaci_infix_eq =
-        //        AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
+          //    let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+          //    let abaci_infix_eq =
+          //        AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
 
-        //    println!("# infix_eq");
-        //    for v in abaci_infix_eq.countable.iter() {
-        //        println!("{}", v);
-        //    }
+          //    println!("# infix_eq");
+          //    for v in abaci_infix_eq.countable.iter() {
+          //        println!("{}", v);
+          //    }
 
-        //    println!("# kmer");
-        //    for i in 1..kmer.len() {
-        //        println!("{}", kmer[i]);
-        //    }
-        //    write_hist_table(&hists, out)?;
-        //}
+          //    println!("# kmer");
+          //    for i in 1..kmer.len() {
+          //        println!("{}", kmer[i]);
+          //    }
+          //    write_hist_table(&hists, out)?;
+          //}
     }
 
     Ok(())

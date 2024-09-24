@@ -43,7 +43,7 @@ impl AbacusAuxilliary {
                 groupby_haplotype,
                 ..
             }
-            | Params::Info {
+            | Params::Stats {
                 positive_list,
                 negative_list,
                 groupby,
@@ -170,10 +170,10 @@ impl AbacusAuxilliary {
                 //}
 
                 Ok(AbacusAuxilliary {
-                    groups,
-                    include_coords,
-                    exclude_coords,
-                    order,
+                    groups: groups,
+                    include_coords: include_coords,
+                    exclude_coords: exclude_coords,
+                    order: order,
                 })
             }
             _ => Err(Error::new(
@@ -194,7 +194,10 @@ impl AbacusAuxilliary {
         //
         let mut group2paths: HashMap<String, Vec<PathSegment>> = HashMap::default();
         for (p, g) in groups.iter() {
-            group2paths.entry(g.clone()).or_default().push(p.clone())
+            group2paths
+                .entry(g.clone())
+                .or_insert(Vec::new())
+                .push(p.clone())
         }
         let path_to_group: HashMap<PathSegment, String> = groups
             .iter()
@@ -301,7 +304,9 @@ impl AbacusAuxilliary {
             // augment the group assignments with yet unassigned path segments
             graph_aux.path_segments.iter().for_each(|x| {
                 let path = x.clear_coords();
-                path_to_group.entry(path).or_insert_with(|| x.id());
+                if !path_to_group.contains_key(&path) {
+                    path_to_group.insert(path, x.id());
+                }
             });
             Ok(path_to_group)
         } else {
@@ -314,17 +319,20 @@ impl AbacusAuxilliary {
         }
     }
 
-    fn get_path_order<'a>(&'a self, path_segments: &[PathSegment]) -> Vec<(ItemIdSize, &'a str)> {
+    fn get_path_order<'a>(
+        &'a self,
+        path_segments: &Vec<PathSegment>,
+    ) -> Vec<(ItemIdSize, &'a str)> {
         // orders elements of path_segments by the order in abacus_aux.include; the returned vector
         // maps indices of path_segments to the group identifier
 
         let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> = HashMap::default();
 
-        for (i, p) in path_segments.iter().enumerate() {
+        for (i, p) in path_segments.into_iter().enumerate() {
             let group: &'a str = self.groups.get(&p.clear_coords()).unwrap();
             group_to_paths
                 .entry(group)
-                .or_default()
+                .or_insert(Vec::new())
                 .push((i as ItemIdSize, group));
         }
 
@@ -338,8 +346,8 @@ impl AbacusAuxilliary {
                 None => HashSet::new(),
             };
             path_segments
-                .iter()
-                .filter(|x| !exclude.contains(x))
+                .into_iter()
+                .filter_map(|x| if !exclude.contains(x) { Some(x) } else { None })
                 .collect::<Vec<&PathSegment>>()
         };
         order
@@ -347,7 +355,7 @@ impl AbacusAuxilliary {
             .map(|p| {
                 group_to_paths
                     .remove(&self.groups.get(&p.clear_coords()).unwrap()[..])
-                    .unwrap_or_default()
+                    .unwrap_or(Vec::new())
             })
             .collect::<Vec<Vec<(ItemIdSize, &'a str)>>>()
             .concat()
@@ -359,16 +367,18 @@ impl AbacusAuxilliary {
     }
 
     pub fn build_subpath_map(
-        path_segments: &[PathSegment],
+        path_segments: &Vec<PathSegment>,
     ) -> HashMap<String, Vec<(usize, usize)>> {
         // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
         let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
 
-        path_segments.iter().for_each(|x| {
-            res.entry(x.id()).or_default().insert(match x.coords() {
-                None => (0, usize::MAX),
-                Some((i, j)) => (i, j),
-            });
+        path_segments.into_iter().for_each(|x| {
+            res.entry(x.id())
+                .or_insert(HashSet::default())
+                .insert(match x.coords() {
+                    None => (0, usize::MAX),
+                    Some((i, j)) => (i, j),
+                });
         });
 
         HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
@@ -497,147 +507,147 @@ impl AbacusByTotal {
         );
 
         Self {
-            count,
-            countable,
+            count: count,
+            countable: countable,
             uncovered_bps: Some(quantify_uncovered_bps(
                 &exclude_table,
                 &subset_covered_bps,
-                graph_aux,
+                &graph_aux,
             )),
-            groups,
+            groups: groups,
         }
     }
 
-    // pub fn from_cdbg_gfa<R: std::io::Read>(
-    //     data: &mut BufReader<R>,
-    //     abacus_aux: &AbacusAuxilliary,
-    //     graph_aux: &GraphAuxilliary,
-    //     k: usize,
-    //     unimer: &Vec<usize>,
-    // ) -> Self {
-    //     let item_table = parse_cdbg_gfa_paths_walks(data, abacus_aux, graph_aux, k);
-    //     Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k, unimer)
-    // }
+    pub fn from_cdbg_gfa<R: std::io::Read>(
+        data: &mut BufReader<R>,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &GraphAuxilliary,
+        k: usize,
+        unimer: &Vec<usize>,
+    ) -> Self {
+        let item_table = parse_cdbg_gfa_paths_walks(data, abacus_aux, graph_aux, k);
+        Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k, unimer)
+    }
 
-    // pub fn k_plus_one_mer_table_to_abacus(
-    //     item_table: ItemTable,
-    //     abacus_aux: &AbacusAuxilliary,
-    //     graph_aux: &GraphAuxilliary,
-    //     k: usize,
-    //     unimer: &Vec<usize>,
-    // ) -> Self {
-    //     log::info!("counting abacus entries..");
+    pub fn k_plus_one_mer_table_to_abacus(
+        item_table: ItemTable,
+        abacus_aux: &AbacusAuxilliary,
+        graph_aux: &GraphAuxilliary,
+        k: usize,
+        unimer: &Vec<usize>,
+    ) -> Self {
+        log::info!("counting abacus entries..");
 
-    //     let mut infix_eq_tables: [HashMap<u64, InfixEqStorage>; SIZE_T] =
-    //         [(); SIZE_T].map(|_| HashMap::default());
+        let mut infix_eq_tables: [HashMap<u64, InfixEqStorage>; SIZE_T] =
+            [(); SIZE_T].map(|_| HashMap::default());
 
-    //     let mut groups = Vec::new();
-    //     for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
-    //         if groups.is_empty() || groups.last().unwrap() != group_id {
-    //             groups.push(group_id.to_string());
-    //         }
-    //         AbacusByTotal::create_infix_eq_table(
-    //             &item_table,
-    //             &graph_aux,
-    //             &mut infix_eq_tables,
-    //             path_id,
-    //             groups.len() as u32 - 1,
-    //             k,
-    //         );
-    //     }
-    //     ////DEBUG
-    //     //for i in 0..SIZE_T {
-    //     //    for (key, v) in &infix_eq_tables[i] {
-    //     //        println!("{}: {:?} {} {} {}", bits2kmer(*key, k-1), v.edges, v.last_edge, v.last_group, v.sigma);
-    //     //    }
-    //     //}
+        let mut groups = Vec::new();
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+            if groups.is_empty() || groups.last().unwrap() != group_id {
+                groups.push(group_id.to_string());
+            }
+            AbacusByTotal::create_infix_eq_table(
+                &item_table,
+                &graph_aux,
+                &mut infix_eq_tables,
+                path_id,
+                groups.len() as u32 - 1,
+                k,
+            );
+        }
+        ////DEBUG
+        //for i in 0..SIZE_T {
+        //    for (key, v) in &infix_eq_tables[i] {
+        //        println!("{}: {:?} {} {} {}", bits2kmer(*key, k-1), v.edges, v.last_edge, v.last_group, v.sigma);
+        //    }
+        //}
 
-    //     let m = (groups.len() + 1) * groups.len() / 2;
-    //     let mut countable: Vec<CountSize> = vec![0; m];
+        let m = (groups.len() + 1) * groups.len() / 2;
+        let mut countable: Vec<CountSize> = vec![0; m];
 
-    //     for i in 0..SIZE_T {
-    //         for (_k_minus_one_mer, infix_storage) in &infix_eq_tables[i] {
-    //             for edge_count in infix_storage.edges.iter() {
-    //                 if *edge_count != 0 {
-    //                     //println!("{:?} {} {} {} ", infix_storage.edges, infix_storage.last_edge, infix_storage.last_group, infix_storage.sigma);
-    //                     let idx = ((infix_storage.sigma) * (infix_storage.sigma - 1) / 2
-    //                         + edge_count
-    //                         - 1) as usize;
-    //                     countable[idx] += 1;
-    //                     //if infix_storage.sigma == 1 {
-    //                     //    println!("{}",bits2kmer(*k_minus_one_mer, k-1));
-    //                     //}
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     //DEBUG
-    //     //println!("{:?}", countable);
+        for i in 0..SIZE_T {
+            for (_k_minus_one_mer, infix_storage) in &infix_eq_tables[i] {
+                for edge_count in infix_storage.edges.iter() {
+                    if *edge_count != 0 {
+                        //println!("{:?} {} {} {} ", infix_storage.edges, infix_storage.last_edge, infix_storage.last_group, infix_storage.sigma);
+                        let idx = ((infix_storage.sigma) * (infix_storage.sigma - 1) / 2
+                            + edge_count
+                            - 1) as usize;
+                        countable[idx] += 1;
+                        //if infix_storage.sigma == 1 {
+                        //    println!("{}",bits2kmer(*k_minus_one_mer, k-1));
+                        //}
+                    }
+                }
+            }
+        }
+        //DEBUG
+        //println!("{:?}", countable);
 
-    //     for i in 1..unimer.len() {
-    //         countable[((i + 1) * i / 2) - 1] += unimer[i] as u32;
-    //         //countable[((i+1)*i/2) - 1] = unimer[i] as u32;
-    //     }
+        for i in 1..unimer.len() {
+            countable[((i + 1) * i / 2) - 1] += unimer[i] as u32;
+            //countable[((i+1)*i/2) - 1] = unimer[i] as u32;
+        }
 
-    //     Self {
-    //         count: CountType::Node,
-    //         countable: countable,
-    //         uncovered_bps: None,
-    //         groups: groups,
-    //     }
-    // }
+        Self {
+            count: CountType::Node,
+            countable: countable,
+            uncovered_bps: None,
+            groups: groups,
+        }
+    }
 
-    // fn create_infix_eq_table(
-    //     item_table: &ItemTable,
-    //     _graph_aux: &GraphAuxilliary,
-    //     infix_eq_tables: &mut [HashMap<u64, InfixEqStorage>; SIZE_T],
-    //     path_id: ItemIdSize,
-    //     group_id: u32,
-    //     k: usize,
-    // ) {
-    //     let infix_eq_tables_ptr = Wrap(infix_eq_tables);
+    fn create_infix_eq_table(
+        item_table: &ItemTable,
+        _graph_aux: &GraphAuxilliary,
+        infix_eq_tables: &mut [HashMap<u64, InfixEqStorage>; SIZE_T],
+        path_id: ItemIdSize,
+        group_id: u32,
+        k: usize,
+    ) {
+        let infix_eq_tables_ptr = Wrap(infix_eq_tables);
 
-    //     (0..SIZE_T).into_par_iter().for_each(|i| {
-    //         let start = item_table.id_prefsum[i][path_id as usize] as usize;
-    //         let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
-    //         for j in start..end {
-    //             let k_plus_one_mer = item_table.items[i][j];
-    //             let infix = get_infix(k_plus_one_mer, k);
-    //             let first_nt = (k_plus_one_mer >> (2 * k)) as u64;
-    //             let last_nt = k_plus_one_mer & 0b11;
-    //             //println!("{}", bits2kmer(infix, k)); // Be sure that the first is an A
-    //             //println!("{}", bits2kmer(infix, k-1));
-    //             let combined_nt = ((first_nt << 2) | last_nt) as u8;
-    //             unsafe {
-    //                 (*infix_eq_tables_ptr.0)[i]
-    //                     .entry(infix)
-    //                     .and_modify(|infix_storage| {
-    //                         if infix_storage.last_group == group_id
-    //                             && infix_storage.last_edge != combined_nt
-    //                             && infix_storage.last_edge != 255
-    //                         {
-    //                             //if infix_storage.last_group == group_id && infix_storage.last_edge != 255 {
-    //                             infix_storage.edges[infix_storage.last_edge as usize] -= 1;
-    //                             infix_storage.last_edge = 255;
-    //                         } else if infix_storage.last_group != group_id {
-    //                             infix_storage.last_edge = combined_nt;
-    //                             infix_storage.edges[infix_storage.last_edge as usize] += 1;
-    //                             infix_storage.last_group = group_id;
-    //                             infix_storage.sigma += 1;
-    //                         }
-    //                     })
-    //                     .or_insert_with(|| {
-    //                         let mut infix_storage = InfixEqStorage::new();
-    //                         infix_storage.last_edge = combined_nt;
-    //                         infix_storage.edges[infix_storage.last_edge as usize] += 1;
-    //                         infix_storage.last_group = group_id;
-    //                         infix_storage.sigma = 1;
-    //                         infix_storage
-    //                     });
-    //             }
-    //         }
-    //     });
-    // }
+        (0..SIZE_T).into_par_iter().for_each(|i| {
+            let start = item_table.id_prefsum[i][path_id as usize] as usize;
+            let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
+            for j in start..end {
+                let k_plus_one_mer = item_table.items[i][j];
+                let infix = get_infix(k_plus_one_mer, k);
+                let first_nt = (k_plus_one_mer >> (2 * k)) as u64;
+                let last_nt = k_plus_one_mer & 0b11;
+                //println!("{}", bits2kmer(infix, k)); // Be sure that the first is an A
+                //println!("{}", bits2kmer(infix, k-1));
+                let combined_nt = ((first_nt << 2) | last_nt) as u8;
+                unsafe {
+                    (*infix_eq_tables_ptr.0)[i]
+                        .entry(infix)
+                        .and_modify(|infix_storage| {
+                            if infix_storage.last_group == group_id
+                                && infix_storage.last_edge != combined_nt
+                                && infix_storage.last_edge != 255
+                            {
+                                //if infix_storage.last_group == group_id && infix_storage.last_edge != 255 {
+                                infix_storage.edges[infix_storage.last_edge as usize] -= 1;
+                                infix_storage.last_edge = 255;
+                            } else if infix_storage.last_group != group_id {
+                                infix_storage.last_edge = combined_nt;
+                                infix_storage.edges[infix_storage.last_edge as usize] += 1;
+                                infix_storage.last_group = group_id;
+                                infix_storage.sigma += 1;
+                            }
+                        })
+                        .or_insert_with(|| {
+                            let mut infix_storage = InfixEqStorage::new();
+                            infix_storage.last_edge = combined_nt;
+                            infix_storage.edges[infix_storage.last_edge as usize] += 1;
+                            infix_storage.last_group = group_id;
+                            infix_storage.sigma = 1;
+                            infix_storage
+                        });
+                }
+            }
+        });
+    }
 
     fn coverage(
         countable: &mut Vec<CountSize>,
@@ -681,13 +691,13 @@ impl AbacusByTotal {
                 } else {
                     let mut data = bufreader_from_compressed_gfa(gfa_file);
                     let abacus =
-                        AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count_type);
+                        AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, count_type);
                     abaci.push(abacus);
                 }
             }
         } else {
             let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count);
+            let abacus = AbacusByTotal::from_gfa(&mut data, &abacus_aux, &graph_aux, count);
             abaci.push(abacus);
         }
         Ok(abaci)
@@ -793,13 +803,13 @@ impl<'a> AbacusByGroup<'a> {
         );
 
         Ok(Self {
-            count,
-            r,
-            v,
-            c,
+            count: count,
+            r: r,
+            v: v,
+            c: c,
             uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, graph_aux),
-            groups,
-            graph_aux,
+            groups: groups,
+            graph_aux: graph_aux,
         })
     }
 
@@ -835,9 +845,9 @@ impl<'a> AbacusByGroup<'a> {
         log::info!(" ++ assigning storage locations");
         let mut c = 0;
         // can this be simplified?
-        for item in &mut r {
-            let tmp = *item;
-            *item = c;
+        for i in 0..r.len() {
+            let tmp = r[i];
+            r[i] = c;
             c += tmp;
         }
         log::info!(
@@ -850,10 +860,10 @@ impl<'a> AbacusByGroup<'a> {
     fn compute_column_values(
         item_table: &ItemTable,
         path_order: &Vec<(ItemIdSize, GroupSize)>,
-        r: &[usize],
+        r: &Vec<usize>,
         report_values: bool,
     ) -> (Option<Vec<CountSize>>, Vec<GroupSize>) {
-        let n = { *r.last().unwrap() };
+        let n = *r.last().unwrap() as usize;
         log::info!("allocating storage for group-based coverage table..");
         let mut v = if report_values {
             vec![0; n]
@@ -983,18 +993,18 @@ impl<'a> AbacusByGroup<'a> {
         for x in self.r[1..].iter() {
             write!(out, "\t{}", x)?;
         }
-        writeln!(out)?;
+        writeln!(out, "")?;
         write!(out, "{}", self.c[0])?;
         for x in self.c[1..].iter() {
             write!(out, "\t{}", x)?;
         }
-        writeln!(out)?;
+        writeln!(out, "")?;
         if let Some(v) = &self.v {
             write!(out, "{}", v[0])?;
             for x in v[1..].iter() {
                 write!(out, "\t{}", x)?;
             }
-            writeln!(out)?;
+            writeln!(out, "")?;
         };
         Ok(())
     }
@@ -1018,7 +1028,7 @@ impl<'a> AbacusByGroup<'a> {
                         write!(out, "\t{}", group)?;
                     }
                 }
-                writeln!(out)?;
+                writeln!(out, "")?;
 
                 let mut it = self.r.iter().tuple_windows().enumerate();
                 // ignore first entry
@@ -1048,7 +1058,7 @@ impl<'a> AbacusByGroup<'a> {
                                 k += 1;
                             }
                         }
-                        writeln!(out)?;
+                        writeln!(out, "")?;
                     }
                 }
             }
@@ -1073,13 +1083,15 @@ impl<'a> AbacusByGroup<'a> {
                             write!(out, "\t{}", group)?;
                         }
                     }
-                    writeln!(out)?;
+                    writeln!(out, "")?;
 
                     let mut it = self.r.iter().tuple_windows().enumerate();
                     // ignore first entry
                     it.next();
                     for (i, (&start, &end)) in it {
                         let edge = id2edge[i];
+                        let start = start as usize;
+                        let end = end as usize;
                         write!(
                             out,
                             "{}{}{}{}",
@@ -1105,7 +1117,7 @@ impl<'a> AbacusByGroup<'a> {
                                     k += 1;
                                 }
                             }
-                            writeln!(out)?;
+                            writeln!(out, "")?;
                         }
                     }
                 }
