@@ -221,6 +221,9 @@ if __name__ == '__main__':
         skip_n = count_comments(f)
 
     df = clean_multicolumn_labels(pd.read_csv(args.stats, sep='\t', header=list(range(skip_n, skip_n + N_HEADERS)), index_col=[0]))
+    if df.columns[0][0] not in ['hist', 'growth', 'ordered-histgrowth']:
+        print('This script cannot visualize the content of this type of table, exiting.', file=stderr)
+        exit(1)
     df.columns = df.columns.map(lambda x: (x[0], x[1], x[2] and int(x[2]), x[3] and float(x[3])))
 
     n, m, non_cum_plots = get_subplot_dim(df)
@@ -261,9 +264,6 @@ if __name__ == '__main__':
                 if df_tc.index[0] == '0' and df_tc.loc['0'].isna().all():
                     df_tc.drop(['0'], inplace=True)
                 plot_growth(df_tc, axs_tc, loc=args.legend_location, estimate_growth=False)
-            else:
-                print(f'This script cannot visualize the content of type {t}, exiting.', file=stderr)
-                exit(1)
 
     plt.tight_layout()
     if not args.split_subfigures:
