@@ -829,7 +829,9 @@ impl fmt::Display for Info {
             self.path_info.node_len.shortest
         )?;
         if let Some(group_info) = &self.group_info {
-            for (k, v) in &group_info.groups {
+            let mut sorted: Vec<_> = group_info.groups.clone().into_iter().collect(); 
+            sorted.sort_by(|(k0, _v0), (k1, _v1)| k0.cmp(k1));
+            for (k, v) in sorted {
                 write!(f, "\ngroup\t{}\tbp\t{}\n", k, v.1)?;
                 write!(f, "group\t{}\tnode\t{}", k, v.0)?;
             }
