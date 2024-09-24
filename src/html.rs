@@ -7,6 +7,7 @@ use base64::{engine::general_purpose, Engine as _};
 use handlebars::Handlebars;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use thousands::Separable;
 use time::{macros::format_description, OffsetDateTime};
 
 use crate::graph::Info;
@@ -198,14 +199,14 @@ pub fn generate_info_tabs(info: Info) -> String {
   <thead>
     <tr>
       <th scope="col">category</th>
-      <th scope="col">type</th>
+      <th scope="col">countable</th>
       <th scope="col">value</th>
     </tr>
   </thead>
   <tbody class="table-group-divider">
     <tr>
       <td>total</td>
-      <td>nodes</td>
+      <td>node</td>
       <td>{{{node_count}}}</td>
     </tr>
     <tr>
@@ -250,15 +251,15 @@ pub fn generate_info_tabs(info: Info) -> String {
 </div>
 "##;
     let graph_vars = HashMap::from([
-        ("node_count", format!("{}", info.graph_info.node_count)),
-        ("basepairs", format!("{}", info.graph_info.basepairs)),
-        ("edge_count", format!("{}", info.graph_info.edge_count)),
-        ("no_paths", format!("{}", info.path_info.no_paths)),
-        ("no_groups", format!("{}", info.graph_info.group_count)),
-        ("components", format!("{}", info.graph_info.connected_components)),
+        ("node_count", info.graph_info.node_count.separate_with_commas()),
+        ("basepairs", info.graph_info.basepairs.separate_with_commas()),
+        ("edge_count", info.graph_info.edge_count.separate_with_commas()),
+        ("no_paths", info.path_info.no_paths.separate_with_commas()),
+        ("no_groups", info.graph_info.group_count.separate_with_commas()),
+        ("components", info.graph_info.connected_components.separate_with_commas()),
         (
             "number_0_degree",
-            format!("{}", info.graph_info.number_0_degree),
+            info.graph_info.number_0_degree.separate_with_commas(),
         ),
         ("is_first", String::from("true")),
     ]);
@@ -270,7 +271,7 @@ pub fn generate_info_tabs(info: Info) -> String {
   <thead>
     <tr>
       <th scope="col">category</th>
-      <th scope="col">type</th>
+      <th scope="col">countable</th>
       <th scope="col">value</th>
     </tr>
   </thead>
@@ -329,18 +330,18 @@ pub fn generate_info_tabs(info: Info) -> String {
     let node_vars = HashMap::from([
         (
             "average_degree",
-            format!("{}", info.graph_info.average_degree),
+            info.graph_info.average_degree.separate_with_commas(),
         ),
-        ("max_degree", format!("{}", info.graph_info.max_degree)),
-        ("min_degree", format!("{}", info.graph_info.min_degree)),
-        ("largest_node", format!("{}", info.graph_info.largest_node)),
+        ("max_degree", info.graph_info.max_degree.separate_with_commas()),
+        ("min_degree", info.graph_info.min_degree.separate_with_commas()),
+        ("largest_node", info.graph_info.largest_node.separate_with_commas()),
         (
             "shortest_node",
-            format!("{}", info.graph_info.shortest_node),
+            info.graph_info.shortest_node.separate_with_commas(),
         ),
-        ("average_node", format!("{}", info.graph_info.average_node)),
-        ("median_node", format!("{}", info.graph_info.median_node)),
-        ("n50_node", format!("{}", info.graph_info.n50_node)),
+        ("average_node", info.graph_info.average_node.separate_with_commas()),
+        ("median_node", info.graph_info.median_node.separate_with_commas()),
+        ("n50_node", info.graph_info.n50_node.separate_with_commas()),
     ]);
     tab_content.push_str(&reg.render_template(&node_info, &node_vars).unwrap());
 
@@ -350,7 +351,7 @@ pub fn generate_info_tabs(info: Info) -> String {
   <thead>
     <tr>
       <th scope="col">category</th>
-      <th scope="col">type</th>
+      <th scope="col">countable</th>
       <th scope="col">value</th>
     </tr>
   </thead>
@@ -397,18 +398,18 @@ pub fn generate_info_tabs(info: Info) -> String {
 </div>
 "##;
     let path_vars = HashMap::from([
-        ("longest_path", format!("{}", info.path_info.node_len.longest)),
+        ("longest_path", info.path_info.node_len.longest.separate_with_commas()),
         (
             "shortest_path",
-            format!("{}", info.path_info.node_len.shortest),
+            info.path_info.node_len.shortest.separate_with_commas(),
         ),
-        ("average_path", format!("{}", info.path_info.node_len.average)),
-        ("longest_path_bp", format!("{}", info.path_info.bp_len.longest)),
+        ("average_path", info.path_info.node_len.average.separate_with_commas()),
+        ("longest_path_bp", info.path_info.bp_len.longest.separate_with_commas()),
         (
             "shortest_path_bp",
-            format!("{}", info.path_info.bp_len.shortest),
+            info.path_info.bp_len.shortest.separate_with_commas(),
         ),
-        ("average_path_bp", format!("{}", info.path_info.bp_len.average)),
+        ("average_path_bp", info.path_info.bp_len.average.separate_with_commas()),
     ]);
     tab_content.push_str(&reg.render_template(&path_info, &path_vars).unwrap());
 

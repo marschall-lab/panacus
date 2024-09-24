@@ -250,8 +250,8 @@ impl GraphAuxilliary {
         GroupInfo { groups: group_map }
     }
 
-    fn connected_components(&self) -> u32 {
-        let mut component_count = 0;
+    fn connected_components(&self) -> Vec<u32> {
+        let mut component_lengths = Vec::new();
         let mut visited: HashSet<ItemId> = HashSet::new();
         let edges: HashMap<ItemId, Vec<ItemId>> = match &self.edge2id {
             Some(edge_map) => edge_map.keys().map(|x| (x.0, x.2))
@@ -266,15 +266,15 @@ impl GraphAuxilliary {
         let nodes: Vec<ItemId> = self.node2id.values().copied().collect();
         for node in &nodes {
             if !visited.contains(node) {
-                Self::dfs(&edges, *node, &mut visited);
-                component_count += 1;
+                component_lengths.push(Self::dfs(&edges, *node, &mut visited));
             }
         }
-        component_count
+        component_lengths
     }
 
-    fn dfs(edges: &HashMap<ItemId, Vec<ItemId>>, node: ItemId, visited: &mut HashSet<ItemId>) {
+    fn dfs(edges: &HashMap<ItemId, Vec<ItemId>>, node: ItemId, visited: &mut HashSet<ItemId>) -> u32 {
         let mut s = Vec::new();
+        let mut length = 0;
         s.push(node);
         while !s.is_empty() {
             let v = s.pop().unwrap();
@@ -282,6 +282,7 @@ impl GraphAuxilliary {
                 continue;
             }
             visited.insert(v);
+            length += 1;
             if !edges.contains_key(&v) {
                 continue;
             }
@@ -291,12 +292,15 @@ impl GraphAuxilliary {
                 }
             }
         }
+        length
     }
 
     pub fn graph_info(&self, groups: &HashMap<PathSegment, String>) -> GraphInfo {
         let degree = self.degree.as_ref().unwrap();
         let mut node_lens_sorted = self.node_lens[1..].to_vec();
         node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
+        let mut components = self.connected_components();
+        components.sort();
 
         GraphInfo {
             node_count: self.node_count,
@@ -305,7 +309,10 @@ impl GraphAuxilliary {
             max_degree: *degree[1..].iter().max().unwrap(),
             min_degree: *degree[1..].iter().min().unwrap(),
             number_0_degree: degree[1..].iter().filter(|&x| *x == 0).count(),
-            connected_components: self.connected_components(),
+            connected_components: components.len() as u32,
+            largest_component: *components.iter().max().unwrap_or(&0),
+            smallest_component: *components.iter().min().unwrap_or(&0),
+            median_component: median_already_sorted(&components),
             largest_node: *node_lens_sorted.iter().max().unwrap(),
             shortest_node: *node_lens_sorted.iter().min().unwrap(),
             average_node: averageu32(&node_lens_sorted),
@@ -702,6 +709,9 @@ pub struct GraphInfo {
     pub min_degree: u32,
     pub number_0_degree: usize,
     pub connected_components: u32,
+    pub largest_component: u32,
+    pub smallest_component: u32,
+    pub median_component: f64,
     pub largest_node: u32,
     pub shortest_node: u32,
     pub average_node: f32,
@@ -735,6 +745,7 @@ pub struct Info {
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "feature\tcategory\tcountable\tvalue\n");
         write!(
             f,
             "graph\ttotal\tnode\t{}\n",
