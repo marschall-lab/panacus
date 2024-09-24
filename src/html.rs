@@ -663,24 +663,18 @@ fn get_info_js_object(info: &Info) -> String {
     let mut js_objects = String::new();
 
     js_objects.push_str("const groups = [\n");
-    let nodes = info
-        .group_info
-        .as_ref()
-        .unwrap()
-        .groups
-        .values()
-        .map(|x| x.0)
-        .collect::<Vec<_>>();
-    let bps = info
-        .group_info
-        .as_ref()
-        .unwrap()
-        .groups
-        .values()
-        .map(|x| x.1)
-        .collect::<Vec<_>>();
 
-    if nodes.len() >= 100 {
+    let groups = &info.group_info.as_ref().unwrap().groups;
+
+    if groups.len() >= 100 {
+        let nodes = groups
+            .values()
+            .map(|x| x.0)
+            .collect::<Vec<_>>();
+        let bps = groups
+            .values()
+            .map(|x| x.1)
+            .collect::<Vec<_>>();
         let binned_nodes = bin_values(&nodes);
         let binned_bps = bin_values(&bps);
         js_objects.push_str(&format!(
@@ -693,13 +687,11 @@ fn get_info_js_object(info: &Info) -> String {
             binned_bps.0, binned_bps.1,
         ));
     } else {
-        let group_names = info
-            .group_info
-            .as_ref()
-            .unwrap()
-            .groups
-            .keys()
-            .collect::<Vec<_>>();
+        let mut sorted_groups: Vec<_> = groups.clone().into_iter().collect();
+        sorted_groups.sort_by(|(k0, _v0), (k1, _v1)| k0.cmp(k1));
+        let group_names: Vec<_> = sorted_groups.iter().map(|(k, _v)| k).collect();
+        let nodes: Vec<_> = sorted_groups.iter().map(|(_k, v)| v.0).collect();
+        let bps: Vec<_> = sorted_groups.iter().map(|(_k, v)| v.1).collect();
         js_objects.push_str(&format!(
             "new Group('node', {:?}, {:?}, false)",
             group_names, nodes,
