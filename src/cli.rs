@@ -780,7 +780,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-                    write_hist_html(&hists, &filename, Some(info), out)?
+                    write_hist_html(&hists, filename, Some(info), out)?
                 }
             };
         }
@@ -841,7 +841,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                             groupby_haplotype,
                             groupby_sample,
                             ..
-                        } => groupby != "" || groupby_haplotype || groupby_sample,
+                        } => !groupby.is_empty() || groupby_haplotype || groupby_sample,
                         _ => false,
                     };
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
@@ -850,7 +850,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 OutputFormat::Html => {
                     let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
                     let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-                    write_info_html(&filename, info, out)?
+                    write_info_html(filename, info, out)?
                 }
             };
         }

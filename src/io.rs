@@ -116,7 +116,8 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment
     for (i, row) in reader.enumerate() {
         let row = row.unwrap();
         let mut row_it = row.bytes_columns();
-        let path_seg = PathSegment::from_str(str::from_utf8(row_it.next().unwrap()).unwrap());
+        let path_seg =
+            PathSegment::from_str(str::from_utf8(row_it.next().unwrap()).unwrap());
         if let Some(col) = row_it.next() {
             res.push((path_seg, str::from_utf8(col).unwrap().to_string()));
         } else {
@@ -165,21 +166,21 @@ pub fn parse_tsv<R: Read>(
     Ok((comments, table))
 }
 
-fn transpose_table(table: &[Vec<Vec<u8>>]) -> Vec<Vec<&[u8]>> {
+fn transpose_table(table: &Vec<Vec<Vec<u8>>>) -> Vec<Vec<&[u8]>> {
     let n = table.first().unwrap_or(&Vec::new()).len();
 
     let mut res = vec![vec![&table[0][0][..]; table.len()]; n];
 
     for j in 0..n {
-        for (i, row) in table.iter().enumerate() {
-            res[j][i] = &row[j][..];
+        for i in 0..table.len() {
+            res[j][i] = &table[i][j][..];
         }
     }
 
     res
 }
 
-fn parse_column(col: &[&[u8]], offset: usize) -> Result<Vec<usize>, Error> {
+fn parse_column(col: &Vec<&[u8]>, offset: usize) -> Result<Vec<usize>, Error> {
     let skip_lines = 2;
     let mut res = vec![0; col.len() - skip_lines];
 
@@ -358,12 +359,8 @@ fn parse_walk_seq_to_item_vec(
             } else {
                 let i = x.iter().position(|z| &s2 == z).unwrap_or(x.len());
                 let sid = (
-                    *graph_aux.node2id.get(&x[..i]).unwrap_or_else(|| {
-                        panic!(
-                            "walk contains unknown node {{{}}}'",
-                            str::from_utf8(&x[..i]).unwrap()
-                        )
-                    }),
+                    *graph_aux.node2id.get(&x[..i]).unwrap_or_else(|| panic!("walk contains unknown node {{{}}}'",
+                        str::from_utf8(&x[..i]).unwrap())),
                     s1,
                 );
                 if i < x.len() {
@@ -381,12 +378,8 @@ fn parse_walk_seq_to_item_vec(
                                         vec![]
                                     } else {
                                         vec![(
-                                            *graph_aux.node2id.get(y).unwrap_or_else(|| {
-                                                panic!(
-                                                    "walk contains unknown node {{{}}}",
-                                                    str::from_utf8(y).unwrap()
-                                                )
-                                            }),
+                                            *graph_aux.node2id.get(y).unwrap_or_else(|| panic!("walk contains unknown node {{{}}}",
+                                                str::from_utf8(y).unwrap())),
                                             s2,
                                         )]
                                     }
@@ -438,12 +431,10 @@ fn parse_walk_seq_update_tables(
     data[1..end]
         .par_split(|&x| x == b'>' || x == b'<')
         .for_each(|node| {
-            let sid = *graph_aux
-                .node2id
-                .get(node)
-                .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
+            let sid = *graph_aux.node2id.get(node).unwrap_or_else(|| panic!("unknown node {}",
+                str::from_utf8(node).unwrap()));
             let idx = (sid.0 as usize) % SIZE_T;
-            if mutex_vec[idx].lock().is_ok() {
+            if let Ok(_) = mutex_vec[idx].lock() {
                 unsafe {
                     (*items_ptr.0)[idx].push(sid.0);
                     (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
@@ -494,12 +485,8 @@ fn parse_path_seq_to_item_vec(
             let sid = *graph_aux
                 .node2id
                 .get(&node[..node.len() - 1])
-                .unwrap_or_else(|| {
-                    panic!(
-                        "unknown node {}",
-                        str::from_utf8(&node[..node.len() - 1]).unwrap()
-                    )
-                });
+                .unwrap_or_else(|| panic!("unknown node {}",
+                    str::from_utf8(&node[..node.len() - 1]).unwrap()));
             (sid, Orientation::from_pm(node[node.len() - 1]))
         })
         .collect();
@@ -525,8 +512,9 @@ pub fn subset_path_gfa<R: Read>(
             let (path_seg, buf_path_seg) = parse_path_identifier(&buf);
             let sids = parse_path_seq_to_item_vec(buf_path_seg, graph_aux);
             //parse_path_seq_update_tables
-            for (item_id, ori) in &sids {
-                let sid = item_id.0 as usize;
+            for i in 0..sids.len() {
+                let sid = sids[i].0 .0 as usize;
+                let ori = sids[i].1;
                 let counts = abacus.countable[sid];
                 if counts >= flt_quorum_min
                     && counts <= flt_quorum_max
@@ -539,7 +527,7 @@ pub fn subset_path_gfa<R: Read>(
                         print!("P\t{}\t", path_seg);
                     }
                     comma = true;
-                    print!("{}{}", sid, ori.to_pm());
+                    print!("{}{}", sid, ori.to_pm() as char);
                 }
             }
             if comma {
@@ -587,7 +575,8 @@ fn parse_path_seq_update_tables(
         let sid = *graph_aux
             .node2id
             .get(&node[0..node.len() - 1])
-            .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
+            .unwrap_or_else(|| panic!("unknown node {}",
+                str::from_utf8(node).unwrap()));
         let o = node[node.len() - 1];
         assert!(
             o == b'-' || o == b'+',
@@ -598,7 +587,7 @@ fn parse_path_seq_update_tables(
 
         let idx = (sid.0 as usize) % SIZE_T;
 
-        if mutex_vec[idx].lock().is_ok() {
+        if let Ok(_) = mutex_vec[idx].lock() {
             unsafe {
                 (*items_ptr.0)[idx].push(sid.0);
                 (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
@@ -714,7 +703,7 @@ pub fn parse_graph_aux<R: Read>(
 
 // pub fn parse_cdbg_gfa_paths_walks<R: Read>(
 //     data: &mut BufReader<R>,
-//     _abacus_aux: &AbacusAuxilliary,
+//     abacus_aux: &AbacusAuxilliary,
 //     graph_aux: &GraphAuxilliary,
 //     k: usize,
 // ) -> ItemTable {
@@ -877,7 +866,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     ),
                     _ => unreachable!(),
                 };
-                paths_len.insert(path_seg, (num_added_nodes as u32, bp_len));
+                paths_len.insert(path_seg, (num_added_nodes, bp_len));
             } else {
                 let sids = match buf[0] {
                     b'P' => parse_path_seq_to_item_vec(buf_path_seg, graph_aux),
@@ -1108,17 +1097,13 @@ fn update_tables_edgecount(
             .as_ref()
             .expect("update_tables_edgecount requires edge2id map in GraphAuxilliary")
             .get(&e)
-            .unwrap_or_else(|| {
-                panic!(
-                    "unknown edge {}. Is flipped edge known? {}",
-                    &e,
-                    if graph_aux.edge2id.as_ref().unwrap().contains_key(&e.flip()) {
-                        "Yes"
-                    } else {
-                        "No"
-                    }
-                )
-            });
+            .unwrap_or_else(|| panic!("unknown edge {}. Is flipped edge known? {}",
+                &e,
+                if graph_aux.edge2id.as_ref().unwrap().contains_key(&e.flip()) {
+                    "Yes"
+                } else {
+                    "No"
+                }));
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 < p + l {
             let idx = (eid.0 as usize) % SIZE_T;
@@ -1141,26 +1126,26 @@ fn update_tables_edgecount(
 }
 
 pub fn write_table<W: Write>(
-    headers: &[Vec<String>],
+    headers: &Vec<Vec<String>>,
     columns: &Vec<Vec<f64>>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
 
     for i in 0..n {
-        for (j, header) in headers.iter().enumerate() {
+        for j in 0..headers.len() {
             if j > 0 {
                 write!(out, "\t")?;
             }
-            write!(out, "{:0}", header[i])?;
+            write!(out, "{:0}", headers[j][i])?;
         }
         writeln!(out)?;
     }
     let n = columns.first().unwrap_or(&Vec::new()).len();
     for i in 0..n {
         write!(out, "{}", i)?;
-        for column in columns {
-            write!(out, "\t{:0}", column[i].floor())?;
+        for j in 0..columns.len() {
+            write!(out, "\t{:0}", columns[j][i].floor())?;
         }
         writeln!(out)?;
     }
@@ -1169,19 +1154,19 @@ pub fn write_table<W: Write>(
 }
 
 pub fn write_ordered_table<W: Write>(
-    headers: &[Vec<String>],
+    headers: &Vec<Vec<String>>,
     columns: &Vec<Vec<f64>>,
-    index: &[String],
+    index: &Vec<String>,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
 
     for i in 0..n {
-        for (j, header) in headers.iter().enumerate() {
+        for j in 0..headers.len() {
             if j > 0 {
                 write!(out, "\t")?;
             }
-            write!(out, "{:0}", header[i])?;
+            write!(out, "{:0}", headers[j][i])?;
         }
         writeln!(out)?;
     }
@@ -1264,7 +1249,7 @@ pub fn write_histgrowth_table<W: Write>(
                 .zip(hist_aux.coverage.iter())
                 .zip(&hist_aux.quorum)
                 .map(|(((p, t), c), q)| {
-                    vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
+                    vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
                 }),
         );
     }
@@ -1325,7 +1310,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
             .zip(hist_aux.coverage.iter())
             .zip(&hist_aux.quorum)
             .map(|(((p, t), c), q)| {
-                vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
+                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
             })
             .collect::<Vec<Vec<String>>>(),
     );
@@ -1363,7 +1348,11 @@ pub fn write_ordered_histgrowth_html<W: Write>(
         &None,
         &[(count, growths)],
         hist_aux,
-        Path::new(gfa_file).file_name().unwrap().to_str().unwrap(),
+        Path::new(gfa_file)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap(),
         Some(&abacus_group.groups),
         info,
         out,
