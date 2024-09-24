@@ -294,8 +294,8 @@ impl GraphAuxilliary {
         let mut s = Vec::new();
         let mut length = 0;
         s.push(node);
-        while !s.is_empty() {
-            let v = s.pop().unwrap();
+        while let Some(v) = s.pop() {
+            
             if visited.contains(&v) {
                 continue;
             }
@@ -763,64 +763,64 @@ pub struct Info {
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "feature\tcategory\tcountable\tvalue\n")?;
-        write!(f, "graph\ttotal\tnode\t{}\n", self.graph_info.node_count)?;
-        write!(f, "graph\ttotal\tbp\t{}\n", self.graph_info.basepairs)?;
-        write!(f, "graph\ttotal\tedge\t{}\n", self.graph_info.edge_count)?;
-        write!(f, "graph\ttotal\tpath\t{}\n", self.path_info.no_paths)?;
-        write!(f, "graph\ttotal\tgroup\t{}\n", self.graph_info.group_count)?;
-        write!(
+        writeln!(f, "feature\tcategory\tcountable\tvalue")?;
+        writeln!(f, "graph\ttotal\tnode\t{}", self.graph_info.node_count)?;
+        writeln!(f, "graph\ttotal\tbp\t{}", self.graph_info.basepairs)?;
+        writeln!(f, "graph\ttotal\tedge\t{}", self.graph_info.edge_count)?;
+        writeln!(f, "graph\ttotal\tpath\t{}", self.path_info.no_paths)?;
+        writeln!(f, "graph\ttotal\tgroup\t{}", self.graph_info.group_count)?;
+        writeln!(
             f,
-            "graph\ttotal\t0-degree node\t{}\n",
+            "graph\ttotal\t0-degree node\t{}",
             self.graph_info.number_0_degree
         )?;
-        write!(
+        writeln!(
             f,
-            "graph\ttotal\tcomponent\t{}\n",
+            "graph\ttotal\tcomponent\t{}",
             self.graph_info.connected_components
         )?;
-        write!(
+        writeln!(
             f,
-            "graph\tlargest\tcomponent\t{}\n",
+            "graph\tlargest\tcomponent\t{}",
             self.graph_info.largest_component
         )?;
-        write!(
+        writeln!(
             f,
-            "graph\tsmallest\tcomponent\t{}\n",
+            "graph\tsmallest\tcomponent\t{}",
             self.graph_info.smallest_component
         )?;
-        write!(
+        writeln!(
             f,
-            "graph\tmedian\tcomponent\t{}\n",
+            "graph\tmedian\tcomponent\t{}",
             self.graph_info.median_component
         )?;
-        write!(f, "node\taverage\tbp\t{}\n", self.graph_info.average_node)?;
-        write!(
+        writeln!(f, "node\taverage\tbp\t{}", self.graph_info.average_node)?;
+        writeln!(
             f,
-            "node\taverage\tdegree\t{}\n",
+            "node\taverage\tdegree\t{}",
             self.graph_info.average_degree
         )?;
-        write!(f, "node\tlongest\tbp\t{}\n", self.graph_info.largest_node)?;
-        write!(f, "node\tshortest\tbp\t{}\n", self.graph_info.shortest_node)?;
-        write!(f, "node\tmedian\tbp\t{}\n", self.graph_info.median_node)?;
-        write!(f, "node\tN50 node\tbp\t{}\n", self.graph_info.n50_node)?;
-        write!(f, "node\tmax\tdegree\t{}\n", self.graph_info.max_degree)?;
-        write!(f, "node\tmin\tdegree\t{}\n", self.graph_info.min_degree)?;
-        write!(f, "path\taverage\tbp\t{}\n", self.path_info.bp_len.average)?;
-        write!(
+        writeln!(f, "node\tlongest\tbp\t{}", self.graph_info.largest_node)?;
+        writeln!(f, "node\tshortest\tbp\t{}", self.graph_info.shortest_node)?;
+        writeln!(f, "node\tmedian\tbp\t{}", self.graph_info.median_node)?;
+        writeln!(f, "node\tN50 node\tbp\t{}", self.graph_info.n50_node)?;
+        writeln!(f, "node\tmax\tdegree\t{}", self.graph_info.max_degree)?;
+        writeln!(f, "node\tmin\tdegree\t{}", self.graph_info.min_degree)?;
+        writeln!(f, "path\taverage\tbp\t{}", self.path_info.bp_len.average)?;
+        writeln!(
             f,
-            "path\taverage\tnode\t{}\n",
+            "path\taverage\tnode\t{}",
             self.path_info.node_len.average
         )?;
-        write!(f, "path\tlongest\tbp\t{}\n", self.path_info.bp_len.longest)?;
-        write!(
+        writeln!(f, "path\tlongest\tbp\t{}", self.path_info.bp_len.longest)?;
+        writeln!(
             f,
-            "path\tlongest\tnode\t{}\n",
+            "path\tlongest\tnode\t{}",
             self.path_info.node_len.longest
         )?;
-        write!(
+        writeln!(
             f,
-            "path\tshortest\tbp\t{}\n",
+            "path\tshortest\tbp\t{}",
             self.path_info.bp_len.shortest
         )?;
         write!(

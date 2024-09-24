@@ -513,7 +513,7 @@ pub fn generate_info_tabs(info: Info) -> String {
                 .iter()
                 .map(|(k, v)| {
                     HashMap::from([
-                        ("name", format!("{}", k)),
+                        ("name", k.to_string()),
                         ("node_len", format!("{}", v.0)),
                         ("bp_len", format!("{}", v.1)),
                     ])
@@ -522,7 +522,7 @@ pub fn generate_info_tabs(info: Info) -> String {
             None => Vec::new(),
         },
     )]);
-    tab_content.push_str(&reg.render_template(&group_info, &group_vars).unwrap());
+    tab_content.push_str(&reg.render_template(group_info, &group_vars).unwrap());
 
     let container = r##"<div class="container p-5">
 	<nav>
@@ -602,7 +602,7 @@ pub fn write_hist_html<W: Write>(
     js_objects.push_str("`;\n");
 
     if let Some(info_obj) = &info {
-        let info_object = get_info_js_object(&info_obj);
+        let info_object = get_info_js_object(info_obj);
         js_objects.push_str(&info_object[..]);
     }
 
@@ -743,7 +743,7 @@ instantly aggregated statistical or similarity measures, humans otent w-100" id=
     vars.insert(
         "content",
         reg.render_template(
-            &content,
+            content,
             &HashMap::from([("info_content", generate_info_tabs(info))]),
         )
         .unwrap(),
@@ -883,7 +883,7 @@ pub fn write_histgrowth_html<W: Write>(
     js_objects.push_str("`;\n");
 
     if let Some(info_obj) = &info {
-        let info_object = get_info_js_object(&info_obj);
+        let info_object = get_info_js_object(info_obj);
         js_objects.push_str(&info_object[..]);
     }
 
