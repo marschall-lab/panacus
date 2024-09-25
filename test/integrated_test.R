@@ -9,8 +9,10 @@ dir.create(folder_out, showWarnings=F,recursive=T)
 
 ### Datasets
 #--------------------------------------------------------------------------------
-gfa_chrM =  list(file="chrM_test.gfa", short="chrM")
-# this needs to be downloaded
+gfa_chrM = list(file="chrM_test.gfa", short="chrM")
+
+# gfa_chr22 needs to be downloaded (402 MB)
+# https://media.githubusercontent.com/media/lucaparmigiani/chr22.hprc-v1.0-pggb.gfa.gz/refs/heads/main/chr22.hprc-v1.0-pggb.gfa.gz
 #gfa_chr22 = list(file="chr22.hprc-v1.0-pggb.gfa.gz", short="chr22")
 
 ### General functions 
