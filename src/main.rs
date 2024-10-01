@@ -10,6 +10,7 @@ mod hist;
 mod html;
 mod io;
 mod util;
+mod analysis;
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
