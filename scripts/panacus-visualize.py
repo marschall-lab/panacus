@@ -221,10 +221,11 @@ if __name__ == '__main__':
         skip_n = count_comments(f)
 
     df = clean_multicolumn_labels(pd.read_csv(args.stats, sep='\t', header=list(range(skip_n, skip_n + N_HEADERS)), index_col=[0]))
-    if df.columns[0][0] not in ['hist', 'growth', 'ordered-histgrowth']:
+    print("test", df.columns[0][0], file=stderr)
+    if df.columns[0][0] not in ['hist', 'growth', 'ordered-growth']:
         print('This script cannot visualize the content of this type of table, exiting.', file=stderr)
         exit(1)
-    df.columns = df.columns.map(lambda x: (x[0], x[1], x[2] and int(x[2]), x[3] and float(x[3])))
+    df.columns = df.columns.map(lambda x: (x[0], x[1], x[2] and int(x[2].replace("A", "")), x[3] and float(x[3].replace("R", ""))))
 
     n, m, non_cum_plots = get_subplot_dim(df)
     # setup fancy plot look
