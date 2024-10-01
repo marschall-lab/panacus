@@ -247,6 +247,9 @@ impl GraphAuxilliary {
     ) -> GroupInfo {
         let mut group_map: HashMap<String, (u32, u32)> = HashMap::new();
         for (k, v) in paths_len {
+            if !groups.contains_key(k) {
+                continue;
+            }
             let group = groups[k].clone();
             let tmp = group_map.entry(group).or_insert((0, 0));
             tmp.0 += v.0;
