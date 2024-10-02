@@ -4,6 +4,7 @@ use std::time::Instant;
 
 /* private use */
 mod abacus;
+mod analyses;
 mod analysis;
 mod cli;
 mod data_manager;
@@ -21,11 +22,11 @@ fn main() -> Result<(), std::io::Error> {
     let mut out = std::io::BufWriter::new(std::io::stdout());
 
     // read parameters and store them in memory
-    let params = cli::read_params();
-    cli::set_number_of_threads(&params);
+    // let params = cli::read_params();
+    // cli::set_number_of_threads(&params);
 
     // ride on!
-    cli::run(params, &mut out)?;
+    cli::run(&mut out)?;
 
     // clean up & close down
     out.flush()?;

@@ -8,7 +8,7 @@ use handlebars::Handlebars;
 use thousands::Separable;
 use time::{macros::format_description, OffsetDateTime};
 
-use crate::graph::Info;
+use crate::analyses::info::Info;
 /* internal use */
 use crate::hist::*;
 use crate::util::*;

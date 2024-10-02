@@ -16,6 +16,7 @@ use strum_macros::{EnumString, EnumVariantNames};
 
 /* internal use */
 use crate::abacus::*;
+use crate::analyses::info::Info;
 use crate::graph::*;
 use crate::hist::*;
 use crate::html::*;
@@ -1291,14 +1292,14 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-pub fn write_info<W: Write>(info: Info, out: &mut BufWriter<W>) -> Result<(), Error> {
+pub fn write_text<W: Write>(text: &str, out: &mut BufWriter<W>) -> Result<(), Error> {
     log::info!("reporting graph info table");
     writeln!(
         out,
         "# {}",
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
-    writeln!(out, "{}", info)
+    writeln!(out, "{}", text)
 }
 
 pub fn write_ordered_histgrowth_table<W: Write>(

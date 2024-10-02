@@ -9,7 +9,6 @@ use std::iter::FromIterator;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use strum::IntoEnumIterator;
 
 /* private use */
 use crate::cli::Params;
@@ -17,6 +16,30 @@ use crate::graph::*;
 use crate::io::*;
 use crate::util::*;
 
+#[derive(Debug)]
+pub struct ViewParams {
+    pub positive_list: String,
+    pub negative_list: String,
+    pub groupby: String,
+    pub groupby_sample: bool,
+    pub groupby_haplotype: bool,
+    pub order: Option<String>,
+}
+
+impl ViewParams {
+    pub fn default() -> Self {
+        Self {
+            positive_list: "".to_owned(),
+            negative_list: "".to_owned(),
+            groupby: "".to_owned(),
+            groupby_sample: false,
+            groupby_haplotype: false,
+            order: None,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct AbacusAuxilliary {
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
@@ -25,6 +48,98 @@ pub struct AbacusAuxilliary {
 }
 
 impl AbacusAuxilliary {
+    pub fn from_datamgr(params: &ViewParams, graph_aux: &GraphAuxilliary) -> Result<Self, Error> {
+        let groups = AbacusAuxilliary::load_groups(
+            &params.groupby,
+            params.groupby_haplotype,
+            params.groupby_sample,
+            graph_aux,
+        )?;
+        let include_coords = AbacusAuxilliary::complement_with_group_assignments(
+            AbacusAuxilliary::load_coord_list(&params.positive_list)?,
+            &groups,
+        )?;
+        let exclude_coords = AbacusAuxilliary::complement_with_group_assignments(
+            AbacusAuxilliary::load_coord_list(&params.negative_list)?,
+            &groups,
+        )?;
+
+        let order = if let Some(order) = &params.order {
+            let maybe_order = AbacusAuxilliary::complement_with_group_assignments(
+                AbacusAuxilliary::load_coord_list(&order)?,
+                &groups,
+            )?;
+            if let Some(o) = &maybe_order {
+                // if order is given, check that it comprises all included coords
+                let all_included_paths: Vec<PathSegment> = match &include_coords {
+                    None => {
+                        let exclude: HashSet<&PathSegment> = match &exclude_coords {
+                            Some(e) => e.iter().collect(),
+                            None => HashSet::new(),
+                        };
+                        graph_aux
+                            .path_segments
+                            .iter()
+                            .filter_map(|x| {
+                                if !exclude.contains(x) {
+                                    Some(x.clear_coords())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    }
+                    Some(include) => include.iter().map(|x| x.clear_coords()).collect(),
+                };
+                let order_set: HashSet<&PathSegment> = HashSet::from_iter(o.iter());
+
+                for p in all_included_paths.iter() {
+                    if !order_set.contains(p) {
+                        let msg =
+                            format!("order list does not contain information about path {}", p);
+                        log::error!("{}", &msg);
+                        // let's not be that harsh, shall we?
+                        // return Err(Error::new( ErrorKind::InvalidData, msg));
+                    }
+                }
+
+                // check that groups are not scrambled in include
+                let mut visited: HashSet<&str> = HashSet::new();
+                let mut cur: &str = groups.get(&o[0]).unwrap();
+                for p in o.iter() {
+                    let g: &str = groups.get(p).unwrap();
+                    if cur != g && !visited.insert(g) {
+                        let msg = format!("order of paths contains fragmented groups: path {} belongs to group that is interspersed by one or more other groups", p);
+                        log::error!("{}", &msg);
+                        return Err(Error::new(ErrorKind::InvalidData, msg));
+                    }
+                    cur = g;
+                }
+            }
+            maybe_order
+        } else {
+            None
+        };
+
+        //let n_groups = HashSet::<&String>::from_iter(groups.values()).len();
+        //if n_groups > 65534 {
+        //    return Err(Error::new(
+        //        ErrorKind::Unsupported,
+        //        format!(
+        //            "data has {} path groups, but command is not supported for more than 65534",
+        //            n_groups
+        //        ),
+        //    ));
+        //}
+
+        Ok(AbacusAuxilliary {
+            groups,
+            include_coords,
+            exclude_coords,
+            order,
+        })
+    }
+
     pub fn from_params(params: &Params, graph_aux: &GraphAuxilliary) -> Result<Self, Error> {
         match params {
             Params::Histgrowth {
@@ -439,16 +554,19 @@ impl AbacusByTotal {
         abacus_aux: &AbacusAuxilliary,
         graph_aux: &GraphAuxilliary,
         count: CountType,
-    ) -> Self {
-        let (item_table, exclude_table, subset_covered_bps, _paths_len) =
+    ) -> (Self, HashMap<PathSegment, (u32, u32)>) {
+        let (item_table, exclude_table, subset_covered_bps, paths_len) =
             parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
-        Self::item_table_to_abacus(
-            abacus_aux,
-            graph_aux,
-            count,
-            item_table,
-            exclude_table,
-            subset_covered_bps,
+        (
+            Self::item_table_to_abacus(
+                abacus_aux,
+                graph_aux,
+                count,
+                item_table,
+                exclude_table,
+                subset_covered_bps,
+            ),
+            paths_len,
         )
     }
 
@@ -668,21 +786,21 @@ impl AbacusByTotal {
         abacus_aux: &AbacusAuxilliary,
     ) -> Result<Vec<Self>, Error> {
         let mut abaci = Vec::new();
-        if let CountType::All = count {
-            for count_type in CountType::iter() {
-                if let CountType::All = count_type {
-                } else {
-                    let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let abacus =
-                        AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count_type);
-                    abaci.push(abacus);
-                }
-            }
-        } else {
-            let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count);
-            abaci.push(abacus);
-        }
+        // if let CountType::All = count {
+        //     for count_type in CountType::iter() {
+        //         if let CountType::All = count_type {
+        //         } else {
+        //             let mut data = bufreader_from_compressed_gfa(gfa_file);
+        //             let abacus =
+        //                 AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count_type);
+        //             abaci.push(abacus);
+        //         }
+        //     }
+        // } else {
+        //     let mut data = bufreader_from_compressed_gfa(gfa_file);
+        //     let abacus = AbacusByTotal::from_gfa(&mut data, abacus_aux, graph_aux, count);
+        //     abaci.push(abacus);
+        // }
         Ok(abaci)
     }
 
@@ -1190,7 +1308,7 @@ mod tests {
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
-        let abacus_by_total =
+        let (abacus_by_total, _paths_len) =
             AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
         assert_eq!(
             abacus_by_total.count, test_abacus_by_total.count,
@@ -1405,7 +1523,7 @@ mod tests {
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
-        let abacus_by_total =
+        let (abacus_by_total, _paths_len) =
             AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
         assert_eq!(
             abacus_by_total.count, test_abacus_by_total.count,
@@ -1653,7 +1771,8 @@ mod tests {
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
-        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+        let (abacus_by_total, _paths_len) =
+            AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
         assert_eq!(
             abacus_by_total.count, test_abacus_by_total.count,
             "Expected CountType to match Edge"
@@ -1849,7 +1968,8 @@ mod tests {
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
-        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+        let (abacus_by_total, _paths_len) =
+            AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
         assert_eq!(
             abacus_by_total.count, test_abacus_by_total.count,
             "Expected CountType to match Edge"

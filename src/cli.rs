@@ -7,13 +7,14 @@ use std::path::Path;
 use std::str::FromStr;
 
 /* external crate */
-use clap::{crate_version, Parser, Subcommand};
+use clap::{crate_version, Command, Parser, Subcommand};
 use rayon::prelude::*;
 use strum::VariantNames;
 
 /* private use */
 use crate::abacus::*;
-use crate::analysis::InputRequirement;
+use crate::analyses::info::Info;
+use crate::analyses::{Analysis, InputRequirement};
 use crate::data_manager::DataManager;
 use crate::graph::*;
 use crate::hist::*;
@@ -45,18 +46,6 @@ macro_rules! clap_enum_variants_no_all {
         clap::builder::PossibleValuesParser::new(<$e>::VARIANTS.iter().filter(|&x| x != &"all"))
             .map(|s| s.parse::<$e>().unwrap())
     }};
-}
-
-#[derive(Parser, Debug)]
-#[clap(
-    version = crate_version!(),
-    author = "Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>",
-    about = "Calculate count statistics for pangenomic data"
-)]
-
-struct Command {
-    #[clap(subcommand)]
-    cmd: Params,
 }
 
 #[derive(Subcommand, Debug)]
@@ -104,7 +93,10 @@ pub enum Params {
             help = "Merge counts from paths belonging to same sample"
         )]
         groupby_sample: bool,
-        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", default_value = "table", ignore_case = true, value_parser = clap_enum_variants!(OutputFormat),)]
+        #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", 
+            default_value = "table", 
+            ignore_case = true, 
+            value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
         #[clap(
             short,
@@ -502,10 +494,6 @@ impl Params {
     }
 }
 
-pub fn read_params() -> Params {
-    Command::parse().cmd
-}
-
 pub fn parse_threshold_cli(
     threshold_str: &str,
     require: RequireThreshold,
@@ -600,290 +588,268 @@ pub fn validate_single_groupby_option(
     Ok(())
 }
 
-pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error> {
-    if let Params::Histgrowth {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
+pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
+    let matches = Command::new("")
+        .version(crate_version!())
+        .author("Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>")
+        .about("Calculate count statistics for pangenomic data")
+        .subcommand(Info::get_subcommand())
+        .get_matches();
+
+    let (req, view_params, gfa_file) = Info::get_input_requirements(&matches).unwrap();
+    let mut dm = DataManager::from_gfa(&gfa_file, req);
+    if view_params.groupby_sample {
+        dm = dm.with_sample_group();
+    } else if view_params.groupby_haplotype {
+        dm = dm.with_haplo_group();
+    } else if view_params.groupby != "" {
+        dm = dm.with_group(&view_params.groupby);
     }
-    | Params::Hist {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
+    if view_params.positive_list != "" {
+        dm = dm.include_coords(&view_params.positive_list);
     }
-    | Params::Info {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
+    if view_params.negative_list != "" {
+        dm = dm.exclude_coords(&view_params.negative_list);
     }
-    | Params::OrderedHistgrowth {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
+    if view_params.order.is_some() {
+        dm = dm.with_order(view_params.order.as_ref().unwrap());
     }
-    | Params::Table {
-        ref groupby,
-        groupby_haplotype,
-        groupby_sample,
-        ..
-    }
-    //| Params::Cdbg {
-    //    ref groupby,
-    //    groupby_haplotype,
-    //    groupby_sample,
-    //    ..
-    //} 
-    = params
-    {
-        validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)?;
-    }
-
-    match params {
-        Params::Histgrowth {
-            ref gfa_file,
-            count,
-            output_format,
-            ..
-        } => {
-            //Hist
-            let graph_aux = match output_format {
-                OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
-                _ => GraphAuxilliary::from_gfa(gfa_file, count),
-            };
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
-            let mut hists = Vec::new();
-            for abacus in abaci {
-                hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
-            }
-            //Growth
-            let hist_aux = HistAuxilliary::from_params(&params)?;
-            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-            let growths: Vec<(CountType, Vec<Vec<f64>>)> = hists
-                .par_iter()
-                .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
-                .collect();
-            log::info!("reporting histgrowth table");
-            match output_format {
-                OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
-                OutputFormat::Html => {
-                    let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let (_, _, _, paths_len) =
-                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
-
-                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-                    write_histgrowth_html(
-                        &Some(hists),
-                        &growths,
-                        &hist_aux,
-                        filename,
-                        None,
-                        Some(info),
-                        out,
-                    )?
-                }
-            };
-        }
-        Params::Hist {
-            ref gfa_file,
-            count,
-            output_format,
-            ..
-        } => {
-            let graph_aux = match output_format {
-                OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
-                _ => GraphAuxilliary::from_gfa(gfa_file, count),
-            };
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
-            let mut hists = Vec::new();
-            for abacus in abaci {
-                hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
-            }
-
-            let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-            match output_format {
-                OutputFormat::Table => write_hist_table(&hists, out)?,
-                OutputFormat::Html => {
-                    let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let (_, _, _, paths_len) =
-                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
-
-                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-                    write_hist_html(&hists, filename, Some(info), out)?
-                }
-            };
-        }
-        Params::Growth {
-            ref hist_file,
-            output_format,
-            ..
-        } => {
-            let hist_aux = HistAuxilliary::from_params(&params)?;
-            log::info!("loading coverage histogram from {}", hist_file);
-            let mut data = BufReader::new(fs::File::open(hist_file)?);
-            let (coverages, comments) = parse_hists(&mut data)?;
-            for c in comments {
-                out.write_all(&c[..])?;
-                out.write_all(b"\n")?;
-            }
-            let hists: Vec<Hist> = coverages
-                .into_iter()
-                .map(|(count, coverage)| Hist { count, coverage })
-                .collect();
-
-            let filename = Path::new(&hist_file).file_name().unwrap().to_str().unwrap();
-            let growths: Vec<(CountType, Vec<Vec<f64>>)> = hists
-                .par_iter()
-                .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
-                .collect();
-            log::info!("reporting histgrowth table");
-            match output_format {
-                OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
-                OutputFormat::Html => write_histgrowth_html(
-                    &Some(hists),
-                    &growths,
-                    &hist_aux,
-                    filename,
-                    None,
-                    None,
-                    out,
-                )?,
-            };
-        }
-        Params::Info {
-            ref gfa_file,
-            groupby,
-            output_format,
-            ..
-        } => {
-            let req = HashSet::from([InputRequirement::GaEdge]);
-            let dm = DataManager::from_gfa(gfa_file, req);
-            if !groupby.is_empty() {
-                let dm = dm.with_group(&groupby);
-                println!("{:#?}", dm);
-            } else {
-                println!("{:#?}", dm);
-            }
-            // let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
-
-            // let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            // let mut data = bufreader_from_compressed_gfa(gfa_file);
-            // let (_, _, _, paths_len) =
-            //     parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
-
-            // match output_format {
-            //     OutputFormat::Table => {
-            //         let has_groups = match params {
-            //             Params::Info {
-            //                 ref groupby,
-            //                 groupby_haplotype,
-            //                 groupby_sample,
-            //                 ..
-            //             } => !groupby.is_empty() || groupby_haplotype || groupby_sample,
-            //             _ => false,
-            //         };
-            //         let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
-            //         write_info(info, out)?
-            //     }
-            //     OutputFormat::Html => {
-            //         let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-            //         let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-            //         write_info_html(filename, info, out)?
-            //     }
-            // };
-        }
-        Params::OrderedHistgrowth {
-            ref gfa_file,
-            count,
-            output_format,
-            ..
-        } => {
-            let graph_aux = match output_format {
-                OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
-                _ => GraphAuxilliary::from_gfa(gfa_file, count),
-            };
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, true)?;
-            let hist_aux = HistAuxilliary::from_params(&params)?;
-            match output_format {
-                OutputFormat::Table => {
-                    write_ordered_histgrowth_table(&abacus, &hist_aux, out)?;
-                }
-                OutputFormat::Html => {
-                    let mut data = bufreader_from_compressed_gfa(gfa_file);
-                    let (_, _, _, paths_len) =
-                        parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
-
-                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-                    write_ordered_histgrowth_html(
-                        &abacus,
-                        &hist_aux,
-                        gfa_file,
-                        count,
-                        Some(info),
-                        out,
-                    )?;
-                }
-            }
-        }
-        Params::Table {
-            ref gfa_file,
-            count,
-            total,
-            ..
-        } => {
-            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let mut data = BufReader::new(fs::File::open(gfa_file)?);
-            let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, total)?;
-
-            abacus.to_tsv(total, out)?;
-        } //Params::Cdbg {
-          //    ref gfa_file, k, ..
-          //} => {
-          //    let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
-          //    let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-
-          //    let mut hists = Vec::new();
-          //    let abaci_node =
-          //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
-          //    let abaci_bp =
-          //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
-          //    hists.push(Hist::from_abacus(&abaci_node[0], None));
-          //    hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
-
-          //    // k-mers and unimer
-          //    let n = hists[0].coverage.len();
-          //    let mut kmer: Vec<usize> = vec![0; n];
-          //    let mut unimer: Vec<usize> = vec![0; n];
-
-          //    for i in 0..n {
-          //        kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
-          //        unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
-          //    }
-
-          //    let mut data = BufReader::new(fs::File::open(&gfa_file)?);
-          //    let abaci_infix_eq =
-          //        AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
-
-          //    println!("# infix_eq");
-          //    for v in abaci_infix_eq.countable.iter() {
-          //        println!("{}", v);
-          //    }
-
-          //    println!("# kmer");
-          //    for i in 1..kmer.len() {
-          //        println!("{}", kmer[i]);
-          //    }
-          //    write_hist_table(&hists, out)?;
-          //}
-    }
+    dm = dm.finish()?;
+    let mut info = Info::build(&dm);
+    let table = info.generate_table();
+    write_text(&table, out)?;
+    //match params {
+    //    Params::Histgrowth {
+    //        ref gfa_file,
+    //        count,
+    //        output_format,
+    //        ..
+    //    } => {
+    //        //Hist
+    //        let graph_aux = match output_format {
+    //            OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
+    //            _ => GraphAuxilliary::from_gfa(gfa_file, count),
+    //        };
+    //        let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+    //        let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
+    //        let mut hists = Vec::new();
+    //        for abacus in abaci {
+    //            hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
+    //        }
+    //        //Growth
+    //        let hist_aux = HistAuxilliary::from_params(&params)?;
+    //        let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+    //        let growths: Vec<(CountType, Vec<Vec<f64>>)> = hists
+    //            .par_iter()
+    //            .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
+    //            .collect();
+    //        log::info!("reporting histgrowth table");
+    //        match output_format {
+    //            OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
+    //            OutputFormat::Html => {
+    //                let mut data = bufreader_from_compressed_gfa(gfa_file);
+    //                let (_, _, _, paths_len) =
+    //                    parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+    //
+    //                //let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+    //                write_histgrowth_html(
+    //                    &Some(hists),
+    //                    &growths,
+    //                    &hist_aux,
+    //                    filename,
+    //                    None,
+    //                    None,
+    //                    out,
+    //                )?
+    //            }
+    //        };
+    //    }
+    //    Params::Hist {
+    //        ref gfa_file,
+    //        count,
+    //        output_format,
+    //        ..
+    //    } => {
+    //        let graph_aux = match output_format {
+    //            OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
+    //            _ => GraphAuxilliary::from_gfa(gfa_file, count),
+    //        };
+    //        let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+    //        let abaci = AbacusByTotal::abaci_from_gfa(gfa_file, count, &graph_aux, &abacus_aux)?;
+    //        let mut hists = Vec::new();
+    //        for abacus in abaci {
+    //            hists.push(Hist::from_abacus(&abacus, Some(&graph_aux)));
+    //        }
+    //
+    //        let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+    //        match output_format {
+    //            OutputFormat::Table => write_hist_table(&hists, out)?,
+    //            OutputFormat::Html => {
+    //                let mut data = bufreader_from_compressed_gfa(gfa_file);
+    //                let (_, _, _, paths_len) =
+    //                    parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+    //
+    //                //let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+    //                write_hist_html(&hists, filename, None, out)?
+    //            }
+    //        };
+    //    }
+    //    Params::Growth {
+    //        ref hist_file,
+    //        output_format,
+    //        ..
+    //    } => {
+    //        let hist_aux = HistAuxilliary::from_params(&params)?;
+    //        log::info!("loading coverage histogram from {}", hist_file);
+    //        let mut data = BufReader::new(fs::File::open(hist_file)?);
+    //        let (coverages, comments) = parse_hists(&mut data)?;
+    //        for c in comments {
+    //            out.write_all(&c[..])?;
+    //            out.write_all(b"\n")?;
+    //        }
+    //        let hists: Vec<Hist> = coverages
+    //            .into_iter()
+    //            .map(|(count, coverage)| Hist { count, coverage })
+    //            .collect();
+    //
+    //        let filename = Path::new(&hist_file).file_name().unwrap().to_str().unwrap();
+    //        let growths: Vec<(CountType, Vec<Vec<f64>>)> = hists
+    //            .par_iter()
+    //            .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
+    //            .collect();
+    //        log::info!("reporting histgrowth table");
+    //        match output_format {
+    //            OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
+    //            OutputFormat::Html => write_histgrowth_html(
+    //                &Some(hists),
+    //                &growths,
+    //                &hist_aux,
+    //                filename,
+    //                None,
+    //                None,
+    //                out,
+    //            )?,
+    //        };
+    //    }
+    //    Params::Info {
+    //        ref gfa_file,
+    //        groupby,
+    //        output_format,
+    //        ..
+    //    } => {
+    //        let req = Info::get_input_requirements();
+    //        let dm = DataManager::from_gfa(gfa_file, req).finish()?;
+    //        let mut info = Info::build(&dm);
+    //        let table = info.generate_table();
+    //        write_text(&table, out)?
+    //        // let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
+    //
+    //        // let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+    //        // let mut data = bufreader_from_compressed_gfa(gfa_file);
+    //        // let (_, _, _, paths_len) =
+    //        //     parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+    //
+    //        // match output_format {
+    //        //     OutputFormat::Table => {
+    //        //         let has_groups = match params {
+    //        //             Params::Info {
+    //        //                 ref groupby,
+    //        //                 groupby_haplotype,
+    //        //                 groupby_sample,
+    //        //                 ..
+    //        //             } => !groupby.is_empty() || groupby_haplotype || groupby_sample,
+    //        //             _ => false,
+    //        //         };
+    //        //         let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
+    //        //         write_info(info, out)?
+    //        //     }
+    //        //     OutputFormat::Html => {
+    //        //         let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+    //        //         let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+    //        //         write_info_html(filename, info, out)?
+    //        //     }
+    //        // };
+    //    }
+    //    Params::OrderedHistgrowth {
+    //        ref gfa_file,
+    //        count,
+    //        output_format,
+    //        ..
+    //    } => {
+    //        let graph_aux = match output_format {
+    //            OutputFormat::Html => GraphAuxilliary::from_gfa(gfa_file, CountType::All),
+    //            _ => GraphAuxilliary::from_gfa(gfa_file, count),
+    //        };
+    //        let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+    //        let mut data = bufreader_from_compressed_gfa(gfa_file);
+    //        let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, true)?;
+    //        let hist_aux = HistAuxilliary::from_params(&params)?;
+    //        match output_format {
+    //            OutputFormat::Table => {
+    //                write_ordered_histgrowth_table(&abacus, &hist_aux, out)?;
+    //            }
+    //            OutputFormat::Html => {
+    //                let mut data = bufreader_from_compressed_gfa(gfa_file);
+    //                let (_, _, _, paths_len) =
+    //                    parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+    //
+    //                // let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+    //                write_ordered_histgrowth_html(&abacus, &hist_aux, gfa_file, count, None, out)?;
+    //            }
+    //        }
+    //    }
+    //    Params::Table {
+    //        ref gfa_file,
+    //        count,
+    //        total,
+    //        ..
+    //    } => {
+    //        let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count);
+    //        let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+    //        let mut data = BufReader::new(fs::File::open(gfa_file)?);
+    //        let abacus = AbacusByGroup::from_gfa(&mut data, &abacus_aux, &graph_aux, count, total)?;
+    //
+    //        abacus.to_tsv(total, out)?;
+    //    } //Params::Cdbg {
+    //      //    ref gfa_file, k, ..
+    //      //} => {
+    //      //    let graph_aux = GraphAuxilliary::from_cdbg_gfa(gfa_file, k);
+    //      //    let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+    //
+    //      //    let mut hists = Vec::new();
+    //      //    let abaci_node =
+    //      //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Node, &graph_aux, &abacus_aux)?;
+    //      //    let abaci_bp =
+    //      //        AbacusByTotal::abaci_from_gfa(gfa_file, CountType::Bp, &graph_aux, &abacus_aux)?;
+    //      //    hists.push(Hist::from_abacus(&abaci_node[0], None));
+    //      //    hists.push(Hist::from_abacus(&abaci_bp[0], Some(&graph_aux)));
+    //
+    //      //    // k-mers and unimer
+    //      //    let n = hists[0].coverage.len();
+    //      //    let mut kmer: Vec<usize> = vec![0; n];
+    //      //    let mut unimer: Vec<usize> = vec![0; n];
+    //
+    //      //    for i in 0..n {
+    //      //        kmer[i] = hists[1].coverage[i] - (k - 1) * hists[0].coverage[i];
+    //      //        unimer[i] = hists[1].coverage[i] - k * hists[0].coverage[i];
+    //      //    }
+    //
+    //      //    let mut data = BufReader::new(fs::File::open(&gfa_file)?);
+    //      //    let abaci_infix_eq =
+    //      //        AbacusByTotal::from_cdbg_gfa(&mut data, &abacus_aux, &graph_aux, k, &unimer);
+    //
+    //      //    println!("# infix_eq");
+    //      //    for v in abaci_infix_eq.countable.iter() {
+    //      //        println!("{}", v);
+    //      //    }
+    //
+    //      //    println!("# kmer");
+    //      //    for i in 1..kmer.len() {
+    //      //        println!("{}", kmer[i]);
+    //      //    }
+    //      //    write_hist_table(&hists, out)?;
+    //      //}
+    //}
 
     Ok(())
 }
