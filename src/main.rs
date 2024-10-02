@@ -5,7 +5,6 @@ use std::time::Instant;
 /* private use */
 mod abacus;
 mod analyses;
-mod analysis;
 mod cli;
 mod data_manager;
 mod graph;
