@@ -175,7 +175,7 @@ impl AbacusAuxilliary {
         }
     }
 
-    fn complement_with_group_assignments(
+    pub fn complement_with_group_assignments(
         coords: Option<Vec<PathSegment>>,
         groups: &HashMap<PathSegment, String>,
     ) -> Result<Option<Vec<PathSegment>>, Error> {
@@ -226,7 +226,7 @@ impl AbacusAuxilliary {
         }
     }
 
-    fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
+    pub fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
         Ok(if file_name.is_empty() {
             None
         } else {
@@ -632,7 +632,7 @@ impl AbacusByTotal {
     //     });
     // }
 
-    fn coverage(
+    pub fn coverage(
         countable: &mut Vec<CountSize>,
         last: &mut Vec<ItemIdSize>,
         item_table: &ItemTable,
@@ -1116,7 +1116,7 @@ impl<'a> AbacusByGroup<'a> {
 //    Nil,
 //}
 
-fn quantify_uncovered_bps(
+pub fn quantify_uncovered_bps(
     exclude_table: &Option<ActiveTable>,
     subset_covered_bps: &Option<IntervalContainer>,
     graph_aux: &GraphAuxilliary,

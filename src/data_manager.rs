@@ -5,19 +5,13 @@ use std::{
 use strum::IntoEnumIterator;
 
 use crate::{
-    abacus::{AbacusByGroup, AbacusByTotal}, analysis::InputRequirement, graph::{Edge, ItemId, PathSegment}, io::{bufreader_from_compressed_gfa, parse_bed_to_path_segments, parse_groups, parse_path_identifier, parse_path_seq_to_item_vec, parse_path_seq_update_tables, parse_walk_identifier, parse_walk_seq_to_item_vec, parse_walk_seq_update_tables, update_tables, update_tables_edgecount}, util::{intersects, is_contained, ActiveTable, CountType, IntervalContainer, ItemIdSize, ItemTable, SIZE_T}
+    abacus::{quantify_uncovered_bps, AbacusAuxilliary, AbacusByGroup, AbacusByTotal}, analysis::InputRequirement, graph::{Edge, GraphAuxilliary, ItemId, PathSegment}, io::{bufreader_from_compressed_gfa, parse_bed_to_path_segments, parse_groups, parse_path_identifier, parse_path_seq_to_item_vec, parse_path_seq_update_tables, parse_walk_identifier, parse_walk_seq_to_item_vec, parse_walk_seq_update_tables, update_tables, update_tables_edgecount}, util::{intersects, is_contained, ActiveTable, CountType, IntervalContainer, ItemIdSize, ItemTable, SIZE_T}
 };
 
 #[derive(Debug)]
 pub struct DataManager<'a> {
     // GraphAuxilliary
-    node2id: Option<HashMap<Vec<u8>, ItemId>>,
-    node_lens: Option<Vec<u32>>,
-    edge2id: Option<HashMap<Edge, ItemId>>,
-    path_segments: Option<Vec<PathSegment>>,
-    node_count: Option<usize>,
-    edge_count: Option<usize>,
-    degree: Option<Vec<u32>>,
+    graph_aux: GraphAuxilliary,
 
     // AbabcusAuxilliary
     groups: Option<HashMap<PathSegment, String>>,
@@ -36,29 +30,9 @@ pub struct DataManager<'a> {
 
 impl<'a> DataManager<'a> {
     pub fn from_gfa(gfa_file: &str, input_requirements: HashSet<InputRequirement>) -> Self {
-        let (node2id, path_segments, node_lens, node_count) = if input_requirements
-            .contains(&InputRequirement::Ga)
-            || input_requirements.contains(&InputRequirement::GaEdge)
-        {
-            Self::parse_nodes_gfa(gfa_file)
-        } else {
-            (None, None, None, None)
-        };
-
-        let (edge2id, edge_count, degree) =
-            if input_requirements.contains(&InputRequirement::GaEdge) {
-                Self::parse_edge_gfa(gfa_file, &node2id.as_ref().unwrap())
-            } else {
-                (None, None, None)
-            };
+        let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::Node);
         DataManager {
-            node2id,
-            node_lens,
-            edge2id,
-            path_segments,
-            node_count,
-            edge_count,
-            degree,
+            graph_aux,
             groups: None,
             include_coords: None,
             exclude_coords: None,
@@ -98,7 +72,7 @@ impl<'a> DataManager<'a> {
         log::debug!("loaded {} group assignments", path_to_group.len());
 
         // augment the group assignments with yet unassigned path segments
-        self.path_segments.as_ref().unwrap().iter().for_each(|x| {
+        self.graph_aux.path_segments.iter().for_each(|x| {
             let path = x.clear_coords();
             path_to_group.entry(path).or_insert_with(|| x.id());
         });
@@ -108,9 +82,7 @@ impl<'a> DataManager<'a> {
 
     pub fn with_haplo_group(mut self) -> Self {
         self.groups = Some(
-            self.path_segments
-                .as_ref()
-                .unwrap()
+            self.graph_aux.path_segments
                 .iter()
                 .map(|x| {
                     (
@@ -129,9 +101,7 @@ impl<'a> DataManager<'a> {
 
     pub fn with_sample_group(mut self) -> Self {
         self.groups = Some(
-            self.path_segments
-                .as_ref()
-                .unwrap()
+            self.graph_aux.path_segments
                 .iter()
                 .map(|x| (x.clear_coords(), x.sample.clone()))
                 .collect(),
@@ -141,8 +111,8 @@ impl<'a> DataManager<'a> {
 
     pub fn with_default_group(mut self) -> Self {
         log::info!("no explicit grouping instruction given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
-        self.groups = Some(self
-            .path_segments.as_ref().unwrap()
+        self.groups = Some(self.graph_aux
+            .path_segments
             .iter()
             .map(|x| (x.clear_coords(), x.id()))
             .collect());
@@ -158,8 +128,8 @@ impl<'a> DataManager<'a> {
             log::error!("{}", &msg);
             return Err(Error::new(ErrorKind::Unsupported, msg));
         }
-        self.include_coords = Self::complement_with_group_assignments(
-            Self::load_coord_list(file_name)?,
+        self.include_coords = AbacusAuxilliary::complement_with_group_assignments(
+            AbacusAuxilliary::load_coord_list(file_name)?,
             self.groups.as_ref().unwrap())?;
         Ok(self)
     }
@@ -173,15 +143,15 @@ impl<'a> DataManager<'a> {
             log::error!("{}", &msg);
             return Err(Error::new(ErrorKind::Unsupported, msg));
         }
-        self.exclude_coords = Self::complement_with_group_assignments(
-            Self::load_coord_list(file_name)?,
+        self.exclude_coords = AbacusAuxilliary::complement_with_group_assignments(
+            AbacusAuxilliary::load_coord_list(file_name)?,
             self.groups.as_ref().unwrap())?;
         Ok(self)
     }
 
     pub fn with_order(mut self, file_name: &str) -> Result<Self, Error> {
-        let maybe_order = Self::complement_with_group_assignments(
-            Self::load_coord_list(file_name)?,
+        let maybe_order = AbacusAuxilliary::complement_with_group_assignments(
+            AbacusAuxilliary::load_coord_list(file_name)?,
             self.groups.as_ref().unwrap(),
         )?;
         if let Some(o) = &maybe_order {
@@ -192,7 +162,7 @@ impl<'a> DataManager<'a> {
                         Some(e) => e.iter().collect(),
                         None => HashSet::new(),
                     };
-                    self.path_segments.as_ref().unwrap()
+                    self.graph_aux.path_segments
                         .iter()
                         .filter_map(|x| {
                             if !exclude.contains(x) {
@@ -247,9 +217,9 @@ impl<'a> DataManager<'a> {
                 if let CountType::All = count_type {
                 } else {
                     let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-                    // let abacus =
-                    //     Self::abacus_from_gfa(&mut data, abacus_aux, graph_aux, count_type);
-                    // abaci.insert(count_type, abacus);
+                    let abacus =
+                         Self::abacus_from_gfa(&mut data, abacus_aux, graph_aux, count_type);
+                    abaci.insert(count_type, abacus);
                 }
             }
         } else {
@@ -261,6 +231,69 @@ impl<'a> DataManager<'a> {
         self
     }
 
+    fn abacus_from_gfa<R: std::io::Read>(
+        data: &mut BufReader<R>,
+        count: CountType,
+    ) -> Self {
+        let (item_table, exclude_table, subset_covered_bps, _paths_len) =
+            self.parse_gfa_paths_walks(data, &count);
+        self.item_table_to_abacus(
+            abacus_aux,
+            graph_aux,
+            count,
+            item_table,
+            exclude_table,
+            subset_covered_bps,
+        )
+    }
+
+    fn item_table_to_abacus(
+        &self
+        count: CountType,
+        item_table: ItemTable,
+        exclude_table: Option<ActiveTable>,
+        subset_covered_bps: Option<IntervalContainer>,
+    ) -> AbacusByTotal {
+        log::info!("counting abacus entries..");
+        // first element in countable is "zero" element. It is ignored in counting
+        let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&count) + 1];
+        // countable with ID "0" is special and should not be considered in coverage histogram
+        countable[0] = CountSize::MAX;
+        let mut last: Vec<ItemIdSize> =
+            vec![ItemIdSize::MAX; graph_aux.number_of_items(&count) + 1];
+
+        let mut groups = Vec::new();
+        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+            if groups.is_empty() || groups.last().unwrap() != group_id {
+                groups.push(group_id.to_string());
+            }
+            AbacusByTotal::coverage(
+                &mut countable,
+                &mut last,
+                &item_table,
+                &exclude_table,
+                path_id,
+                groups.len() as ItemIdSize - 1,
+            );
+        }
+
+        log::info!(
+            "abacus has {} path groups and {} countables",
+            groups.len(),
+            countable.len() - 1
+        );
+
+        AbacusByTotal {
+            count,
+            countable,
+            uncovered_bps: Some(quantify_uncovered_bps(
+                &exclude_table,
+                &subset_covered_bps,
+                &self.graph_aux,
+            )),
+            groups,
+        }
+    }
 
     fn parse_gfa_paths_walks<R: Read>(
         &mut self,
@@ -273,7 +306,7 @@ impl<'a> DataManager<'a> {
     HashMap<PathSegment, (u32, u32)>,
     ) {
         log::info!("parsing path + walk sequences");
-        let mut item_table = ItemTable::new(self.path_segments.unwrap().len());
+        let mut item_table = ItemTable::new(self.graph_aux.path_segments.len());
         let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) =
             self.load_optional_subsetting(count);
 
@@ -359,14 +392,14 @@ impl<'a> DataManager<'a> {
                     let (num_added_nodes, bp_len) = match buf[0] {
                         b'P' => parse_path_seq_update_tables(
                             buf_path_seg,
-                            graph_aux,
+                            &self.graph_aux,
                             &mut item_table,
                             ex,
                             num_path,
                         ),
                         b'W' => parse_walk_seq_update_tables(
                             buf_path_seg,
-                            graph_aux,
+                            &self.graph_aux,
                             &mut item_table,
                             ex,
                             num_path,
@@ -376,8 +409,8 @@ impl<'a> DataManager<'a> {
                     paths_len.insert(path_seg, (num_added_nodes, bp_len));
                 } else {
                     let sids = match buf[0] {
-                        b'P' => parse_path_seq_to_item_vec(buf_path_seg, graph_aux),
-                        b'W' => parse_walk_seq_to_item_vec(buf_path_seg, graph_aux),
+                        b'P' => parse_path_seq_to_item_vec(buf_path_seg, &self.graph_aux),
+                        b'W' => parse_walk_seq_to_item_vec(buf_path_seg, &self.graph_aux),
                         _ => unreachable!(),
                     };
 
@@ -389,7 +422,7 @@ impl<'a> DataManager<'a> {
                             &mut subset_covered_bps.as_mut(),
                             &mut exclude_table.as_mut(),
                             num_path,
-                            graph_aux,
+                            &self.graph_aux,
                             sids,
                             include_coords,
                             exclude_coords,
@@ -399,7 +432,7 @@ impl<'a> DataManager<'a> {
                             &mut item_table,
                             &mut exclude_table.as_mut(),
                             num_path,
-                            graph_aux,
+                            &self.graph_aux,
                             sids,
                             include_coords,
                             exclude_coords,
@@ -437,7 +470,7 @@ impl<'a> DataManager<'a> {
         // this table stores information about excluded nodes *if* the exclude setting is used
         let exclude_table = self.exclude_coords.as_ref().map(|_| {
             ActiveTable::new(
-                self.number_of_items(count).unwrap() + 1,
+                self.graph_aux.number_of_items(count) + 1,
                 count == &CountType::Bp,
             )
         });
@@ -445,255 +478,15 @@ impl<'a> DataManager<'a> {
         // build "include" lookup table
         let include_map = match &self.include_coords {
             None => HashMap::default(),
-            Some(coords) => Self::build_subpath_map(coords),
+            Some(coords) => AbacusAuxilliary::build_subpath_map(coords),
         };
 
         // build "exclude" lookup table
         let exclude_map = match &self.exclude_coords {
             None => HashMap::default(),
-            Some(coords) => Self::build_subpath_map(coords),
+            Some(coords) => AbacusAuxilliary::build_subpath_map(coords),
         };
 
         (subset_covered_bps, exclude_table, include_map, exclude_map)
-    }
-
-    fn number_of_items(&self, c: &CountType) -> Option<usize> {
-        match c {
-            &CountType::Node | &CountType::Bp => self.node_count,
-            &CountType::Edge => self.edge_count,
-            &CountType::All => unreachable!("inadmissible count type"),
-        }
-    }
-
-    fn build_subpath_map(
-        path_segments: &[PathSegment],
-    ) -> HashMap<String, Vec<(usize, usize)>> {
-        // intervals are 0-based, and [start, end), see https://en.wikipedia.org/wiki/BED_(file_format)
-        let mut res: HashMap<String, HashSet<(usize, usize)>> = HashMap::default();
-
-        path_segments.iter().for_each(|x| {
-            res.entry(x.id()).or_default().insert(match x.coords() {
-                None => (0, usize::MAX),
-                Some((i, j)) => (i, j),
-            });
-        });
-
-        HashMap::from_iter(res.into_iter().map(|(pid, coords)| {
-            let mut v: Vec<(usize, usize)> = coords.into_iter().collect();
-            v.sort();
-            let mut i = 1;
-            // remove overlaps
-            while i < v.len() {
-                if v[i - 1].1 >= v[i].0 {
-                    let x = v.remove(i);
-                    v[i - 1].1 = x.1;
-                } else {
-                    i += 1
-                }
-            }
-            (pid, v)
-        }))
-    }
-
-    fn complement_with_group_assignments(
-        coords: Option<Vec<PathSegment>>,
-        groups: &HashMap<PathSegment, String>,
-    ) -> Result<Option<Vec<PathSegment>>, Error> {
-        //
-        // We allow coords to be defined via groups; the following code
-        // 1. complements coords with path segments from group assignments
-        // 2. checks that group-based coordinates don't have start/stop information
-        //
-        let mut group2paths: HashMap<String, Vec<PathSegment>> = HashMap::default();
-        for (p, g) in groups.iter() {
-            group2paths.entry(g.clone()).or_default().push(p.clone())
-        }
-        let path_to_group: HashMap<PathSegment, String> = groups
-            .iter()
-            .map(|(ps, g)| (ps.clear_coords(), g.clone()))
-            .collect();
-
-        match coords {
-            None => Ok(None),
-            Some(v) => {
-                v.into_iter()
-                    .map(|p| {
-                        // check if path segment defined in coords associated with a specific path,
-                        // it is not considered a group 
-                        if path_to_group.contains_key(&p.clear_coords()) {
-                            Ok(vec![p])
-                        } else if group2paths.contains_key(&p.id()) {
-                            if p.coords().is_some() {
-                                let msg = format!("invalid coordinate \"{}\": group identifiers are not allowed to have start/stop information!", &p);
-                                log::error!("{}", &msg);
-                                Err(Error::new( ErrorKind::InvalidData, msg))
-                            } else {
-                                let paths = group2paths.get(&p.id()).unwrap().clone();
-                                log::debug!("complementing coordinate list with {} paths associted with group {}", paths.len(), p.id());
-                                Ok(paths)
-                            }
-                        } else {
-                            let msg = format!("unknown path/group {}", &p);
-                            log::error!("{}", &msg);
-                            // let's not be so harsh as to throw an error, ok?
-                            // Err(Error::new(ErrorKind::InvalidData, msg))
-                            Ok(Vec::new())
-                        }
-                    })
-                    .collect::<Result<Vec<Vec<PathSegment>>, Error>>().map(|x| Some(x[..]
-                    .concat()))
-            }
-        }
-    }
-
-    fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
-        Ok(if file_name.is_empty() {
-            None
-        } else {
-            log::info!("loading coordinates from {}", file_name);
-            let mut data = BufReader::new(fs::File::open(file_name)?);
-            let use_block_info = true;
-            let coords = parse_bed_to_path_segments(&mut data, use_block_info);
-            log::debug!("loaded {} coordinates", coords.len());
-            Some(coords)
-        })
-    }
-
-    fn parse_edge_gfa(
-        gfa_file: &str,
-        node2id: &HashMap<Vec<u8>, ItemId>,
-    ) -> (
-        Option<HashMap<Edge, ItemId>>,
-        Option<usize>,
-        Option<Vec<u32>>,
-    ) {
-        let mut edge2id = HashMap::default();
-        let mut degree: Vec<u32> = vec![0; node2id.len() + 1];
-        let mut edge_id: ItemIdSize = 1;
-
-        let mut buf = vec![];
-        let mut data = bufreader_from_compressed_gfa(gfa_file);
-        while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-            if buf[0] == b'L' {
-                let edge = Edge::from_link(&buf[..], node2id, true);
-                if let std::collections::hash_map::Entry::Vacant(e) = edge2id.entry(edge) {
-                    degree[edge.0 .0 as usize] += 1;
-                    //if e.0.0 != e.2.0 {
-                    degree[edge.2 .0 as usize] += 1;
-                    //}
-                    e.insert(ItemId(edge_id));
-                    edge_id += 1;
-                } else {
-                    log::warn!("edge {} is duplicated in GFA", &edge);
-                }
-            }
-            buf.clear();
-        }
-        let edge_count = edge2id.len();
-        log::info!("found: {} edges", edge_count);
-
-        (Some(edge2id), Some(edge_count), Some(degree))
-    }
-
-    fn parse_nodes_gfa(
-        gfa_file: &str,
-    ) -> (
-        Option<HashMap<Vec<u8>, ItemId>>,
-        Option<Vec<PathSegment>>,
-        Option<Vec<u32>>,
-        Option<usize>,
-    ) {
-        let mut node2id: HashMap<Vec<u8>, ItemId> = HashMap::default();
-        let mut path_segments: Vec<PathSegment> = Vec::new();
-        let mut node_lens: Vec<u32> = Vec::new();
-
-        log::info!("constructing indexes for node/edge IDs, node lengths, and P/W lines..");
-        node_lens.push(u32::MIN); // add empty element to node_lens to make it in sync with node_id
-        let mut node_id = 1; // important: id must be > 0, otherwise counting procedure will produce errors
-
-        let mut buf = vec![];
-        let mut data = bufreader_from_compressed_gfa(gfa_file);
-        while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
-            if buf[0] == b'S' {
-                let mut iter = buf[2..].iter();
-                let offset = iter.position(|&x| x == b'\t').unwrap();
-                if node2id
-                    .insert(buf[2..offset + 2].to_vec(), ItemId(node_id))
-                    .is_some()
-                {
-                    panic!(
-                        "Segment with ID {} occurs multiple times in GFA",
-                        str::from_utf8(&buf[2..offset + 2]).unwrap()
-                    )
-                }
-                // let start_sequence = offset + 3;
-                let offset = iter
-                    .position(|&x| x == b'\t' || x == b'\n' || x == b'\r')
-                    .unwrap();
-                node_lens.push(offset as u32);
-                node_id += 1;
-            } else if buf[0] == b'P' {
-                path_segments.push(Self::parse_path_segment(&buf));
-            } else if buf[0] == b'W' {
-                path_segments.push(Self::parse_walk_segment(&buf));
-            }
-            buf.clear();
-        }
-
-        log::info!(
-            "found: {} paths/walks, {} nodes",
-            path_segments.len(),
-            node2id.len()
-        );
-        if path_segments.is_empty() {
-            log::warn!("graph does not contain any annotated paths (P/W lines)");
-        }
-
-        let node_count = node2id.len();
-
-        (
-            Some(node2id),
-            Some(path_segments),
-            Some(node_lens),
-            Some(node_count),
-        )
-    }
-
-    pub fn parse_path_segment(data: &[u8]) -> PathSegment {
-        let mut iter = data.iter();
-        let start = iter.position(|&x| x == b'\t').unwrap() + 1;
-        let offset = iter.position(|&x| x == b'\t').unwrap();
-        let path_name = str::from_utf8(&data[start..start + offset]).unwrap();
-        PathSegment::from_str(path_name)
-    }
-
-    pub fn parse_walk_segment(data: &[u8]) -> PathSegment {
-        let mut six_col: Vec<&str> = Vec::with_capacity(6);
-
-        let mut it = data.iter();
-        let mut i = 0;
-        for _ in 0..6 {
-            let j = it.position(|x| x == &b'\t').unwrap();
-            six_col.push(str::from_utf8(&data[i..i + j]).unwrap());
-            i += j + 1;
-        }
-
-        let seq_start = match six_col[4] {
-            "*" => None,
-            a => Some(usize::from_str(a).unwrap()),
-        };
-
-        let seq_end = match six_col[5] {
-            "*" => None,
-            a => Some(usize::from_str(a).unwrap()),
-        };
-
-        PathSegment::new(
-            six_col[1].to_string(),
-            six_col[2].to_string(),
-            six_col[3].to_string(),
-            seq_start,
-            seq_end,
-        )
     }
 }
