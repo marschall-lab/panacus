@@ -4,13 +4,14 @@ use std::time::Instant;
 
 /* private use */
 mod abacus;
+mod analysis;
 mod cli;
+mod data_manager;
 mod graph;
 mod hist;
 mod html;
 mod io;
 mod util;
-mod analysis;
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();

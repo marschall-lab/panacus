@@ -26,7 +26,7 @@ unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
 // unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter, Hash, Eq)]
 #[strum(serialize_all = "lowercase")]
 pub enum CountType {
     Node,

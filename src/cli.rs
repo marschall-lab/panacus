@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 /* standard crate */
 use std::fs;
 use std::io::{BufReader, BufWriter, Write};
@@ -12,6 +13,8 @@ use strum::VariantNames;
 
 /* private use */
 use crate::abacus::*;
+use crate::analysis::InputRequirement;
+use crate::data_manager::DataManager;
 use crate::graph::*;
 use crate::hist::*;
 use crate::html::*;
@@ -556,7 +559,7 @@ pub fn parse_threshold_cli(
     Ok(thresholds)
 }
 
-// set number of threads can be run only once, otherwise it throws an error of the 
+// set number of threads can be run only once, otherwise it throws an error of the
 // GlobalPoolAlreadyInitialized, which unfortunately is not pub therefore we cannot catch it.
 // https://github.com/rayon-rs/rayon/issues/878
 // We run this function in the main otherwise in the tests the second time we run the function
@@ -754,36 +757,45 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         }
         Params::Info {
             ref gfa_file,
+            groupby,
             output_format,
             ..
         } => {
-            let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
+            let req = HashSet::from([InputRequirement::GaEdge]);
+            let dm = DataManager::from_gfa(gfa_file, req);
+            if !groupby.is_empty() {
+                let dm = dm.with_group(&groupby);
+                println!("{:#?}", dm);
+            } else {
+                println!("{:#?}", dm);
+            }
+            // let graph_aux = GraphAuxilliary::from_gfa(gfa_file, CountType::All);
 
-            let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
-            let mut data = bufreader_from_compressed_gfa(gfa_file);
-            let (_, _, _, paths_len) =
-                parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
+            // let abacus_aux = AbacusAuxilliary::from_params(&params, &graph_aux)?;
+            // let mut data = bufreader_from_compressed_gfa(gfa_file);
+            // let (_, _, _, paths_len) =
+            //     parse_gfa_paths_walks(&mut data, &abacus_aux, &graph_aux, &CountType::Node);
 
-            match output_format {
-                OutputFormat::Table => {
-                    let has_groups = match params {
-                        Params::Info {
-                            ref groupby,
-                            groupby_haplotype,
-                            groupby_sample,
-                            ..
-                        } => !groupby.is_empty() || groupby_haplotype || groupby_sample,
-                        _ => false,
-                    };
-                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
-                    write_info(info, out)?
-                }
-                OutputFormat::Html => {
-                    let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
-                    let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
-                    write_info_html(filename, info, out)?
-                }
-            };
+            // match output_format {
+            //     OutputFormat::Table => {
+            //         let has_groups = match params {
+            //             Params::Info {
+            //                 ref groupby,
+            //                 groupby_haplotype,
+            //                 groupby_sample,
+            //                 ..
+            //             } => !groupby.is_empty() || groupby_haplotype || groupby_sample,
+            //             _ => false,
+            //         };
+            //         let info = graph_aux.info(&paths_len, &abacus_aux.groups, has_groups);
+            //         write_info(info, out)?
+            //     }
+            //     OutputFormat::Html => {
+            //         let info = graph_aux.info(&paths_len, &abacus_aux.groups, true);
+            //         let filename = Path::new(&gfa_file).file_name().unwrap().to_str().unwrap();
+            //         write_info_html(filename, info, out)?
+            //     }
+            // };
         }
         Params::OrderedHistgrowth {
             ref gfa_file,
@@ -909,10 +921,7 @@ mod tests {
         let threshold_str = "5.5,10,15";
         let result = parse_threshold_cli(threshold_str, RequireThreshold::Absolute);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().kind(),
-            ErrorKind::InvalidData
-        );
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::InvalidData);
     }
 
     #[test]
@@ -920,10 +929,7 @@ mod tests {
         let threshold_str = "0.2,1.2,0.9"; // 1.2 is out of range for relative threshold
         let result = parse_threshold_cli(threshold_str, RequireThreshold::Relative);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().kind(),
-            ErrorKind::InvalidData
-        );
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::InvalidData);
     }
 
     #[test]
@@ -934,7 +940,6 @@ mod tests {
             ("group1", false, false, true), // Only groupby is set
             ("", true, false, true),        // Only groupby_haplotype is set
             ("", false, true, true),        // Only groupby_sample is set
-
             // Invalid cases
             ("group1", true, false, false), // groupby and groupby_haplotype set
             ("group1", false, true, false), // groupby and groupby_sample set
@@ -944,7 +949,11 @@ mod tests {
 
         for (test_groupby, test_groupby_haplotype, test_groupby_sample, should_pass) in test_cases {
             //let mut params = Params::test_default_histgrowth();
-            let result = validate_single_groupby_option(test_groupby, test_groupby_haplotype, test_groupby_sample);
+            let result = validate_single_groupby_option(
+                test_groupby,
+                test_groupby_haplotype,
+                test_groupby_sample,
+            );
             if should_pass {
                 assert!(
                     result.is_ok(),

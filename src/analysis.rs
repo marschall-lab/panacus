@@ -12,7 +12,12 @@ pub trait Analysis {
 
 pub struct ReportSection {}
 
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
 pub enum InputRequirement {
-    Nodes,
-    Edges,
+    Ga,
+    GaEdge,
+    PwNode,
+    PwBp,
+    PwEdge,
+    PwAll,
 }
