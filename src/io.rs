@@ -838,20 +838,22 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     _ => unreachable!(),
                 };
 
-                paths_len.insert(path_seg, (sids.len() as u32, 0));
 
                 match count {
-                    CountType::Node | CountType::Bp => update_tables(
-                        &mut item_table,
-                        &mut subset_covered_bps.as_mut(),
-                        &mut exclude_table.as_mut(),
-                        num_path,
-                        graph_aux,
-                        sids,
-                        include_coords,
-                        exclude_coords,
-                        start,
-                    ),
+                    CountType::Node | CountType::Bp => {
+                        let (node_len, bp_len) = update_tables(
+                            &mut item_table,
+                            &mut subset_covered_bps.as_mut(),
+                            &mut exclude_table.as_mut(),
+                            num_path,
+                            graph_aux,
+                            sids,
+                            include_coords,
+                            exclude_coords,
+                            start,
+                        );
+                        paths_len.insert(path_seg, (node_len as u32, bp_len as u32));
+                    },
                     CountType::Edge => update_tables_edgecount(
                         &mut item_table,
                         &mut exclude_table.as_mut(),
@@ -882,7 +884,7 @@ fn update_tables(
     include_coords: &[(usize, usize)],
     exclude_coords: &[(usize, usize)],
     offset: usize,
-) {
+) -> (usize, usize) {
     let mut i = 0;
     let mut j = 0;
     let mut p = offset;
@@ -1070,6 +1072,7 @@ fn update_tables(
         item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
     }
     log::debug!("..done");
+    (included, included_bp)
 }
 
 fn update_tables_edgecount(

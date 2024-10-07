@@ -637,16 +637,21 @@ pub fn write_hist_html<W: Write>(
 }
 
 fn bin_values(list: &Vec<u32>) -> (Vec<String>, Vec<usize>) {
+    log::info!("Binning values");
     if list.is_empty() {
         return (Vec::new(), Vec::new());
     }
     let n_bins = 50;
     let max = *list.iter().max().unwrap();
     let min = *list.iter().min().unwrap();
-    let bin_size = ((max - min) as f32 / n_bins as f32).round();
+    let mut bin_size = ((max - min) as f32 / n_bins as f32).round() as usize;
+    if bin_size < 1 {
+        bin_size = 1;
+    }
+    log::debug!("Binning with min: {}, max: {}, bin_size: {}", min, max, bin_size);
     let bins: Vec<_> = (min..max)
-        .step_by(bin_size as usize)
-        .zip((min + (bin_size as u32)..max + 1).step_by(bin_size as usize))
+        .step_by(bin_size)
+        .zip((min + (bin_size as u32)..max + 1).step_by(bin_size))
         .collect();
     let values = bins
         .iter()
@@ -705,6 +710,7 @@ pub fn write_info_html<W: Write>(
     info: Info,
     out: &mut BufWriter<W>,
 ) -> Result<(), std::io::Error> {
+    log::info!("Writing info html");
     let mut vars: HashMap<&str, String> = HashMap::default();
 
     let content = r##"
