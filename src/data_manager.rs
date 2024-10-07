@@ -111,11 +111,14 @@ impl DataManager {
     }
 
     pub fn finish(self) -> Result<Self, Error> {
-        if self.input_requirements.contains(&Req::Hist) {
-            Ok(self.set_abacus_aux()?.set_abaci_by_total().set_hists())
-        } else {
-            Ok(self.set_abacus_aux()?.set_abaci_by_total())
+        let mut dm = self.set_abacus_aux()?.set_abaci_by_total();
+        if dm.input_requirements.contains(&Req::Hist) {
+            dm = dm.set_hists();
         }
+        if dm.input_requirements.contains(&Req::AbacusByGroup) {
+            dm = dm.set_abacus_by_group()?;
+        }
+        Ok(dm)
     }
 
     pub fn get_degree(&self) -> &Vec<u32> {
@@ -191,17 +194,15 @@ impl DataManager {
         }
     }
 
-    // TODO: fix abacus_by_group
-    //
-    // fn set_abacus_by_group(mut self) -> Result<Self, Error> {
-    //     let mut abaci_by_group = HashMap::new();
-    //     let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-    //     let abacus = AbacusByGroup::from_gfa(&mut data,
-    //         self.abacus_aux.as_ref().unwrap(), &self.graph_aux, self.count_type, true)?;
-    //     abaci_by_group.insert(self.count_type, abacus);
-    //     self.group_abaci = Some(abaci_by_group);
-    //     Ok(self)
-    // }
+    fn set_abacus_by_group(mut self) -> Result<Self, Error> {
+        let mut abaci_by_group = HashMap::new();
+        let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
+        let abacus = AbacusByGroup::from_gfa(&mut data,
+            self.abacus_aux.as_ref().unwrap(), &self.graph_aux, self.count_type, true)?;
+        abaci_by_group.insert(self.count_type, abacus);
+        self.group_abaci = Some(abaci_by_group);
+        Ok(self)
+    }
 
     fn set_abaci_by_total(mut self) -> Self {
         let mut abaci = HashMap::new();

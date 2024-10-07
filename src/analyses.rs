@@ -27,4 +27,5 @@ pub enum InputRequirement {
     Bp,
     PathLens,
     Hist,
+    AbacusByGroup,
 }
