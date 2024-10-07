@@ -785,7 +785,7 @@ impl AbacusByTotal {
         graph_aux: &GraphAuxilliary,
         abacus_aux: &AbacusAuxilliary,
     ) -> Result<Vec<Self>, Error> {
-        let mut abaci = Vec::new();
+        let abaci = Vec::new();
         // if let CountType::All = count {
         //     for count_type in CountType::iter() {
         //         if let CountType::All = count_type {

@@ -7,11 +7,7 @@ use std::{
 use strum::IntoEnumIterator;
 
 use crate::{
-    abacus::{AbacusAuxilliary, AbacusByGroup, AbacusByTotal, ViewParams},
-    analyses::InputRequirement as Req,
-    graph::{Edge, GraphAuxilliary, ItemId, PathSegment},
-    io::bufreader_from_compressed_gfa,
-    util::CountType,
+    abacus::{AbacusAuxilliary, AbacusByGroup, AbacusByTotal, ViewParams}, analyses::InputRequirement as Req, graph::{Edge, GraphAuxilliary, ItemId, PathSegment}, hist::Hist, io::bufreader_from_compressed_gfa, util::CountType
 };
 
 #[derive(Debug)]
@@ -25,6 +21,7 @@ pub struct DataManager<'a> {
 
     total_abaci: Option<HashMap<CountType, AbacusByTotal>>,
     group_abaci: Option<HashMap<CountType, AbacusByGroup<'a>>>,
+    hists: Option<HashMap<CountType, Hist>>,
 
     path_lens: Option<HashMap<PathSegment, (u32, u32)>>,
     gfa_file: String,
@@ -55,6 +52,7 @@ impl<'a> DataManager<'a> {
             abacus_aux: None,
             total_abaci: None,
             group_abaci: None,
+            hists: None,
             path_lens: None,
             gfa_file: gfa_file.to_owned(),
             input_requirements,
@@ -93,7 +91,11 @@ impl<'a> DataManager<'a> {
     }
 
     pub fn finish(self) -> Result<Self, Error> {
-        Ok(self.set_abacus_aux()?.set_abaci_by_total())
+        if self.input_requirements.contains(&Req::Hist) {
+            Ok(self.set_abacus_aux()?.set_abaci_by_total().set_hists())
+        } else {
+            Ok(self.set_abacus_aux()?.set_abaci_by_total())
+        }
     }
 
     pub fn get_degree(&self) -> &Vec<u32> {
@@ -137,12 +139,26 @@ impl<'a> DataManager<'a> {
         self.path_lens.as_ref().unwrap()
     }
 
+    pub fn get_hist(&self, count: &CountType) -> &Hist {
+        Self::check_and_error(self.hists.as_ref(), "hists");
+        &self.hists.as_ref().unwrap()[count]
+    }
+
     fn set_abacus_aux(mut self) -> Result<Self, Error> {
         self.abacus_aux = Some(AbacusAuxilliary::from_datamgr(
             &self.abacus_aux_params,
             &self.graph_aux,
         )?);
         Ok(self)
+    }
+
+    fn set_hists(mut self) -> Self {
+        let mut hists = HashMap::new();
+        for (k, v) in self.total_abaci.as_ref().unwrap() {
+            hists.insert(*k, Hist::from_abacus(v, Some(&self.graph_aux)));
+        }
+        self.hists = Some(hists);
+        self
     }
 
     fn check_and_error<T>(value: Option<T>, type_of_value: &str) {

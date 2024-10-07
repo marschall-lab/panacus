@@ -1,12 +1,11 @@
 /* standard use */
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::str::{self, FromStr};
 use std::{fmt, usize};
 
-use crate::analyses::info::GroupInfo;
 /* private use */
 use crate::io::bufreader_from_compressed_gfa;
 use crate::util::*;

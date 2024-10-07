@@ -1,9 +1,6 @@
-use std::collections::HashSet;
 /* standard crate */
-use std::fs;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::io::{Error, ErrorKind};
-use std::path::Path;
 use std::str::FromStr;
 
 /* external crate */
@@ -12,13 +9,9 @@ use rayon::prelude::*;
 use strum::VariantNames;
 
 /* private use */
-use crate::abacus::*;
 use crate::analyses::info::Info;
-use crate::analyses::{Analysis, InputRequirement};
+use crate::analyses::Analysis;
 use crate::data_manager::DataManager;
-use crate::graph::*;
-use crate::hist::*;
-use crate::html::*;
 use crate::io::*;
 use crate::util::*;
 
@@ -94,8 +87,8 @@ pub enum Params {
         )]
         groupby_sample: bool,
         #[clap(short, long, help = "Choose output format: table (tab-separated-values) or html report", 
-            default_value = "table", 
-            ignore_case = true, 
+            default_value = "table",
+            ignore_case = true,
             value_parser = clap_enum_variants!(OutputFormat),)]
         output_format: OutputFormat,
         #[clap(
@@ -616,7 +609,7 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
     }
     dm = dm.finish()?;
     let mut info = Info::build(&dm);
-    let table = info.generate_table();
+    let table = info.generate_table(&dm);
     write_text(&table, out)?;
     //match params {
     //    Params::Histgrowth {

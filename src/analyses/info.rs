@@ -5,7 +5,13 @@ use strum::VariantNames;
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
 use crate::{
-    abacus::ViewParams, analyses::{Analysis, InputRequirement, ReportSection}, clap_enum_variants, cli::validate_single_groupby_option, data_manager::DataManager, graph::{Edge, ItemId}, io::OutputFormat, util::{averageu32, median_already_sorted, n50_already_sorted}
+    abacus::ViewParams,
+    analyses::{Analysis, InputRequirement, ReportSection},
+    clap_enum_variants,
+    data_manager::DataManager,
+    graph::{Edge, ItemId},
+    io::OutputFormat,
+    util::{averageu32, median_already_sorted, n50_already_sorted},
 };
 
 pub struct Info {
@@ -23,11 +29,11 @@ impl Analysis for Info {
         }
     }
 
-    fn generate_table(&mut self) -> String {
+    fn generate_table(&mut self, _dm: &DataManager) -> String {
         self.to_string()
     }
 
-    fn generate_report_section(&mut self) -> ReportSection {
+    fn generate_report_section(&mut self, _dm: &DataManager) -> ReportSection {
         ReportSection {}
     }
 
@@ -47,7 +53,9 @@ impl Analysis for Info {
             ])
     }
 
-    fn get_input_requirements(matches: &ArgMatches) -> Option<(HashSet<InputRequirement>, ViewParams, String)> {
+    fn get_input_requirements(
+        matches: &ArgMatches,
+    ) -> Option<(HashSet<InputRequirement>, ViewParams, String)> {
         let matches = matches.subcommand_matches("info")?;
         let req = HashSet::from([
             InputRequirement::Node,
@@ -55,16 +63,24 @@ impl Analysis for Info {
             InputRequirement::Bp,
             InputRequirement::PathLens,
         ]);
-        let view = 
-            // TODO: validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)
-            ViewParams {
-                groupby: matches.get_one::<String>("groupby").cloned().unwrap_or_default(),
-                groupby_haplotype: matches.get_flag("groupby-haplotype"),
-                groupby_sample: matches.get_flag("groupby-sample"),
-                positive_list: matches.get_one::<String>("subset").cloned().unwrap_or_default(),
-                negative_list: matches.get_one::<String>("exclude").cloned().unwrap_or_default(),
-                order: None,
-            };
+        // TODO: validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)
+        let view = ViewParams {
+            groupby: matches
+                .get_one::<String>("groupby")
+                .cloned()
+                .unwrap_or_default(),
+            groupby_haplotype: matches.get_flag("groupby-haplotype"),
+            groupby_sample: matches.get_flag("groupby-sample"),
+            positive_list: matches
+                .get_one::<String>("subset")
+                .cloned()
+                .unwrap_or_default(),
+            negative_list: matches
+                .get_one::<String>("exclude")
+                .cloned()
+                .unwrap_or_default(),
+            order: None,
+        };
         let file_name = matches.get_one::<String>("gfa_file")?.to_owned();
         log::debug!("input params: {:?}, {:?}, {:?}", req, view, file_name);
         Some((req, view, file_name))
