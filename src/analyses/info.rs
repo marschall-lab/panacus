@@ -1,5 +1,5 @@
 use core::fmt;
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, io::{BufWriter, Write, Error}};
 use strum::VariantNames;
 
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
@@ -21,16 +21,16 @@ pub struct Info {
 }
 
 impl Analysis for Info {
-    fn build(dm: &DataManager) -> Self {
-        Info {
+    fn build(dm: &DataManager, _matches: &ArgMatches) -> Result<Box<Self>, Error> {
+        Ok(Box::new(Info {
             graph_info: GraphInfo::from(dm),
             path_info: PathInfo::from(dm),
             group_info: Some(GroupInfo::from(dm)),
-        }
+        }))
     }
 
-    fn generate_table(&mut self, _dm: &DataManager) -> String {
-        self.to_string()
+    fn write_table<W: Write>(&mut self, _dm: &DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+        writeln!(out, "{}", self.to_string())
     }
 
     fn generate_report_section(&mut self, _dm: &DataManager) -> ReportSection {

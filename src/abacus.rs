@@ -849,21 +849,21 @@ impl AbacusByTotal {
 }
 
 #[derive(Debug, Clone)]
-pub struct AbacusByGroup<'a> {
+pub struct AbacusByGroup {
     pub count: CountType,
     pub r: Vec<usize>,
     pub v: Option<Vec<CountSize>>,
     pub c: Vec<GroupSize>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
-    pub graph_aux: &'a GraphAuxilliary,
+    // pub graph_aux: &'a GraphAuxilliary,
 }
 
-impl<'a> AbacusByGroup<'a> {
+impl AbacusByGroup {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
         abacus_aux: &AbacusAuxilliary,
-        graph_aux: &'a GraphAuxilliary,
+        graph_aux: &GraphAuxilliary,
         count: CountType,
         report_values: bool,
     ) -> Result<Self, Error> {
@@ -910,7 +910,6 @@ impl<'a> AbacusByGroup<'a> {
             c,
             uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, graph_aux),
             groups,
-            graph_aux,
         })
     }
 
@@ -1048,7 +1047,7 @@ impl<'a> AbacusByGroup<'a> {
     }
 
     // why &self and not self? we could destroy abacus at this point.
-    pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold) -> Vec<f64> {
+    pub fn calc_growth(&self, t_coverage: &Threshold, t_quorum: &Threshold, node_lens: &Vec<u32>) -> Vec<f64> {
         let mut res = vec![0.0; self.groups.len()];
 
         let c = usize::max(1, t_coverage.to_absolute(self.groups.len()));
@@ -1072,7 +1071,7 @@ impl<'a> AbacusByGroup<'a> {
                             CountType::Bp => {
                                 let uncovered =
                                     self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0);
-                                let covered = self.graph_aux.node_lens[i] as usize;
+                                let covered = node_lens[i] as usize;
                                 if uncovered > &covered {
                                     log::error!("oops, #uncovered bps ({}) is larger than #coverd bps ({}) for node with sid {})", &uncovered, &covered, i);
                                 } else {
@@ -1110,12 +1109,12 @@ impl<'a> AbacusByGroup<'a> {
         Ok(())
     }
 
-    pub fn to_tsv<W: Write>(&self, total: bool, out: &mut BufWriter<W>) -> Result<(), Error> {
+    pub fn to_tsv<W: Write>(&self, total: bool, out: &mut BufWriter<W>, graph_aux: &GraphAuxilliary) -> Result<(), Error> {
         // create mapping from numerical node ids to original node identifiers
         log::info!("reporting coverage table");
         let dummy = Vec::new();
-        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; self.graph_aux.node_count + 1];
-        for (node, id) in self.graph_aux.node2id.iter() {
+        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; graph_aux.node_count + 1];
+        for (node, id) in graph_aux.node2id.iter() {
             id2node[id.0 as usize] = node;
         }
 
@@ -1136,7 +1135,7 @@ impl<'a> AbacusByGroup<'a> {
                 it.next();
                 for (i, (&start, &end)) in it {
                     let bp = if self.count == CountType::Bp {
-                        self.graph_aux.node_lens[i] as usize
+                        graph_aux.node_lens[i] as usize
                             - *self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0)
                     } else {
                         1
@@ -1164,14 +1163,14 @@ impl<'a> AbacusByGroup<'a> {
                 }
             }
             CountType::Edge => {
-                if let Some(edge2id) = &self.graph_aux.edge2id {
+                if let Some(edge2id) = &graph_aux.edge2id {
                     let dummy_edge = Edge(
                         ItemId(0),
                         Orientation::default(),
                         ItemId(0),
                         Orientation::default(),
                     );
-                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; self.graph_aux.edge_count + 1];
+                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; graph_aux.edge_count + 1];
                     for (edge, id) in edge2id.iter() {
                         id2edge[id.0 as usize] = edge;
                     }

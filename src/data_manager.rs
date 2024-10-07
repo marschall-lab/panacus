@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct DataManager<'a> {
+pub struct DataManager {
     // GraphAuxilliary
     graph_aux: GraphAuxilliary,
 
@@ -20,7 +20,7 @@ pub struct DataManager<'a> {
     abacus_aux: Option<AbacusAuxilliary>,
 
     total_abaci: Option<HashMap<CountType, AbacusByTotal>>,
-    group_abaci: Option<HashMap<CountType, AbacusByGroup<'a>>>,
+    group_abaci: Option<HashMap<CountType, AbacusByGroup>>,
     hists: Option<HashMap<CountType, Hist>>,
 
     path_lens: Option<HashMap<PathSegment, (u32, u32)>>,
@@ -29,7 +29,27 @@ pub struct DataManager<'a> {
     count_type: CountType,
 }
 
-impl<'a> DataManager<'a> {
+impl DataManager {
+    pub fn from_gfa_with_view(gfa_file: &str, input_requirements: HashSet<Req>, view_params: &ViewParams) -> Result<Self, Error> {
+        let mut dm = Self::from_gfa(&gfa_file, input_requirements);
+        if view_params.groupby_sample {
+            dm = dm.with_sample_group();
+        } else if view_params.groupby_haplotype {
+            dm = dm.with_haplo_group();
+        } else if view_params.groupby != "" {
+            dm = dm.with_group(&view_params.groupby);
+        }
+        if view_params.positive_list != "" {
+            dm = dm.include_coords(&view_params.positive_list);
+        }
+        if view_params.negative_list != "" {
+            dm = dm.exclude_coords(&view_params.negative_list);
+        }
+        if view_params.order.is_some() {
+            dm = dm.with_order(view_params.order.as_ref().unwrap());
+        }
+        dm.finish()
+    }
     pub fn from_gfa(gfa_file: &str, input_requirements: HashSet<Req>) -> Self {
         let count_type = if input_requirements.contains(&Req::Node)
             && input_requirements.contains(&Req::Edge)
@@ -139,9 +159,9 @@ impl<'a> DataManager<'a> {
         self.path_lens.as_ref().unwrap()
     }
 
-    pub fn get_hist(&self, count: &CountType) -> &Hist {
+    pub fn get_hists(&self) -> &HashMap<CountType, Hist> {
         Self::check_and_error(self.hists.as_ref(), "hists");
-        &self.hists.as_ref().unwrap()[count]
+        &self.hists.as_ref().unwrap()
     }
 
     fn set_abacus_aux(mut self) -> Result<Self, Error> {

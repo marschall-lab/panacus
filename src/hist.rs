@@ -217,7 +217,7 @@ impl HistAuxilliary {
         }
     }
 
-    fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
+    pub fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {
             quorum_thresholds = cli::parse_threshold_cli(quorum, cli::RequireThreshold::Relative)?;

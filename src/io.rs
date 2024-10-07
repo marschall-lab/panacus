@@ -1305,6 +1305,7 @@ pub fn write_text<W: Write>(text: &str, out: &mut BufWriter<W>) -> Result<(), Er
 pub fn write_ordered_histgrowth_table<W: Write>(
     abacus_group: &AbacusByGroup,
     hist_aux: &HistAuxilliary,
+    node_lens: &Vec<u32>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     log::info!("reporting ordered-growth table");
@@ -1324,7 +1325,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
                 &c,
                 &q
             );
-            abacus_group.calc_growth(c, q)
+            abacus_group.calc_growth(c, q, node_lens)
         })
         .collect();
 
@@ -1356,6 +1357,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
 pub fn write_ordered_histgrowth_html<W: Write>(
     abacus_group: &AbacusByGroup,
     hist_aux: &HistAuxilliary,
+    node_lens: &Vec<u32>,
     gfa_file: &str,
     count: CountType,
     info: Option<Info>,
@@ -1371,7 +1373,7 @@ pub fn write_ordered_histgrowth_html<W: Write>(
                 &c,
                 &q
             );
-            abacus_group.calc_growth(c, q)
+            abacus_group.calc_growth(c, q, node_lens)
         })
         .collect();
     // insert empty row for 0 element

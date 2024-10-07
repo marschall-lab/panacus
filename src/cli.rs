@@ -8,9 +8,10 @@ use clap::{crate_version, Command, Parser, Subcommand};
 use rayon::prelude::*;
 use strum::VariantNames;
 
+use crate::analyses::histgrowth::Histgrowth;
 /* private use */
 use crate::analyses::info::Info;
-use crate::analyses::Analysis;
+use crate::analyses::{self, Analysis};
 use crate::data_manager::DataManager;
 use crate::io::*;
 use crate::util::*;
@@ -28,6 +29,7 @@ macro_rules! clap_enum_variants {
     // Code from https://github.com/clap-rs/clap/discussions/4264
     ($e: ty) => {{
         use clap::builder::TypedValueParser;
+        use strum::VariantNames;
         clap::builder::PossibleValuesParser::new(<$e>::VARIANTS).map(|s| s.parse::<$e>().unwrap())
     }};
 }
@@ -587,30 +589,23 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
         .author("Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>")
         .about("Calculate count statistics for pangenomic data")
         .subcommand(Info::get_subcommand())
+        .subcommand(analyses::hist::Hist::get_subcommand())
+        .subcommand(Histgrowth::get_subcommand())
         .get_matches();
 
-    let (req, view_params, gfa_file) = Info::get_input_requirements(&matches).unwrap();
-    let mut dm = DataManager::from_gfa(&gfa_file, req);
-    if view_params.groupby_sample {
-        dm = dm.with_sample_group();
-    } else if view_params.groupby_haplotype {
-        dm = dm.with_haplo_group();
-    } else if view_params.groupby != "" {
-        dm = dm.with_group(&view_params.groupby);
+    if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
+        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let mut info = Info::build(&dm, &matches)?;
+        info.write_table(&dm, out)?;
+    } else if let Some((req, view_params, gfa_file)) = crate::analyses::hist::Hist::get_input_requirements(&matches) {
+        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let mut hist = analyses::hist::Hist::build(&dm, &matches)?;
+        hist.write_table(&dm, out)?;
+    } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches) {
+        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let mut histgrowth = Histgrowth::build(&dm, &matches)?;
+        histgrowth.write_table(&dm, out)?;
     }
-    if view_params.positive_list != "" {
-        dm = dm.include_coords(&view_params.positive_list);
-    }
-    if view_params.negative_list != "" {
-        dm = dm.exclude_coords(&view_params.negative_list);
-    }
-    if view_params.order.is_some() {
-        dm = dm.with_order(view_params.order.as_ref().unwrap());
-    }
-    dm = dm.finish()?;
-    let mut info = Info::build(&dm);
-    let table = info.generate_table(&dm);
-    write_text(&table, out)?;
     //match params {
     //    Params::Histgrowth {
     //        ref gfa_file,
