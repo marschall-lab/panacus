@@ -6,8 +6,9 @@ use std::fmt;
 /* external use */
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
+use crate::data_manager::ItemId;
+
 /* internal use */
-use crate::graph::ItemId;
 
 // storage space for item IDs
 pub type ItemIdSize = u64;

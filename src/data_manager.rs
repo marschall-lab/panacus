@@ -4,11 +4,27 @@ use std::{
     str,
 };
 
+use abacus::{AbacusAuxilliary, AbacusByTotal};
+use graph::GraphAuxilliary;
 use strum::IntoEnumIterator;
 
 use crate::{
-    abacus::{AbacusAuxilliary, AbacusByGroup, AbacusByTotal, ViewParams}, analyses::InputRequirement as Req, graph::{Edge, GraphAuxilliary, ItemId, PathSegment}, hist::Hist, io::bufreader_from_compressed_gfa, util::CountType
+    analyses::InputRequirement as Req, io::bufreader_from_compressed_gfa, util::CountType
 };
+
+mod abacus;
+mod hist;
+mod graph;
+mod util;
+
+pub use graph::Orientation;
+pub use graph::Edge;
+pub use graph::ItemId;
+pub use graph::PathSegment;
+pub use abacus::AbacusByGroup;
+pub use hist::HistAuxilliary;
+pub use abacus::ViewParams;
+pub use hist::Hist;
 
 #[derive(Debug)]
 pub struct DataManager {

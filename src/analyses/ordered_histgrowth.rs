@@ -3,8 +3,8 @@ use std::io::Write;
 
 use clap::{arg, value_parser, Arg, Command};
 
-use crate::{analyses::InputRequirement, hist::HistAuxilliary, io::write_ordered_histgrowth_table, util::CountType};
-use crate::{abacus::ViewParams, clap_enum_variants, io::OutputFormat};
+use crate::{analyses::InputRequirement, data_manager::{HistAuxilliary, ViewParams}, io::write_ordered_histgrowth_table, util::CountType};
+use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, ReportSection};
 

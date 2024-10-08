@@ -4,8 +4,9 @@ use std::io::Write;
 use clap::{arg, value_parser, Arg, Command};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::{hist::{Hist, HistAuxilliary}, io::{parse_hists, write_histgrowth_table}, util::CountType};
-use crate::{abacus::ViewParams, clap_enum_variants, io::OutputFormat};
+use crate::{data_manager::{HistAuxilliary, ViewParams}, io::{parse_hists, write_table}, util::CountType};
+use crate::{clap_enum_variants, io::OutputFormat};
+use crate::data_manager::Hist;
 
 use super::{Analysis, ReportSection};
 
@@ -48,7 +49,45 @@ impl Analysis for Growth {
             out.write_all(&c[..])?;
             out.write_all(b"\n")?;
         }
-        write_histgrowth_table(&self.hists, &self.growths, &self.hist_aux, out)
+        writeln!(
+            out,
+            "# {}",
+            std::env::args().collect::<Vec<String>>().join(" ")
+        )?;
+
+        let mut header_cols = vec![vec![
+            "panacus".to_string(),
+            "count".to_string(),
+            "coverage".to_string(),
+            "quorum".to_string(),
+        ]];
+        let mut output_columns: Vec<Vec<f64>> = Vec::new();
+
+        for h in &self.hists {
+            output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+            header_cols.push(vec![
+                "hist".to_string(),
+                h.count.to_string(),
+                String::new(),
+                String::new(),
+            ])
+        }
+
+        for (count, g) in &self.growths {
+            output_columns.extend(g.clone());
+            let m = self.hist_aux.coverage.len();
+            header_cols.extend(
+                std::iter::repeat("growth")
+                    .take(m)
+                    .zip(std::iter::repeat(count).take(m))
+                    .zip(self.hist_aux.coverage.iter())
+                    .zip(&self.hist_aux.quorum)
+                    .map(|(((p, t), c), q)| {
+                        vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
+                    }),
+            );
+        }
+        write_table(&header_cols, &output_columns, out)
     }
 
     fn generate_report_section(&mut self, _dm: &crate::data_manager::DataManager) -> super::ReportSection {

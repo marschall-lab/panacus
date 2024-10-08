@@ -3,8 +3,8 @@ use std::io::Write;
 
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
-use crate::{analyses::InputRequirement, util::CountType};
-use crate::{abacus::ViewParams, clap_enum_variants, io::OutputFormat};
+use crate::{analyses::InputRequirement, data_manager::ViewParams, util::CountType};
+use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, ReportSection};
 

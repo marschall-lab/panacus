@@ -3,13 +3,13 @@ use std::io::Write;
 use std::time::Instant;
 
 /* private use */
-mod abacus;
+// mod abacus;
 mod analyses;
 mod cli;
 mod data_manager;
-mod graph;
-mod hist;
-mod html;
+// mod graph;
+// mod hist;
+// mod html;
 mod io;
 mod util;
 

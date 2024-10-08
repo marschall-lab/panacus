@@ -6,10 +6,11 @@ use std::io::{Error, ErrorKind};
 use rayon::prelude::*;
 
 /* private use */
-use crate::abacus::AbacusByTotal;
 use crate::cli;
-use crate::graph::GraphAuxilliary;
 use crate::util::{CountType, Threshold};
+
+use super::abacus::AbacusByTotal;
+use super::graph::GraphAuxilliary;
 
 #[derive(Debug, Clone)]
 pub struct Hist {
@@ -202,21 +203,6 @@ pub struct HistAuxilliary {
 }
 
 impl HistAuxilliary {
-    pub fn from_params(params: &cli::Params) -> Result<Self, Error> {
-        match params {
-            cli::Params::Histgrowth {
-                quorum, coverage, ..
-            }
-            | cli::Params::Growth {
-                quorum, coverage, ..
-            }
-            | cli::Params::OrderedHistgrowth {
-                quorum, coverage, ..
-            } => Self::parse_params(quorum, coverage),
-            _ => Err(Error::new(ErrorKind::Other, "not implemented")),
-        }
-    }
-
     pub fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {

@@ -1,15 +1,12 @@
 use core::fmt;
 use std::{collections::{HashMap, HashSet}, io::{BufWriter, Write, Error}};
-use strum::VariantNames;
 
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
 use crate::{
-    abacus::ViewParams,
     analyses::{Analysis, InputRequirement, ReportSection},
     clap_enum_variants,
-    data_manager::DataManager,
-    graph::{Edge, ItemId},
+    data_manager::{DataManager, Edge, ItemId, ViewParams},
     io::OutputFormat,
     util::{averageu32, median_already_sorted, n50_already_sorted},
 };

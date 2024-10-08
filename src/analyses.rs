@@ -9,7 +9,7 @@ use std::{collections::HashSet, io::{BufWriter, Write, Error}};
 
 use clap::{ArgMatches, Command};
 
-use crate::{abacus::ViewParams, data_manager::DataManager};
+use crate::data_manager::{DataManager, ViewParams};
 
 pub trait Analysis {
     fn build(dm: &DataManager, matches: &ArgMatches) -> Result<Box<Self>, Error>;
