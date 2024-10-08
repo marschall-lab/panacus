@@ -8,9 +8,12 @@ use clap::{crate_version, Command, Parser, Subcommand};
 use rayon::prelude::*;
 use strum::VariantNames;
 
+use crate::analyses::growth::Growth;
 use crate::analyses::histgrowth::Histgrowth;
 /* private use */
 use crate::analyses::info::Info;
+use crate::analyses::ordered_histgrowth::OrderedHistgrowth;
+use crate::analyses::table::Table;
 use crate::analyses::{self, Analysis};
 use crate::data_manager::DataManager;
 use crate::io::*;
@@ -591,6 +594,9 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
         .subcommand(Info::get_subcommand())
         .subcommand(analyses::hist::Hist::get_subcommand())
         .subcommand(Histgrowth::get_subcommand())
+        .subcommand(OrderedHistgrowth::get_subcommand())
+        .subcommand(Table::get_subcommand())
+        .subcommand(Growth::get_subcommand())
         .get_matches();
 
     if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
@@ -605,7 +611,21 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
         let mut histgrowth = Histgrowth::build(&dm, &matches)?;
         histgrowth.write_table(&dm, out)?;
+    }  else if let Some((req, view_params, gfa_file)) = OrderedHistgrowth::get_input_requirements(&matches) {
+        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let mut ordered_histgrowth = OrderedHistgrowth::build(&dm, &matches)?;
+        ordered_histgrowth.write_table(&dm, out)?;
+    } else if let Some((req, view_params, gfa_file)) = Table::get_input_requirements(&matches) {
+        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let mut table = Table::build(&dm, &matches)?;
+        table.write_table(&dm, out)?;
+    } else if matches.subcommand_matches("growth").is_some() {
+        let dm = DataManager::new();
+        let mut growth = Growth::build(&dm, &matches)?;
+        growth.write_table(&dm, out)?;
     }
+
+
     //match params {
     //    Params::Histgrowth {
     //        ref gfa_file,

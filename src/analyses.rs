@@ -1,6 +1,9 @@
 pub mod info;
 pub mod hist;
 pub mod histgrowth;
+pub mod ordered_histgrowth;
+pub mod table;
+pub mod growth;
 
 use std::{collections::HashSet, io::{BufWriter, Write, Error}};
 

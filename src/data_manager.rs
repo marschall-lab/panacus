@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    io::Error,
+    io::{BufWriter, Error, Write},
     str,
 };
 
@@ -13,14 +13,14 @@ use crate::{
 #[derive(Debug)]
 pub struct DataManager {
     // GraphAuxilliary
-    graph_aux: GraphAuxilliary,
+    graph_aux: Option<GraphAuxilliary>,
 
     // AbabcusAuxilliary
     abacus_aux_params: ViewParams,
     abacus_aux: Option<AbacusAuxilliary>,
 
     total_abaci: Option<HashMap<CountType, AbacusByTotal>>,
-    group_abaci: Option<HashMap<CountType, AbacusByGroup>>,
+    group_abacus: Option<AbacusByGroup>,
     hists: Option<HashMap<CountType, Hist>>,
 
     path_lens: Option<HashMap<PathSegment, (u32, u32)>>,
@@ -46,10 +46,27 @@ impl DataManager {
             dm = dm.exclude_coords(&view_params.negative_list);
         }
         if view_params.order.is_some() {
+            log::debug!("Order given");
             dm = dm.with_order(view_params.order.as_ref().unwrap());
         }
         dm.finish()
     }
+
+    pub fn new() -> Self {
+        DataManager {
+            graph_aux: None,
+            abacus_aux_params: ViewParams::default(),
+            abacus_aux: None,
+            total_abaci: None,
+            group_abacus: None,
+            hists: None,
+            path_lens: None,
+            gfa_file: String::new(),
+            input_requirements: HashSet::new(),
+            count_type: CountType::All,
+        }
+    }
+
     pub fn from_gfa(gfa_file: &str, input_requirements: HashSet<Req>) -> Self {
         let count_type = if input_requirements.contains(&Req::Node)
             && input_requirements.contains(&Req::Edge)
@@ -65,13 +82,13 @@ impl DataManager {
         } else {
             CountType::Node
         };
-        let graph_aux = GraphAuxilliary::from_gfa(gfa_file, count_type);
+        let graph_aux = Some(GraphAuxilliary::from_gfa(gfa_file, count_type));
         DataManager {
             graph_aux,
             abacus_aux_params: ViewParams::default(),
             abacus_aux: None,
             total_abaci: None,
-            group_abaci: None,
+            group_abacus: None,
             hists: None,
             path_lens: None,
             gfa_file: gfa_file.to_owned(),
@@ -122,29 +139,29 @@ impl DataManager {
     }
 
     pub fn get_degree(&self) -> &Vec<u32> {
-        Self::check_and_error(self.graph_aux.degree.as_ref(), "degree");
-        self.graph_aux.degree.as_ref().unwrap()
+        Self::check_and_error(self.graph_aux.as_ref().unwrap().degree.as_ref(), "degree");
+        self.graph_aux.as_ref().unwrap().degree.as_ref().unwrap()
     }
 
     pub fn get_node_lens(&self) -> &Vec<u32> {
-        &self.graph_aux.node_lens
+        &self.graph_aux.as_ref().unwrap().node_lens
     }
 
     pub fn get_edges(&self) -> &HashMap<Edge, ItemId> {
-        Self::check_and_error(self.graph_aux.edge2id.as_ref(), "edge2id");
-        self.graph_aux.edge2id.as_ref().unwrap()
+        Self::check_and_error(self.graph_aux.as_ref().unwrap().edge2id.as_ref(), "edge2id");
+        self.graph_aux.as_ref().unwrap().edge2id.as_ref().unwrap()
     }
 
     pub fn get_nodes(&self) -> &HashMap<Vec<u8>, ItemId> {
-        &self.graph_aux.node2id
+        &self.graph_aux.as_ref().unwrap().node2id
     }
 
     pub fn get_node_count(&self) -> usize {
-        self.graph_aux.node_count
+        self.graph_aux.as_ref().unwrap().node_count
     }
 
     pub fn get_edge_count(&self) -> usize {
-        self.graph_aux.edge_count
+        self.graph_aux.as_ref().unwrap().edge_count
     }
 
     pub fn get_group_count(&self) -> usize {
@@ -167,10 +184,20 @@ impl DataManager {
         &self.hists.as_ref().unwrap()
     }
 
+    pub fn get_abacus_by_group(&self) -> &AbacusByGroup {
+        Self::check_and_error(self.group_abacus.as_ref(), "abacus_by_group");
+        &self.group_abacus.as_ref().unwrap()
+    }
+
+    pub fn write_abacus_by_group<W: Write>(&self, total: bool, out: &mut BufWriter<W>) -> Result<(), Error> {
+        Self::check_and_error(self.group_abacus.as_ref(), "abacus_by_group");
+        self.group_abacus.as_ref().unwrap().to_tsv(total, out, &self.graph_aux.as_ref().unwrap())
+    }
+
     fn set_abacus_aux(mut self) -> Result<Self, Error> {
         self.abacus_aux = Some(AbacusAuxilliary::from_datamgr(
             &self.abacus_aux_params,
-            &self.graph_aux,
+            &self.graph_aux.as_ref().unwrap(),
         )?);
         Ok(self)
     }
@@ -178,7 +205,7 @@ impl DataManager {
     fn set_hists(mut self) -> Self {
         let mut hists = HashMap::new();
         for (k, v) in self.total_abaci.as_ref().unwrap() {
-            hists.insert(*k, Hist::from_abacus(v, Some(&self.graph_aux)));
+            hists.insert(*k, Hist::from_abacus(v, Some(&self.graph_aux.as_ref().unwrap())));
         }
         self.hists = Some(hists);
         self
@@ -195,12 +222,12 @@ impl DataManager {
     }
 
     fn set_abacus_by_group(mut self) -> Result<Self, Error> {
-        let mut abaci_by_group = HashMap::new();
+        // let mut abaci_by_group = HashMap::new();
         let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
         let abacus = AbacusByGroup::from_gfa(&mut data,
-            self.abacus_aux.as_ref().unwrap(), &self.graph_aux, self.count_type, true)?;
-        abaci_by_group.insert(self.count_type, abacus);
-        self.group_abaci = Some(abaci_by_group);
+            self.abacus_aux.as_ref().unwrap(), &self.graph_aux.as_ref().unwrap(), self.count_type, true)?;
+        // abaci_by_group.insert(self.count_type, abacus);
+        self.group_abacus = Some(abacus);
         Ok(self)
     }
 
@@ -214,7 +241,7 @@ impl DataManager {
                     let (abacus, path_lens) = AbacusByTotal::from_gfa(
                         &mut data,
                         self.abacus_aux.as_ref().unwrap(),
-                        &self.graph_aux,
+                        &self.graph_aux.as_ref().unwrap(),
                         count_type,
                     );
                     if count_type == CountType::Node
@@ -230,7 +257,7 @@ impl DataManager {
             let (abacus, path_lens) = AbacusByTotal::from_gfa(
                 &mut data,
                 self.abacus_aux.as_ref().unwrap(),
-                &self.graph_aux,
+                &self.graph_aux.as_ref().unwrap(),
                 self.count_type,
             );
             if self.input_requirements.contains(&Req::PathLens) {
