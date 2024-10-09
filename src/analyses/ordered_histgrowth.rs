@@ -1,9 +1,17 @@
-use std::{collections::HashSet, io::{BufWriter, Error}};
 use std::io::Write;
+use std::{
+    collections::HashSet,
+    io::{BufWriter, Error},
+};
 
 use clap::{arg, value_parser, Arg, Command};
 
-use crate::{analyses::InputRequirement, data_manager::{HistAuxilliary, ViewParams}, io::write_ordered_histgrowth_table, util::CountType};
+use crate::{
+    analyses::InputRequirement,
+    data_manager::{HistAuxilliary, ViewParams},
+    io::write_ordered_histgrowth_table,
+    util::CountType,
+};
 use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, ReportSection};
@@ -13,23 +21,36 @@ pub struct OrderedHistgrowth {
 }
 
 impl Analysis for OrderedHistgrowth {
-    fn build(_dm: &crate::data_manager::DataManager, matches: &clap::ArgMatches) -> Result<Box<Self>, Error> {
+    fn build(
+        _dm: &crate::data_manager::DataManager,
+        matches: &clap::ArgMatches,
+    ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("ordered-histgrowth").unwrap();
         let coverage = matches.get_one::<String>("coverage").cloned().unwrap();
         let quorum = matches.get_one::<String>("quorum").cloned().unwrap();
         let hist_aux = HistAuxilliary::parse_params(&quorum, &coverage)?;
-        Ok(Box::new(Self {
-            hist_aux
-        }))
+        Ok(Box::new(Self { hist_aux }))
     }
 
-    fn write_table<W: Write>(&mut self, dm: &crate::data_manager::DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+    fn write_table<W: Write>(
+        &mut self,
+        dm: &crate::data_manager::DataManager,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         log::info!("reporting hist table");
-        write_ordered_histgrowth_table(dm.get_abacus_by_group(), &self.hist_aux, dm.get_node_lens(), out)
+        write_ordered_histgrowth_table(
+            dm.get_abacus_by_group(),
+            &self.hist_aux,
+            dm.get_node_lens(),
+            out,
+        )
     }
 
-    fn generate_report_section(&mut self, _dm: &crate::data_manager::DataManager) -> super::ReportSection {
-        ReportSection { }
+    fn generate_report_section(
+        &mut self,
+        _dm: &crate::data_manager::DataManager,
+    ) -> super::ReportSection {
+        ReportSection {}
     }
 
     fn get_subcommand() -> Command {
@@ -55,13 +76,10 @@ impl Analysis for OrderedHistgrowth {
     }
 
     fn get_input_requirements(
-            matches: &clap::ArgMatches,
-        ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+        matches: &clap::ArgMatches,
+    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
         let matches = matches.subcommand_matches("ordered-histgrowth")?;
-        let mut req = HashSet::from([
-            InputRequirement::Hist,
-            InputRequirement::AbacusByGroup,
-        ]);
+        let mut req = HashSet::from([InputRequirement::Hist, InputRequirement::AbacusByGroup]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
         let view = ViewParams {
@@ -79,9 +97,7 @@ impl Analysis for OrderedHistgrowth {
                 .get_one::<String>("exclude")
                 .cloned()
                 .unwrap_or_default(),
-            order: matches
-                .get_one::<String>("order")
-                .cloned(),
+            order: matches.get_one::<String>("order").cloned(),
         };
         let file_name = matches.get_one::<String>("gfa_file")?.to_owned();
         log::debug!("input params: {:?}, {:?}, {:?}", req, view, file_name);
@@ -98,7 +114,7 @@ impl OrderedHistgrowth {
             CountType::All => HashSet::from([
                 InputRequirement::Bp,
                 InputRequirement::Node,
-                InputRequirement::Edge
+                InputRequirement::Edge,
             ]),
         }
     }

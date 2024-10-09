@@ -10,8 +10,8 @@ use rayon::prelude::*;
 use strum_macros::{EnumString, EnumVariantNames};
 
 /* internal use */
-use crate::util::*;
 use crate::data_manager::{AbacusByGroup, HistAuxilliary, PathSegment};
+use crate::util::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
 #[strum(serialize_all = "lowercase")]
@@ -436,7 +436,6 @@ pub fn parse_threshold_file<R: Read>(data: &mut BufReader<R>) -> Result<Vec<Thre
 //     item_table
 // }
 
-
 pub fn write_table<W: Write>(
     headers: &Vec<Vec<String>>,
     columns: &Vec<Vec<f64>>,
@@ -501,7 +500,7 @@ pub fn write_ordered_table<W: Write>(
 //         "# {}",
 //         std::env::args().collect::<Vec<String>>().join(" ")
 //     )?;
-// 
+//
 //     let mut header_cols = vec![vec![
 //         "panacus".to_string(),
 //         "count".to_string(),

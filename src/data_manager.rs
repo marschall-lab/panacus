@@ -9,22 +9,22 @@ use graph::GraphAuxilliary;
 use strum::IntoEnumIterator;
 
 use crate::{
-    analyses::InputRequirement as Req, io::bufreader_from_compressed_gfa, util::CountType
+    analyses::InputRequirement as Req, io::bufreader_from_compressed_gfa, util::CountType,
 };
 
 mod abacus;
-mod hist;
 mod graph;
+mod hist;
 mod util;
 
-pub use graph::Orientation;
+pub use abacus::AbacusByGroup;
+pub use abacus::ViewParams;
 pub use graph::Edge;
 pub use graph::ItemId;
+pub use graph::Orientation;
 pub use graph::PathSegment;
-pub use abacus::AbacusByGroup;
-pub use hist::HistAuxilliary;
-pub use abacus::ViewParams;
 pub use hist::Hist;
+pub use hist::HistAuxilliary;
 
 #[derive(Debug)]
 pub struct DataManager {
@@ -46,7 +46,11 @@ pub struct DataManager {
 }
 
 impl DataManager {
-    pub fn from_gfa_with_view(gfa_file: &str, input_requirements: HashSet<Req>, view_params: &ViewParams) -> Result<Self, Error> {
+    pub fn from_gfa_with_view(
+        gfa_file: &str,
+        input_requirements: HashSet<Req>,
+        view_params: &ViewParams,
+    ) -> Result<Self, Error> {
         let mut dm = Self::from_gfa(&gfa_file, input_requirements);
         if view_params.groupby_sample {
             dm = dm.with_sample_group();
@@ -205,9 +209,16 @@ impl DataManager {
         &self.group_abacus.as_ref().unwrap()
     }
 
-    pub fn write_abacus_by_group<W: Write>(&self, total: bool, out: &mut BufWriter<W>) -> Result<(), Error> {
+    pub fn write_abacus_by_group<W: Write>(
+        &self,
+        total: bool,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         Self::check_and_error(self.group_abacus.as_ref(), "abacus_by_group");
-        self.group_abacus.as_ref().unwrap().to_tsv(total, out, &self.graph_aux.as_ref().unwrap())
+        self.group_abacus
+            .as_ref()
+            .unwrap()
+            .to_tsv(total, out, &self.graph_aux.as_ref().unwrap())
     }
 
     fn set_abacus_aux(mut self) -> Result<Self, Error> {
@@ -221,7 +232,10 @@ impl DataManager {
     fn set_hists(mut self) -> Self {
         let mut hists = HashMap::new();
         for (k, v) in self.total_abaci.as_ref().unwrap() {
-            hists.insert(*k, Hist::from_abacus(v, Some(&self.graph_aux.as_ref().unwrap())));
+            hists.insert(
+                *k,
+                Hist::from_abacus(v, Some(&self.graph_aux.as_ref().unwrap())),
+            );
         }
         self.hists = Some(hists);
         self
@@ -240,8 +254,13 @@ impl DataManager {
     fn set_abacus_by_group(mut self) -> Result<Self, Error> {
         // let mut abaci_by_group = HashMap::new();
         let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-        let abacus = AbacusByGroup::from_gfa(&mut data,
-            self.abacus_aux.as_ref().unwrap(), &self.graph_aux.as_ref().unwrap(), self.count_type, true)?;
+        let abacus = AbacusByGroup::from_gfa(
+            &mut data,
+            self.abacus_aux.as_ref().unwrap(),
+            &self.graph_aux.as_ref().unwrap(),
+            self.count_type,
+            true,
+        )?;
         // abaci_by_group.insert(self.count_type, abacus);
         self.group_abacus = Some(abacus);
         Ok(self)

@@ -1,10 +1,20 @@
-use std::str::{self, FromStr};
-use std::{collections::HashMap, io::{BufRead, BufReader, Read}, sync::{atomic::AtomicU32, Arc, Mutex}};
 use itertools::Itertools;
+use std::str::{self, FromStr};
+use std::{
+    collections::HashMap,
+    io::{BufRead, BufReader, Read},
+    sync::{atomic::AtomicU32, Arc, Mutex},
+};
 
 use rayon::prelude::*;
 
-use crate::{data_manager::Edge, util::{intersects, is_contained, ActiveTable, CountType, IntervalContainer, ItemTable, Wrap, SIZE_T}};
+use crate::{
+    data_manager::Edge,
+    util::{
+        intersects, is_contained, ActiveTable, CountType, IntervalContainer, ItemTable, Wrap,
+        SIZE_T,
+    },
+};
 
 use super::{abacus::AbacusAuxilliary, graph::GraphAuxilliary, ItemId, Orientation, PathSegment};
 
@@ -205,8 +215,6 @@ pub fn parse_path_identifier(data: &[u8]) -> (PathSegment, &[u8]) {
         &data[start + offset + 1..],
     )
 }
-
-
 
 pub fn update_tables(
     item_table: &mut ItemTable,
@@ -593,7 +601,10 @@ pub fn parse_walk_seq_update_tables(
                     (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
                 }
             }
-            bp_len.fetch_add(graph_aux.node_len(&sid), std::sync::atomic::Ordering::SeqCst);
+            bp_len.fetch_add(
+                graph_aux.node_len(&sid),
+                std::sync::atomic::Ordering::SeqCst,
+            );
         });
     let bp_len = bp_len.load(std::sync::atomic::Ordering::SeqCst);
 
@@ -699,7 +710,10 @@ pub fn parse_path_seq_update_tables(
                 (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
             }
         }
-        bp_len.fetch_add(graph_aux.node_len(&sid), std::sync::atomic::Ordering::SeqCst);
+        bp_len.fetch_add(
+            graph_aux.node_len(&sid),
+            std::sync::atomic::Ordering::SeqCst,
+        );
     });
     let bp_len = bp_len.load(std::sync::atomic::Ordering::SeqCst);
 

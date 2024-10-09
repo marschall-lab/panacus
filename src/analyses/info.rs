@@ -1,5 +1,8 @@
 use core::fmt;
-use std::{collections::{HashMap, HashSet}, io::{BufWriter, Write, Error}};
+use std::{
+    collections::{HashMap, HashSet},
+    io::{BufWriter, Error, Write},
+};
 
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
@@ -26,7 +29,11 @@ impl Analysis for Info {
         }))
     }
 
-    fn write_table<W: Write>(&mut self, _dm: &DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+    fn write_table<W: Write>(
+        &mut self,
+        _dm: &DataManager,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         writeln!(out, "{}", self.to_string())
     }
 

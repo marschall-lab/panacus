@@ -102,16 +102,19 @@ pub fn parse_threshold_cli(
 // We run this function in the main otherwise in the tests the second time we run the function
 // "run" it will crush
 pub fn set_number_of_threads(params: &ArgMatches) {
-        //if num_threads is 0 then the Rayon will select 
-        //the number of threads to the core number automatically 
-        let subcommand_name = params.subcommand_name().unwrap();
-        let matches = params.subcommand_matches(subcommand_name).unwrap();
-        let threads = matches.get_one("threads").unwrap();
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(*threads)
-            .build_global()
-            .expect("Failed to initialize global thread pool");
-        log::info!("running panacus on {} threads", rayon::current_num_threads());
+    //if num_threads is 0 then the Rayon will select
+    //the number of threads to the core number automatically
+    let subcommand_name = params.subcommand_name().unwrap();
+    let matches = params.subcommand_matches(subcommand_name).unwrap();
+    let threads = matches.get_one("threads").unwrap();
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(*threads)
+        .build_global()
+        .expect("Failed to initialize global thread pool");
+    log::info!(
+        "running panacus on {} threads",
+        rayon::current_num_threads()
+    );
 }
 
 pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
@@ -132,15 +135,20 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
         let mut info = Info::build(&dm, &matches)?;
         info.write_table(&dm, out)?;
-    } else if let Some((req, view_params, gfa_file)) = crate::analyses::hist::Hist::get_input_requirements(&matches) {
+    } else if let Some((req, view_params, gfa_file)) =
+        crate::analyses::hist::Hist::get_input_requirements(&matches)
+    {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
         let mut hist = analyses::hist::Hist::build(&dm, &matches)?;
         hist.write_table(&dm, out)?;
-    } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches) {
+    } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches)
+    {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
         let mut histgrowth = Histgrowth::build(&dm, &matches)?;
         histgrowth.write_table(&dm, out)?;
-    }  else if let Some((req, view_params, gfa_file)) = OrderedHistgrowth::get_input_requirements(&matches) {
+    } else if let Some((req, view_params, gfa_file)) =
+        OrderedHistgrowth::get_input_requirements(&matches)
+    {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
         let mut ordered_histgrowth = OrderedHistgrowth::build(&dm, &matches)?;
         ordered_histgrowth.write_table(&dm, out)?;
@@ -153,7 +161,6 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
         let mut growth = Growth::build(&dm, &matches)?;
         growth.write_table(&dm, out)?;
     }
-
 
     //match params {
     //    Params::Histgrowth {

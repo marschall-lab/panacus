@@ -1,12 +1,20 @@
-use std::{collections::HashSet, fs, io::{BufReader, BufWriter, Error}};
 use std::io::Write;
+use std::{
+    collections::HashSet,
+    fs,
+    io::{BufReader, BufWriter, Error},
+};
 
 use clap::{arg, value_parser, Arg, Command};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::{data_manager::{HistAuxilliary, ViewParams}, io::{parse_hists, write_table}, util::CountType};
-use crate::{clap_enum_variants, io::OutputFormat};
 use crate::data_manager::Hist;
+use crate::{clap_enum_variants, io::OutputFormat};
+use crate::{
+    data_manager::{HistAuxilliary, ViewParams},
+    io::{parse_hists, write_table},
+    util::CountType,
+};
 
 use super::{Analysis, ReportSection};
 
@@ -18,12 +26,18 @@ pub struct Growth {
 }
 
 impl Analysis for Growth {
-    fn build(_dm: &crate::data_manager::DataManager, matches: &clap::ArgMatches) -> Result<Box<Self>, Error> {
+    fn build(
+        _dm: &crate::data_manager::DataManager,
+        matches: &clap::ArgMatches,
+    ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("growth").unwrap();
         let coverage = matches.get_one::<String>("coverage").cloned().unwrap();
         let quorum = matches.get_one::<String>("quorum").cloned().unwrap();
         let hist_aux = HistAuxilliary::parse_params(&quorum, &coverage)?;
-        let hist_file = matches.get_one::<String>("hist_file").cloned().unwrap_or_default();
+        let hist_file = matches
+            .get_one::<String>("hist_file")
+            .cloned()
+            .unwrap_or_default();
         log::info!("loading coverage histogram from {}", hist_file);
         let mut data = BufReader::new(fs::File::open(&hist_file)?);
         let (coverages, comments) = parse_hists(&mut data)?;
@@ -43,7 +57,11 @@ impl Analysis for Growth {
         }))
     }
 
-    fn write_table<W: Write>(&mut self, _dm: &crate::data_manager::DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+    fn write_table<W: Write>(
+        &mut self,
+        _dm: &crate::data_manager::DataManager,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         log::info!("reporting hist table");
         for c in &self.comments {
             out.write_all(&c[..])?;
@@ -90,8 +108,11 @@ impl Analysis for Growth {
         write_table(&header_cols, &output_columns, out)
     }
 
-    fn generate_report_section(&mut self, _dm: &crate::data_manager::DataManager) -> super::ReportSection {
-        ReportSection { }
+    fn generate_report_section(
+        &mut self,
+        _dm: &crate::data_manager::DataManager,
+    ) -> super::ReportSection {
+        ReportSection {}
     }
 
     fn get_subcommand() -> Command {
@@ -111,8 +132,8 @@ impl Analysis for Growth {
     }
 
     fn get_input_requirements(
-            _matches: &clap::ArgMatches,
-        ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+        _matches: &clap::ArgMatches,
+    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
         None
     }
 }

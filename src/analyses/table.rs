@@ -1,5 +1,8 @@
-use std::{collections::HashSet, io::{BufWriter, Error}};
 use std::io::Write;
+use std::{
+    collections::HashSet,
+    io::{BufWriter, Error},
+};
 
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
@@ -13,20 +16,30 @@ pub struct Table {
 }
 
 impl Analysis for Table {
-    fn build(_dm: &crate::data_manager::DataManager, matches: &ArgMatches) -> Result<Box<Self>, Error> {
+    fn build(
+        _dm: &crate::data_manager::DataManager,
+        matches: &ArgMatches,
+    ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("table").unwrap();
         Ok(Box::new(Self {
             total: matches.get_flag("total"),
         }))
     }
 
-    fn write_table<W: Write>(&mut self, dm: &crate::data_manager::DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+    fn write_table<W: Write>(
+        &mut self,
+        dm: &crate::data_manager::DataManager,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         log::info!("reporting coverage table");
         dm.write_abacus_by_group(self.total, out)
     }
 
-    fn generate_report_section(&mut self, _dm: &crate::data_manager::DataManager) -> super::ReportSection {
-        ReportSection { }
+    fn generate_report_section(
+        &mut self,
+        _dm: &crate::data_manager::DataManager,
+    ) -> super::ReportSection {
+        ReportSection {}
     }
 
     fn get_subcommand() -> Command {
@@ -48,13 +61,10 @@ impl Analysis for Table {
     }
 
     fn get_input_requirements(
-            matches: &clap::ArgMatches,
-        ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+        matches: &clap::ArgMatches,
+    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
         let matches = matches.subcommand_matches("table")?;
-        let mut req = HashSet::from([
-            InputRequirement::Hist,
-            InputRequirement::AbacusByGroup,
-        ]);
+        let mut req = HashSet::from([InputRequirement::Hist, InputRequirement::AbacusByGroup]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
         let view = ViewParams {
@@ -89,7 +99,7 @@ impl Table {
             CountType::All => HashSet::from([
                 InputRequirement::Bp,
                 InputRequirement::Node,
-                InputRequirement::Edge
+                InputRequirement::Edge,
             ]),
         }
     }

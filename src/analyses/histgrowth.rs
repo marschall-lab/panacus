@@ -1,10 +1,18 @@
-use std::{collections::HashSet, io::{BufWriter, Error}};
 use std::io::Write;
+use std::{
+    collections::HashSet,
+    io::{BufWriter, Error},
+};
 
 use clap::{arg, value_parser, Arg, Command};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-use crate::{analyses::InputRequirement, data_manager::{HistAuxilliary, ViewParams}, io::write_table, util::CountType};
+use crate::{
+    analyses::InputRequirement,
+    data_manager::{HistAuxilliary, ViewParams},
+    io::write_table,
+    util::CountType,
+};
 use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, ReportSection};
@@ -15,23 +23,28 @@ pub struct Histgrowth {
 }
 
 impl Analysis for Histgrowth {
-    fn build(dm: &crate::data_manager::DataManager, matches: &clap::ArgMatches) -> Result<Box<Self>, Error> {
+    fn build(
+        dm: &crate::data_manager::DataManager,
+        matches: &clap::ArgMatches,
+    ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("histgrowth").unwrap();
         let coverage = matches.get_one::<String>("coverage").cloned().unwrap();
         let quorum = matches.get_one::<String>("quorum").cloned().unwrap();
         let hist_aux = HistAuxilliary::parse_params(&quorum, &coverage)?;
-        let growths: Vec<_> = dm.get_hists()
+        let growths: Vec<_> = dm
+            .get_hists()
             .values()
             .par_bridge()
             .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
             .collect();
-        Ok(Box::new(Self {
-            growths,
-            hist_aux
-        }))
+        Ok(Box::new(Self { growths, hist_aux }))
     }
 
-    fn write_table<W: Write>(&mut self, dm: &crate::data_manager::DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+    fn write_table<W: Write>(
+        &mut self,
+        dm: &crate::data_manager::DataManager,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         log::info!("reporting hist table");
         writeln!(
             out,
@@ -74,8 +87,11 @@ impl Analysis for Histgrowth {
         write_table(&header_cols, &output_columns, out)
     }
 
-    fn generate_report_section(&mut self, _dm: &crate::data_manager::DataManager) -> super::ReportSection {
-        ReportSection { }
+    fn generate_report_section(
+        &mut self,
+        _dm: &crate::data_manager::DataManager,
+    ) -> super::ReportSection {
+        ReportSection {}
     }
 
     fn get_subcommand() -> Command {
@@ -100,12 +116,10 @@ impl Analysis for Histgrowth {
     }
 
     fn get_input_requirements(
-            matches: &clap::ArgMatches,
-        ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+        matches: &clap::ArgMatches,
+    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
         let matches = matches.subcommand_matches("histgrowth")?;
-        let mut req = HashSet::from([
-            InputRequirement::Hist
-        ]);
+        let mut req = HashSet::from([InputRequirement::Hist]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
         let view = ViewParams {
@@ -140,7 +154,7 @@ impl Histgrowth {
             CountType::All => HashSet::from([
                 InputRequirement::Bp,
                 InputRequirement::Node,
-                InputRequirement::Edge
+                InputRequirement::Edge,
             ]),
         }
     }

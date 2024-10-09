@@ -1,21 +1,33 @@
-use std::{collections::HashSet, io::{BufWriter, Error}};
 use std::io::Write;
+use std::{
+    collections::HashSet,
+    io::{BufWriter, Error},
+};
 
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
-use crate::{analyses::InputRequirement, data_manager::ViewParams, io::write_table, util::CountType};
+use crate::{
+    analyses::InputRequirement, data_manager::ViewParams, io::write_table, util::CountType,
+};
 use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, ReportSection};
 
-pub struct Hist { }
+pub struct Hist {}
 
 impl Analysis for Hist {
-    fn build(_dm: &crate::data_manager::DataManager, _matches: &ArgMatches) -> Result<Box<Self>, Error> {
-        Ok(Box::new(Self { }))
+    fn build(
+        _dm: &crate::data_manager::DataManager,
+        _matches: &ArgMatches,
+    ) -> Result<Box<Self>, Error> {
+        Ok(Box::new(Self {}))
     }
 
-    fn write_table<W: Write>(&mut self, dm: &crate::data_manager::DataManager, out: &mut BufWriter<W>) -> Result<(), Error> {
+    fn write_table<W: Write>(
+        &mut self,
+        dm: &crate::data_manager::DataManager,
+        out: &mut BufWriter<W>,
+    ) -> Result<(), Error> {
         log::info!("reporting hist table");
         writeln!(
             out,
@@ -42,8 +54,11 @@ impl Analysis for Hist {
         write_table(&header_cols, &output_columns, out)
     }
 
-    fn generate_report_section(&mut self, _dm: &crate::data_manager::DataManager) -> super::ReportSection {
-        ReportSection { }
+    fn generate_report_section(
+        &mut self,
+        _dm: &crate::data_manager::DataManager,
+    ) -> super::ReportSection {
+        ReportSection {}
     }
 
     fn get_subcommand() -> Command {
@@ -64,12 +79,10 @@ impl Analysis for Hist {
     }
 
     fn get_input_requirements(
-            matches: &clap::ArgMatches,
-        ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+        matches: &clap::ArgMatches,
+    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
         let matches = matches.subcommand_matches("hist")?;
-        let mut req = HashSet::from([
-            InputRequirement::Hist
-        ]);
+        let mut req = HashSet::from([InputRequirement::Hist]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
         let view = ViewParams {
@@ -104,7 +117,7 @@ impl Hist {
             CountType::All => HashSet::from([
                 InputRequirement::Bp,
                 InputRequirement::Node,
-                InputRequirement::Edge
+                InputRequirement::Edge,
             ]),
         }
     }
