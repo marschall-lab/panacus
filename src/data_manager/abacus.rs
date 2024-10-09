@@ -18,7 +18,7 @@ use crate::util::*;
 use super::graph::{GraphAuxilliary, PathSegment};
 use super::util::parse_gfa_paths_walks;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ViewParams {
     pub positive_list: String,
     pub negative_list: String,
@@ -1106,7 +1106,222 @@ pub fn quantify_uncovered_bps(
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use std::io::Error;
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    #[test]
+    fn test_view_params_default() {
+        let expected = ViewParams {
+            positive_list: String::new(),
+            negative_list: String::new(),
+            groupby: String::new(),
+            groupby_haplotype: false,
+            groupby_sample: false,
+            order: None,
+        };
+        let calculated = ViewParams::default();
+        assert_eq!(calculated, expected);
+    }
+
+    fn get_graph_aux_path_segments() -> GraphAuxilliary {
+        GraphAuxilliary {
+            degree: None,
+            edge2id: None,
+            edge_count: 0,
+            node2id: HashMap::new(),
+            node_lens: Vec::new(),
+            node_count: 0,
+            path_segments: vec![
+                PathSegment::from_str("s1#2#2"),
+                PathSegment::from_str("s1#1#2"),
+                PathSegment::from_str("s1#1#1"),
+                PathSegment::from_str("s2#1#2"),
+            ]
+        }
+    }
+
+    fn get_load_groups_expected_hashmap(groups: [&str; 4]) -> HashMap<PathSegment, String> {
+        HashMap::from([
+            (PathSegment::from_str("s1#1#1"), groups[0].to_string()),
+            (PathSegment::from_str("s1#1#2"), groups[1].to_string()),
+            (PathSegment::from_str("s1#2#2"), groups[2].to_string()),
+            (PathSegment::from_str("s2#1#2"), groups[3].to_string()),
+        ])
+    }
+
+    #[test]
+    fn test_load_groups_haplotype() -> Result<(), Error> {
+        let expected = get_load_groups_expected_hashmap([
+            "s1#1",
+            "s1#1",
+            "s1#2",
+            "s2#1",
+        ]);
+        let graph_aux = get_graph_aux_path_segments();
+        let calculated = AbacusAuxilliary::load_groups("", true, false, &graph_aux)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_groups_sample() -> Result<(), Error> {
+        let expected = get_load_groups_expected_hashmap([
+            "s1",
+            "s1",
+            "s1",
+            "s2",
+        ]);
+        let graph_aux = get_graph_aux_path_segments();
+        let calculated = AbacusAuxilliary::load_groups("", false, true, &graph_aux)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    fn get_temporary_file_name_with_content(text: &str) -> Result<(NamedTempFile, String), Error> {
+        let mut f = NamedTempFile::new()?;
+        writeln!(f, "{}", text)?;
+        let msg = "Could not get path as &str";
+        let file_name = f.path().to_str().ok_or(Error::new( ErrorKind::Other, msg))?.to_string();
+        Ok((f, file_name))
+    }
+
+    #[test]
+    fn test_load_groups_file() -> Result<(), Error> {
+        let expected = get_load_groups_expected_hashmap([
+            "g1",
+            "g2",
+            "g1",
+            "g2",
+        ]);
+        let graph_aux = get_graph_aux_path_segments();
+        let text = "s1#1#1\tg1
+s1#1#2\tg2
+s1#2#2\tg1
+s2#1#2\tg2";
+        let (_file, file_name) = get_temporary_file_name_with_content(text)?;
+        let calculated = AbacusAuxilliary::load_groups(&file_name, false, false, &graph_aux)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_groups_none() -> Result<(), Error> {
+        let expected = get_load_groups_expected_hashmap([
+            "s1#1#1",
+            "s1#1#2",
+            "s1#2#2",
+            "s2#1#2"
+        ]);
+        let graph_aux = get_graph_aux_path_segments();
+        let calculated = AbacusAuxilliary::load_groups("", false, false, &graph_aux)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_coord_list_none() -> Result<(), Error> {
+        let expected = None;
+        let calculated = AbacusAuxilliary::load_coord_list("")?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_coord_list_file() -> Result<(), Error> {
+        let expected = Some(vec![
+            PathSegment::from_str("s1#1#1:0-99"),
+            PathSegment::from_str("s1#1#1:25-109"),
+        ]);
+        let text = "s1#1#1\t0\t99
+s1#1#1\t25\t109";
+        let (_file, file_name) = get_temporary_file_name_with_content(text)?;
+        let calculated = AbacusAuxilliary::load_coord_list(&file_name)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_complement_with_group_assignments_no_coords() -> Result<(), Error> {
+        let expected: Option<Vec<PathSegment>> = None;
+        let groups = HashMap::new();
+        let calculated = AbacusAuxilliary::complement_with_group_assignments(None, &groups)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    fn get_path_segment_with_coordinates(start: usize, end: usize) -> PathSegment {
+        PathSegment {
+            sample: "1".to_string(),
+            haplotype: Some("2".to_string()),
+            seqid: Some("3".to_string()),
+            start: Some(start),
+            end: Some(end),
+        }
+    }
+
+    #[test]
+    fn test_complement_with_group_assignments_coord_with_path_name() -> Result<(), Error> {
+        let expected = Some(vec![
+            get_path_segment_with_coordinates(1, 3),
+        ]);
+        let coords = Some(vec![
+            get_path_segment_with_coordinates(1, 3),
+        ]);
+        let groups = HashMap::from([
+            (get_path_segment_with_coordinates(8, 6), "g1".to_string()),
+        ]);
+        let calculated = AbacusAuxilliary::complement_with_group_assignments(coords, &groups)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_complement_with_group_assignments_coord_with_group_name() -> Result<(), Error> {
+        let expected = Some(vec![
+            get_path_segment_with_coordinates(8, 6),
+        ]);
+        let coords = Some(vec![
+            PathSegment::from_str("g1"),
+        ]);
+        let groups = HashMap::from([
+            (get_path_segment_with_coordinates(8, 6), "g1".to_string()),
+        ]);
+        let calculated = AbacusAuxilliary::complement_with_group_assignments(coords, &groups)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_complement_with_group_assignments_coord_with_group_name_invalid() {
+        let groups = HashMap::from([
+            (PathSegment::from_str("a#0"), "g1".to_string()),
+            (PathSegment::from_str("b#0"), "g1".to_string()),
+        ]);
+
+        let coords = Some(vec![PathSegment::from_str("g1:1-5")]);
+        let result = AbacusAuxilliary::complement_with_group_assignments(coords, &groups);
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid group identifier with start/stop information"
+        );
+    }
+
+    #[test]
+    fn test_complement_with_group_assignments_coord_with_invalid_name() -> Result<(), Error>{
+        let expected: Option<Vec<PathSegment>> = Some(Vec::new());
+        let groups = HashMap::from([
+            (PathSegment::from_str("a#0"), "g1".to_string()),
+            (PathSegment::from_str("b#0"), "g1".to_string()),
+        ]);
+
+        let coords = Some(vec![PathSegment::from_str("invalid")]);
+        let calculated = AbacusAuxilliary::complement_with_group_assignments(coords, &groups)?;
+        assert_eq!(calculated, expected);
+        Ok(())
+    }
+
 
     // fn setup_test_data_cdbg() -> (GraphAuxilliary, Params, String) {
     //     let test_gfa_file = "test/cdbg.gfa";
@@ -1409,20 +1624,6 @@ mod tests {
     //     );
     // }
 
-    // #[test]
-    // fn test_complement_with_group_assignments_invalid() {
-    //     let groups = HashMap::from([
-    //         (PathSegment::from_str("a#0"), "G1".to_string()),
-    //         (PathSegment::from_str("b#0"), "G1".to_string()),
-    //     ]);
-
-    //     let coords = Some(vec![PathSegment::from_str("G1:1-5")]);
-    //     let result = AbacusAuxilliary::complement_with_group_assignments(coords, &groups);
-    //     assert!(
-    //         result.is_err(),
-    //         "Expected error due to invalid group identifier with start/stop information"
-    //     );
-    // }
 
     // #[test]
     // fn test_build_subpath_map_with_overlaps() {
