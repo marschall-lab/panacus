@@ -16,7 +16,7 @@ use crate::{
     util::CountType,
 };
 
-use super::{Analysis, ReportSection};
+use super::{Analysis, AnalysisSection};
 
 pub struct Growth {
     growths: Vec<(CountType, Vec<Vec<f64>>)>,
@@ -111,8 +111,8 @@ impl Analysis for Growth {
     fn generate_report_section(
         &mut self,
         _dm: &crate::data_manager::DataManager,
-    ) -> super::ReportSection {
-        ReportSection {}
+    ) -> Vec<AnalysisSection> {
+        Vec::new()
     }
 
     fn get_subcommand() -> Command {

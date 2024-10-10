@@ -1,0 +1,13 @@
+<div class="container p-5">
+	<nav>
+		<div class="nav nav-tabs" id="nav-tab" role="tablist">
+            {{#each tab_navigation}}
+                <button class="nav-link{{#if this.is_first}} active{{/if}}" id="nav-{{this.id}}-tab" data-bs-toggle="tab" data-bs-target="#nav-{{this.id}}" type="button" role="tab" aria-controls="nav-{{this.id}}" aria-selected="{{#if this.is_first}}true{{else}}false{{/if}}">{{this.name}}</button>
+            {{/each}}
+		</div>
+	</nav>
+    {{#each tab_content}}
+	{{{this}}}
+    {{/each}}
+</div>
+

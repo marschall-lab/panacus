@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 /* external crate */
 use clap::{crate_version, ArgMatches, Command};
+use handlebars::Handlebars;
 
 use crate::analyses::growth::Growth;
 use crate::analyses::histgrowth::Histgrowth;
@@ -12,7 +13,7 @@ use crate::analyses::histgrowth::Histgrowth;
 use crate::analyses::info::Info;
 use crate::analyses::ordered_histgrowth::OrderedHistgrowth;
 use crate::analyses::table::Table;
-use crate::analyses::{self, Analysis};
+use crate::analyses::{self, Analysis, AnalysisSection};
 use crate::data_manager::DataManager;
 use crate::util::*;
 
@@ -134,7 +135,11 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
     if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
         let mut info = Info::build(&dm, &matches)?;
-        info.write_table(&dm, out)?;
+        // info.write_table(&dm, out)?;
+        let report = info.generate_report_section(&dm);
+        let mut registry = Handlebars::new();
+        let html = AnalysisSection::generate_report(report, &mut registry).unwrap();
+        writeln!(out, "{}", html)?;
     } else if let Some((req, view_params, gfa_file)) =
         crate::analyses::hist::Hist::get_input_requirements(&matches)
     {

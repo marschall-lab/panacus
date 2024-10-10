@@ -11,7 +11,7 @@ use crate::{
 };
 use crate::{clap_enum_variants, io::OutputFormat};
 
-use super::{Analysis, ReportSection};
+use super::{Analysis, AnalysisSection};
 
 pub struct Hist {}
 
@@ -57,8 +57,8 @@ impl Analysis for Hist {
     fn generate_report_section(
         &mut self,
         _dm: &crate::data_manager::DataManager,
-    ) -> super::ReportSection {
-        ReportSection {}
+    ) -> Vec<AnalysisSection> {
+        Vec::new()
     }
 
     fn get_subcommand() -> Command {
