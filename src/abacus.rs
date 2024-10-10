@@ -372,7 +372,7 @@ impl AbacusAuxilliary {
             while i < v.len() {
                 if v[i - 1].1 >= v[i].0 {
                     let x = v.remove(i);
-                    v[i - 1].1 = x.1;
+                    v[i - 1].1 = std::cmp::max(v[i - 1].1, x.1);
                 } else {
                     i += 1
                 }
@@ -393,7 +393,7 @@ impl AbacusAuxilliary {
     ) {
         // *only relevant for bps count in combination with subset option*
         // this table stores the number of bps of nodes that are *partially* uncovered by subset
-        // coodinates
+        // coordinates
         let subset_covered_bps: Option<IntervalContainer> =
             if count == &CountType::Bp && self.include_coords.is_some() {
                 Some(IntervalContainer::new())
@@ -1177,20 +1177,37 @@ mod tests {
         let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
         let test_abacus_by_total = AbacusByTotal {
             count: CountType::Node,
-            countable: vec![CountSize::MAX, 6,4,4,2,1],
+            countable: vec![CountSize::MAX, 6, 4, 4, 2, 1],
             uncovered_bps: Some(HashMap::default()),
-            groups:  vec!["a#1#h1".to_string(), "b#1#h1".to_string(), 
-                          "c#1#h1".to_string(), "c#1#h2".to_string(), 
-                          "c#2#h1".to_string(), "d#1#h1".to_string()
-            ]
+            groups: vec![
+                "a#1#h1".to_string(),
+                "b#1#h1".to_string(),
+                "c#1#h1".to_string(),
+                "c#1#h2".to_string(),
+                "c#2#h1".to_string(),
+                "d#1#h1".to_string(),
+            ],
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
-        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
-        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Node");
-        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
-        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
-        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
+        let abacus_by_total =
+            AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
+        assert_eq!(
+            abacus_by_total.count, test_abacus_by_total.count,
+            "Expected CountType to match Node"
+        );
+        assert_eq!(
+            abacus_by_total.countable, test_abacus_by_total.countable,
+            "Expected same countable"
+        );
+        assert_eq!(
+            abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps,
+            "Expected empty uncovered bps"
+        );
+        assert_eq!(
+            abacus_by_total.groups, test_abacus_by_total.groups,
+            "Expected same groups"
+        );
     }
 
     fn setup_test_data_chr_m(count_type: CountType) -> (GraphAuxilliary, Params, String) {
@@ -1221,23 +1238,192 @@ mod tests {
         let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
         let test_abacus_by_total = AbacusByTotal {
             count: count_type,
-            countable: vec![CountSize::MAX,3,2,1,3,1,2,3,1,2,3,2,3,2,1,3,1,3,2,3,2,3,4,2,2,4,3,1,4,2,2,4,3,1,4,2,2,4,1
-                ,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,2,2,4,3,1,4,1,3,4,1,3,4,1,3
-                ,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,2,2,4,2,2,4,2,2,4,3,1
-                ,4,3,1,4,3,1,4,3,1,4,3,1,4,1],
+            countable: vec![
+                CountSize::MAX,
+                3,
+                2,
+                1,
+                3,
+                1,
+                2,
+                3,
+                1,
+                2,
+                3,
+                2,
+                3,
+                2,
+                1,
+                3,
+                1,
+                3,
+                2,
+                3,
+                2,
+                3,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                2,
+                2,
+                4,
+                1,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                2,
+                2,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                1,
+            ],
             uncovered_bps: Some(HashMap::default()),
-            groups:  vec!["chm13".to_string(),  "grch38".to_string(), 
-                          "HG00438".to_string(),"HG00621".to_string(), 
+            groups: vec![
+                "chm13".to_string(),
+                "grch38".to_string(),
+                "HG00438".to_string(),
+                "HG00621".to_string(),
             ],
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
-        let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
-        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Node");
-        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
-        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
-        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
-        let test_hist =  vec![0,39,29,41,45];
+        let abacus_by_total =
+            AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
+        assert_eq!(
+            abacus_by_total.count, test_abacus_by_total.count,
+            "Expected CountType to match Node"
+        );
+        assert_eq!(
+            abacus_by_total.countable, test_abacus_by_total.countable,
+            "Expected same countable"
+        );
+        assert_eq!(
+            abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps,
+            "Expected empty uncovered bps"
+        );
+        assert_eq!(
+            abacus_by_total.groups, test_abacus_by_total.groups,
+            "Expected same groups"
+        );
+        let test_hist = vec![0, 39, 29, 41, 45];
         let hist = abacus_by_total.construct_hist();
         assert_eq!(hist, test_hist, "Expected same hist");
     }
@@ -1249,24 +1435,242 @@ mod tests {
         let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
         let test_abacus_by_total = AbacusByTotal {
             count: count_type,
-            countable: vec![CountSize::MAX,2,1,2,1,2,1,1,2,1,2,1,2,2,1,2,1,2,2,1,2,1,1,1,2,2,2,1,2,3,2,2,2,2,3,1,3,1,2
-                ,2,2,2,3,1,3,1,2,2,2,2,1,3,1,1,3,1,3,1,3,1,3,2,2,2,2,3,1,1,3,3,1,1,3,1,3,1,3,3,1,1,3,1,3,1,3,3,1,1,3,2
-                ,2,2,2,1,3,1,3,1,3,1,3,2,2,2,2,1,3,3,1,3,1,1,3,1,3,1,3,1,3,1,3,3,1,1,3,2,2,2,2,3,1,1,3,3,1,1,3,3,1,1,3
-                ,3,1,1,3,1,3,1,3,3,1,1,3,3,1,1,3,3,1,1,3,3,1,1,3,2,2,2,2,3,1,1,3,2,2,2,2,2,2,2,2,2,2,2,2,1,3,3,1,3,1,3
-                ,1,1,3,3,1,1,3,3,1,1,3,3,1,1],
+            countable: vec![
+                CountSize::MAX,
+                2,
+                1,
+                2,
+                1,
+                2,
+                1,
+                1,
+                2,
+                1,
+                2,
+                1,
+                2,
+                2,
+                1,
+                2,
+                1,
+                2,
+                2,
+                1,
+                2,
+                1,
+                1,
+                1,
+                2,
+                2,
+                2,
+                1,
+                2,
+                3,
+                2,
+                2,
+                2,
+                2,
+                3,
+                1,
+                3,
+                1,
+                2,
+                2,
+                2,
+                2,
+                3,
+                1,
+                3,
+                1,
+                2,
+                2,
+                2,
+                2,
+                1,
+                3,
+                1,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                2,
+                2,
+                2,
+                2,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                2,
+                2,
+                2,
+                2,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                2,
+                2,
+                2,
+                2,
+                1,
+                3,
+                3,
+                1,
+                3,
+                1,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                2,
+                2,
+                2,
+                2,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                1,
+                3,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                2,
+                2,
+                2,
+                2,
+                3,
+                1,
+                1,
+                3,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                1,
+                3,
+                3,
+                1,
+                3,
+                1,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+                3,
+                3,
+                1,
+                1,
+            ],
             uncovered_bps: Some(HashMap::default()),
-            groups:  vec!["chm13".to_string(),  "grch38".to_string(), 
-                          "HG00438".to_string(),"HG00621".to_string(), 
-            ]
+            groups: vec![
+                "chm13".to_string(),
+                "grch38".to_string(),
+                "HG00438".to_string(),
+                "HG00621".to_string(),
+            ],
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
         let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
-        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Edge");
-        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
-        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
-        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
-        let test_hist =  vec![0,80,59,66,0];
+        assert_eq!(
+            abacus_by_total.count, test_abacus_by_total.count,
+            "Expected CountType to match Edge"
+        );
+        assert_eq!(
+            abacus_by_total.countable, test_abacus_by_total.countable,
+            "Expected same countable"
+        );
+        assert_eq!(
+            abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps,
+            "Expected empty uncovered bps"
+        );
+        assert_eq!(
+            abacus_by_total.groups, test_abacus_by_total.groups,
+            "Expected same groups"
+        );
+        let test_hist = vec![0, 80, 59, 66, 0];
         let hist = abacus_by_total.construct_hist();
         assert_eq!(hist, test_hist, "Expected same hist");
     }
@@ -1278,23 +1682,191 @@ mod tests {
         let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux).unwrap();
         let test_abacus_by_total = AbacusByTotal {
             count: count_type,
-            countable: vec![CountSize::MAX,3,2,1,3,1,2,3,1,2,3,2,3,2,1,3,1,3,2,3,2,3,4,2,2,4,3,1,4,2,2,4,3,1,4,2,2,4,1
-                ,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,1,3,4,2,2,4,3,1,4,1,3,4,1,3,4,1,3
-                ,4,1,3,4,2,2,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,1,3,4,2,2,4,1,3,4,2,2,4,2,2,4,2,2,4,3,1
-                ,4,3,1,4,3,1,4,3,1,4,3,1,4,1],
+            countable: vec![
+                CountSize::MAX,
+                3,
+                2,
+                1,
+                3,
+                1,
+                2,
+                3,
+                1,
+                2,
+                3,
+                2,
+                3,
+                2,
+                1,
+                3,
+                1,
+                3,
+                2,
+                3,
+                2,
+                3,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                2,
+                2,
+                4,
+                1,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                1,
+                3,
+                4,
+                2,
+                2,
+                4,
+                2,
+                2,
+                4,
+                2,
+                2,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                3,
+                1,
+                4,
+                1,
+            ],
             uncovered_bps: Some(HashMap::default()),
-            groups:  vec!["chm13".to_string(),  "grch38".to_string(), 
-                          "HG00438".to_string(),"HG00621".to_string(), 
-            ]
+            groups: vec![
+                "chm13".to_string(),
+                "grch38".to_string(),
+                "HG00438".to_string(),
+                "HG00621".to_string(),
+            ],
         };
 
         let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
         let abacus_by_total = AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
-        assert_eq!(abacus_by_total.count, test_abacus_by_total.count, "Expected CountType to match Edge");
-        assert_eq!(abacus_by_total.countable, test_abacus_by_total.countable, "Expected same countable");
-        assert_eq!(abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps, "Expected empty uncovered bps");
-        assert_eq!(abacus_by_total.groups, test_abacus_by_total.groups, "Expected same groups");
-        let test_hist =  vec![0,616,31,601,15949];
+        assert_eq!(
+            abacus_by_total.count, test_abacus_by_total.count,
+            "Expected CountType to match Edge"
+        );
+        assert_eq!(
+            abacus_by_total.countable, test_abacus_by_total.countable,
+            "Expected same countable"
+        );
+        assert_eq!(
+            abacus_by_total.uncovered_bps, test_abacus_by_total.uncovered_bps,
+            "Expected empty uncovered bps"
+        );
+        assert_eq!(
+            abacus_by_total.groups, test_abacus_by_total.groups,
+            "Expected same groups"
+        );
+        let test_hist = vec![0, 616, 31, 601, 15949];
         let hist = abacus_by_total.construct_hist_bps(&graph_aux);
         assert_eq!(hist, test_hist, "Expected same hist");
     }
@@ -1311,7 +1883,10 @@ mod tests {
         let (graph_aux, params, _) = setup_test_data();
 
         let path_aux = AbacusAuxilliary::from_params(&params, &graph_aux);
-        assert!(path_aux.is_ok(), "Expected successful creation of AbacusAuxilliary");
+        assert!(
+            path_aux.is_ok(),
+            "Expected successful creation of AbacusAuxilliary"
+        );
 
         let path_aux = path_aux.unwrap();
         dbg!(&path_aux.groups.len());
@@ -1323,7 +1898,10 @@ mod tests {
         let (graph_aux, _, _) = setup_test_data();
 
         let result = AbacusAuxilliary::load_groups("", false, true, &graph_aux);
-        assert!(result.is_ok(), "Expected successful group loading by sample");
+        assert!(
+            result.is_ok(),
+            "Expected successful group loading by sample"
+        );
         let groups = result.unwrap();
         let mut group_count = HashSet::new();
         for (_, g) in groups {
@@ -1355,11 +1933,21 @@ mod tests {
 
         let coords = Some(vec![PathSegment::from_str("G1")]);
         let result = AbacusAuxilliary::complement_with_group_assignments(coords, &groups);
-        assert!(result.is_ok(), "Expected successful complement with group assignments");
+        assert!(
+            result.is_ok(),
+            "Expected successful complement with group assignments"
+        );
 
         let complemented = result.unwrap();
-        assert!(complemented.is_some(), "Expected Some(complemented) coordinates");
-        assert_eq!(complemented.unwrap().len(), 2, "Expected 2 path segments in the complemented list");
+        assert!(
+            complemented.is_some(),
+            "Expected Some(complemented) coordinates"
+        );
+        assert_eq!(
+            complemented.unwrap().len(),
+            2,
+            "Expected 2 path segments in the complemented list"
+        );
     }
 
     #[test]
@@ -1371,21 +1959,54 @@ mod tests {
 
         let coords = Some(vec![PathSegment::from_str("G1:1-5")]);
         let result = AbacusAuxilliary::complement_with_group_assignments(coords, &groups);
-        assert!(result.is_err(), "Expected error due to invalid group identifier with start/stop information");
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid group identifier with start/stop information"
+        );
     }
 
     #[test]
     fn test_build_subpath_map_with_overlaps() {
         let path_segments = vec![
-            PathSegment::new("sample".to_string(), "hap1".to_string(), "seq1".to_string(), Some(0), Some(100)),
-            PathSegment::new("sample".to_string(), "hap1".to_string(), "seq1".to_string(), Some(50), Some(150)),
-            PathSegment::new("sample".to_string(), "hap1".to_string(), "seq2".to_string(), Some(0), Some(100)),
+            PathSegment::new(
+                "sample".to_string(),
+                "hap1".to_string(),
+                "seq1".to_string(),
+                Some(0),
+                Some(100),
+            ),
+            PathSegment::new(
+                "sample".to_string(),
+                "hap1".to_string(),
+                "seq1".to_string(),
+                Some(50),
+                Some(150),
+            ),
+            PathSegment::new(
+                "sample".to_string(),
+                "hap1".to_string(),
+                "seq2".to_string(),
+                Some(0),
+                Some(100),
+            ),
         ];
 
         let subpath_map = AbacusAuxilliary::build_subpath_map(&path_segments);
-        assert_eq!(subpath_map.len(), 2, "Expected 2 sequences in the subpath map");
-        assert_eq!(subpath_map.get("sample#hap1#seq1").unwrap().len(), 1, "Expected 1 non-overlapping interval for seq1");
-        assert_eq!(subpath_map.get("sample#hap1#seq2").unwrap().len(), 1, "Expected 1 interval for seq2");
+        assert_eq!(
+            subpath_map.len(),
+            2,
+            "Expected 2 sequences in the subpath map"
+        );
+        assert_eq!(
+            subpath_map.get("sample#hap1#seq1").unwrap().len(),
+            1,
+            "Expected 1 non-overlapping interval for seq1"
+        );
+        assert_eq!(
+            subpath_map.get("sample#hap1#seq2").unwrap().len(),
+            1,
+            "Expected 1 interval for seq2"
+        );
     }
 
     #[test]
@@ -1395,13 +2016,19 @@ mod tests {
         let path_aux = AbacusAuxilliary {
             groups: AbacusAuxilliary::load_groups("", false, false, &graph_aux).unwrap(),
             include_coords: None,
-            exclude_coords: Some(vec![PathSegment::from_str("a#1#h1"), 
-                                      PathSegment::from_str("b#1#h1"),
-                                      PathSegment::from_str("b#1#h1")]), //duplicates do not cause any error
+            exclude_coords: Some(vec![
+                PathSegment::from_str("a#1#h1"),
+                PathSegment::from_str("b#1#h1"),
+                PathSegment::from_str("b#1#h1"),
+            ]), //duplicates do not cause any error
             order: None,
         };
         let ordered_paths = path_aux.get_path_order(&graph_aux.path_segments);
-        assert_eq!(ordered_paths.len(), 4, "Expected 4 paths in the final order");
+        assert_eq!(
+            ordered_paths.len(),
+            4,
+            "Expected 4 paths in the final order"
+        );
     }
 
     #[test]
