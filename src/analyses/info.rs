@@ -48,6 +48,8 @@ impl Analysis for Info {
         let path_values = Self::remove_duplication(path_values);
         vec![AnalysisSection {
             name: "pangenome info".to_string(),
+            id: "info".to_string(),
+            is_first: true,
             tabs: vec![
                 AnalysisTab {
                     id: "info-1".to_string(),
@@ -77,7 +79,8 @@ impl Analysis for Info {
                     ]
                 }
             ]
-        }]
+        },
+        ]
     }
 
     fn get_subcommand() -> Command {

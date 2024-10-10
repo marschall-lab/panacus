@@ -38,6 +38,8 @@ pub trait IntoHtml {
 
 pub struct AnalysisSection {
     name: String,
+    id: String,
+    is_first: bool,
     tabs: Vec<AnalysisTab>,
 }
 
@@ -94,7 +96,14 @@ impl AnalysisSection {
         if !registry.has_template("report_content") {
             registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
         }
-        let sections = sections.into_iter().map(|s| s.into_html(registry)).collect::<Result<Vec<String>, RenderError>>()?;
+        let sections = sections.into_iter()
+            .map(|s| HashMap::from([
+                    ("is_first", to_json(s.is_first)),
+                    ("name", to_json(&s.name)),
+                    ("id", to_json(&s.id)),
+                    ("content", to_json(s.into_html(registry).unwrap())),
+                    ]))
+            .collect::<Vec<HashMap<_, _>>>();
         let text = registry.render("report_content", &sections)?;
         eprintln!("{}", text);
         Ok(text)
