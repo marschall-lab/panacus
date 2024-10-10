@@ -202,7 +202,7 @@ impl IntervalContainer {
                             stop = std::cmp::max(stop, x[i].1);
                             x.remove(i);
                         }
-                        x[i-1].1 = stop;
+                        x[i - 1].1 = stop;
                     }
                     // else do nothing, because the new interval is fully enclosed in the previous
                     // interval
@@ -211,7 +211,7 @@ impl IntervalContainer {
                     let mut stop = std::cmp::max(x[i].1, end);
                     while i + 1 < x.len() && x[i + 1].0 <= end {
                         stop = std::cmp::max(stop, x[i + 1].1);
-                        x.remove(i+1);
+                        x.remove(i + 1);
                     }
                     x[i].1 = stop;
                 } else {
@@ -513,7 +513,6 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
 //    b + (1.0 + (a - b).exp2()).log2()
 //}
 
-
 #[cfg(test)]
 mod tests {
 
@@ -523,20 +522,23 @@ mod tests {
     #[test]
     fn test_interval_container() {
         let mut ic = IntervalContainer::new();
-        ic.add(ItemId(0), 5,6);
-        ic.add(ItemId(0), 9,10);
-        ic.add(ItemId(0), 7,8);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(5,6), (7,8), (9,10)]));
-        ic.add(ItemId(0), 4,5);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(4,6), (7,8), (9,10)]));
-        ic.add(ItemId(0), 0,11);
+        ic.add(ItemId(0), 5, 6);
+        ic.add(ItemId(0), 9, 10);
+        ic.add(ItemId(0), 7, 8);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(5, 6), (7, 8), (9, 10)]));
+        ic.add(ItemId(0), 4, 5);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(4, 6), (7, 8), (9, 10)]));
+        ic.add(ItemId(0), 0, 11);
         assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 11)]));
-        ic.add(ItemId(0), 11,12);
+        ic.add(ItemId(0), 11, 12);
         assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12)]));
-        ic.add(ItemId(0), 13,15);
-        ic.add(ItemId(0), 16,20);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12), (13,15), (16,20)]));
-        ic.add(ItemId(0), 14,17);
+        ic.add(ItemId(0), 13, 15);
+        ic.add(ItemId(0), 16, 20);
+        assert_eq!(
+            ic.map.get(&ItemId(0)),
+            Some(&vec![(0, 12), (13, 15), (16, 20)])
+        );
+        ic.add(ItemId(0), 14, 17);
         assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12), (13, 20)]));
     }
 }
