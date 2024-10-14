@@ -156,12 +156,6 @@ def plot_growth(df, axs, loc='lower left', estimate_growth=False):
         axs[1].set_xlabel('samples')
         axs[1].legend(loc=loc)
 
-def count_comments(data):
-    for i, line in enumerate(data):
-        if not line.startswith('#'):
-            break
-    return i
-
 def get_subplot_dim(df):
 
     growths = [x for x in df.columns.levels[0] if x.endswith('growth')]
@@ -217,11 +211,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    with open(args.stats.name) as f:
-        skip_n = count_comments(f)
-
-    df = clean_multicolumn_labels(pd.read_csv(args.stats, sep='\t', header=list(range(skip_n, skip_n + N_HEADERS)), index_col=[0]))
-    print("test", df.columns[0][0], file=stderr)
+    df = clean_multicolumn_labels(pd.read_csv(args.stats, sep='\t', header=list(range(N_HEADERS)), index_col=[0], comment='#'))
     if df.columns[0][0] not in ['hist', 'growth', 'ordered-growth']:
         print('This script cannot visualize the content of this type of table, exiting.', file=stderr)
         exit(1)

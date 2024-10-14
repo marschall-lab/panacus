@@ -718,16 +718,13 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
         Params::Growth {
             ref hist_file,
             output_format,
+            hist,
             ..
         } => {
             let hist_aux = HistAuxilliary::from_params(&params)?;
             log::info!("loading coverage histogram from {}", hist_file);
             let mut data = BufReader::new(fs::File::open(hist_file)?);
             let (coverages, comments) = parse_hists(&mut data)?;
-            for c in comments {
-                out.write_all(&c[..])?;
-                out.write_all(b"\n")?;
-            }
             let hists: Vec<Hist> = coverages
                 .into_iter()
                 .map(|(count, coverage)| Hist { count, coverage })
@@ -740,16 +737,41 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                 .collect();
             log::info!("reporting histgrowth table");
             match output_format {
-                OutputFormat::Table => write_histgrowth_table(&hists, &growths, &hist_aux, out)?,
-                OutputFormat::Html => write_histgrowth_html(
-                    &Some(hists),
-                    &growths,
-                    &hist_aux,
-                    filename,
-                    None,
-                    None,
-                    out,
-                )?,
+                OutputFormat::Table => {
+                    for c in comments {
+                        out.write_all(&c[..])?;
+                        out.write_all(b"\n")?;
+                    }
+                    if hist {
+                        write_histgrowth_table(&hists, &growths, &hist_aux, out)?
+                    } else {
+                        let hists = Vec::new();
+                        write_histgrowth_table(&hists, &growths, &hist_aux, out)?
+                    }
+                },
+                OutputFormat::Html => {
+                    if hist {
+                        write_histgrowth_html(
+                            &Some(hists),
+                            &growths,
+                            &hist_aux,
+                            filename,
+                            None,
+                            None,
+                            out,
+                        )?
+                    } else {
+                        write_histgrowth_html(
+                            &None,
+                            &growths,
+                            &hist_aux,
+                            filename,
+                            None,
+                            None,
+                            out,
+                        )?
+                    }
+                },
             };
         }
         Params::Info {
