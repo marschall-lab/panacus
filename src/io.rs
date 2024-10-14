@@ -40,7 +40,10 @@ pub fn bufreader_from_compressed_gfa(gfa_file: &str) -> BufReader<Box<dyn Read>>
     BufReader::new(reader)
 }
 
-pub fn parse_bed_to_path_segments<R: Read>(data: &mut BufReader<R>, use_block_info: bool) -> Vec<PathSegment> {
+pub fn parse_bed_to_path_segments<R: Read>(
+    data: &mut BufReader<R>,
+    use_block_info: bool,
+) -> Vec<PathSegment> {
     // based on https://en.wikipedia.org/wiki/BED_(file_format)
     let mut segments = Vec::new();
 
@@ -52,31 +55,44 @@ pub fn parse_bed_to_path_segments<R: Read>(data: &mut BufReader<R>, use_block_in
             }
         };
 
-        let fields = { 
-            let mut fields: Vec<&str>  = line.split('\t').collect();
+        let fields = {
+            let mut fields: Vec<&str> = line.split('\t').collect();
             if fields.is_empty() {
                 fields = vec![&line];
             }
             fields
         };
         let path_name = fields[0];
-        
-        if path_name.starts_with("browser ") || path_name.starts_with("track ") || path_name.starts_with("#") {
+
+        if path_name.starts_with("browser ")
+            || path_name.starts_with("track ")
+            || path_name.starts_with("#")
+        {
             continue;
         }
 
         if fields.len() == 1 {
             segments.push(PathSegment::from_str(path_name));
         } else if fields.len() >= 3 {
-            let start = usize::from_str(fields[1]).expect(&format!("error line {}: `{}` is not an usize",i+1, fields[1]));
-            let end = usize::from_str(fields[2]).expect(&format!("error line {}: `{}` is not an usize",i+1, fields[2]));
+            let start = usize::from_str(fields[1]).expect(&format!(
+                "error line {}: `{}` is not an usize",
+                i + 1,
+                fields[1]
+            ));
+            let end = usize::from_str(fields[2]).expect(&format!(
+                "error line {}: `{}` is not an usize",
+                i + 1,
+                fields[2]
+            ));
 
             if use_block_info && fields.len() == 12 {
                 let block_count = fields[9].parse::<usize>().unwrap_or(0);
-                let block_sizes: Vec<usize> = fields[10].split(',')
+                let block_sizes: Vec<usize> = fields[10]
+                    .split(',')
                     .filter_map(|s| usize::from_str(s.trim()).ok())
                     .collect();
-                let block_starts: Vec<usize> = fields[11].split(',')
+                let block_starts: Vec<usize> = fields[11]
+                    .split(',')
                     .filter_map(|s| usize::from_str(s.trim()).ok())
                     .collect();
 
@@ -84,16 +100,26 @@ pub fn parse_bed_to_path_segments<R: Read>(data: &mut BufReader<R>, use_block_in
                     for (size, start_offset) in block_sizes.iter().zip(block_starts.iter()) {
                         let block_start = start + start_offset;
                         let block_end = block_start + size;
-                        segments.push(PathSegment::from_str_start_end(path_name, block_start, block_end));
+                        segments.push(PathSegment::from_str_start_end(
+                            path_name,
+                            block_start,
+                            block_end,
+                        ));
                     }
                 } else {
-                    panic!("error in block sizes/starts in line {}: counts do not match", i + 1);
+                    panic!(
+                        "error in block sizes/starts in line {}: counts do not match",
+                        i + 1
+                    );
                 }
             } else {
                 segments.push(PathSegment::from_str_start_end(path_name, start, end));
             }
         } else {
-            panic!("error in line {}: row must have either 1, 3, or 12 columns, but has 2", i + 1);
+            panic!(
+                "error in line {}: row must have either 1, 3, or 12 columns, but has 2",
+                i + 1
+            );
         }
     }
 
@@ -112,7 +138,8 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment
                 buf.pop();
             }
         }
-        let line = String::from_utf8(buf.clone()).expect(&format!("error in line {}: some character is not UTF-8",i));
+        let line = String::from_utf8(buf.clone())
+            .expect(&format!("error in line {}: some character is not UTF-8", i));
         let columns: Vec<&str> = line.split('\t').collect();
 
         if columns.len() != 2 {
@@ -776,8 +803,9 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     None => &[],
                     Some(coords) => {
                         log::debug!(
-                            "found include coords {:?} for path segment {}",
-                            &coords[..],
+                            "found include coords in interval {}..{} for path segment {}",
+                            &coords.first().unwrap().0,
+                            &coords.last().unwrap().1,
                             &path_seg.id()
                         );
                         &coords[..]
@@ -791,8 +819,9 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     None => &[],
                     Some(coords) => {
                         log::debug!(
-                            "found exclude coords {:?} for path segment {}",
-                            &coords[..],
+                            "found exclude coords in interval {}..{} for path segment {}",
+                            &coords.first().unwrap().0,
+                            &coords.last().unwrap().1,
                             &path_seg.id()
                         );
                         &coords[..]
@@ -807,8 +836,8 @@ pub fn parse_gfa_paths_walks<R: Read>(
                 && !intersects(include_coords, &(start, end))
                 && !intersects(exclude_coords, &(start, end))
             {
-                log::debug!("path {} does not intersect with subset coordinates {:?} nor with exclude coordinates {:?} and therefore is skipped from processing", 
-                    &path_seg, &include_coords, &exclude_coords);
+                log::debug!("path {} does not intersect with subset coordinates in interval {}..{} nor with exclude coordinates {}..{}  and therefore is skipped from processing", 
+                    &path_seg, &include_coords.first().unwrap_or(&(0,0)).0, &include_coords.last().unwrap_or(&(0,0)).1, &exclude_coords.first().unwrap_or(&(0,0)).0, &exclude_coords.last().unwrap_or(&(0,0)).1);
 
                 // update prefix sum
                 for i in 0..SIZE_T {
@@ -858,7 +887,6 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     _ => unreachable!(),
                 };
 
-
                 match count {
                     CountType::Node | CountType::Bp => {
                         let (node_len, bp_len) = update_tables(
@@ -873,7 +901,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                             start,
                         );
                         paths_len.insert(path_seg, (node_len as u32, bp_len as u32));
-                    },
+                    }
                     CountType::Edge => update_tables_edgecount(
                         &mut item_table,
                         &mut exclude_table.as_mut(),
@@ -917,51 +945,12 @@ fn update_tables(
         "checking inclusion/exclusion criteria on {} nodes..",
         path.len()
     );
+    if path.len() == 0 {
+        return (included, included_bp);
+    }
 
-    for (sid, o) in path {
+    for (sid, o) in &path {
         let l = graph_aux.node_len(&sid) as usize;
-
-        // update current pointer in include_coords list
-        // end is not inclusive, so if end <= p (=offset) then advance to the next interval
-        while i < include_coords.len() && include_coords[i].1 <= p {
-            i += 1;
-        }
-        let include_start = if i < include_coords.len() && include_coords[i].0 < p + l {
-            Some(include_coords[i].0) 
-        } else {
-            None
-        };
-        // if next intervals also overlap with node, then advance already to that interval
-        while i+1 < include_coords.len() && include_coords[i+1].0 < p + l {
-            log::debug!("node {} has multiple overlapping inclusion intervals, combining them...", sid);
-            i += 1;
-        }
-        let include_end = if include_start.is_some() {
-            Some(include_coords[i].1)
-        } else {
-            None
-        };
-
-        // update current pointer in exclude_coords list
-        while j < exclude_coords.len() && exclude_coords[j].1 <= p {
-            j += 1;
-        }
-        let exclude_start = if j < exclude_coords.len() && exclude_coords[j].0 < p + l {
-            Some(exclude_coords[j].0)
-        } else {
-            None
-        };
-        // if next intervals also overlap with node, then advance already to that interval
-        while j+1 < exclude_coords.len() && exclude_coords[j+1].0 <= p + l {
-            log::debug!("node {} has multiple overlapping exclusion intervals, combining them...", sid);
-            j += 1;
-        }
-        let exclude_end = if exclude_start.is_some() {
-            Some(exclude_coords[j].1)
-        } else {
-            None
-        };
-
 
         // this implementation of include coords for bps is *not exact* as illustrated by the
         // following scenario:
@@ -982,97 +971,92 @@ fn update_tables(
         //  ---|                some node                  |---|
         //      -------------------------------------------     ----
         //
-        // it also simplifies the following scenario:
-        //
-        //   subset intervals:           
-        //  _______                                      ____________
-        //         |                                    |
-        //      ___________________________________________     ____
-        //  ---|                some node                  |---|
-        //      -------------------------------------------     ----
-        //
-        //
-        //   what the following code does:
-        //  _________________________________________________________
-        //                     coverage count
-        //      ___________________________________________     ____
-        //  ---|                some node                  |---|
-        //      -------------------------------------------     ----
-        //
-        //
-        // in other words, the calculated bps coverage is an upper bound on the actual coverage,
-        // for the sake of speed (and implementation effort)
-        //
-        //
         //
         // node count handling: node is only counted if *completely* covered by subset
         //
         //
-        // check if the current position fits within active segment
-        if let (Some(start), Some(end)) = (include_start, include_end) {
-            let mut a = if start > p {
-                start - p
-            } else {
-                0
-            };
-            let mut b = if end < p + l {
-                end - p
-            } else {
-                l
-            };
+        // update current pointer in include_coords list
 
-            // reverse coverage interval in case of backward orientation
-            if o == Orientation::Backward {
-                (a, b) = (l - b, l - a);
-            }
+        // end is not inclusive, so if end <= p (=offset) then advance to the next interval
+        let mut stop_here = false;
+        while i < include_coords.len() && include_coords[i].0 < p + l && !stop_here {
+            if include_coords[i].1 > p {
+                let mut a = if include_coords[i].0 > p {
+                    include_coords[i].0 - p
+                } else {
+                    0
+                };
+                let mut b = if include_coords[i].1 < p + l {
+                    // advance to the next interval
+                    i += 1;
+                    include_coords[i - 1].1 - p
+                } else {
+                    stop_here = true;
+                    l
+                };
 
-            // only count nodes that are completely contained in "include" coords
-            if subset_covered_bps.is_some() || b - a == l {
+                // reverse coverage interval in case of backward orientation
+                if o == &Orientation::Backward {
+                    (a, b) = (l - b, l - a);
+                }
+
                 let idx = (sid.0 as usize) % SIZE_T;
                 item_table.items[idx].push(sid.0);
                 item_table.id_prefsum[idx][num_path + 1] += 1;
                 if let Some(int) = subset_covered_bps.as_mut() {
                     // if fully covered, we do not need to store anything in the map
                     if b - a == l {
-                        if int.contains(&sid) {
-                            int.remove(&sid);
+                        if int.contains(sid) {
+                            int.remove(sid);
                         }
                     } else {
-                        int.add(sid, a, b);
+                        int.add(*sid, a, b);
                     }
                 }
                 included += 1;
+                included_bp += b - a;
+            } else {
+                // advance to the next interval
+                i += 1;
             }
-            included_bp += b-a;
         }
 
-        if let (Some(start), Some(end)) = (exclude_start, exclude_end) {
-            let mut a = if start > p {
-                start - p
-            } else {
-                0
-            };
-            let mut b = if end < p + l {
-                end - p
-            } else {
-                l
-            };
+        let mut stop_here = false;
+        while j < exclude_coords.len() && exclude_coords[j].0 < p + l && !stop_here {
+            if exclude_coords[j].1 > p {
+                let mut a = if exclude_coords[j].0 > p {
+                    exclude_coords[j].0 - p
+                } else {
+                    0
+                };
+                let mut b = if exclude_coords[j].1 < p + l {
+                    // advance to the next interval for the next iteration
+                    j += 1;
+                    exclude_coords[j - 1].1 - p
+                } else {
+                    stop_here = true;
+                    l
+                };
 
-            // reverse coverage interval in case of backward orientation
-            if o == Orientation::Backward {
-                (a, b) = (l - b, l - a);
-            }
-
-            if let Some(map) = exclude_table {
-                if map.with_annotation() {
-                    map.activate_n_annotate(sid, l, a, b)
-                        .expect("this error should never occur");
-                } else if b - a == l {
-                    map.activate(&sid);
+                // reverse coverage interval in case of backward orientation
+                if o == &Orientation::Backward {
+                    (a, b) = (l - b, l - a);
                 }
-                excluded += 1;
+
+                if let Some(map) = exclude_table {
+                    if map.with_annotation() {
+                        map.activate_n_annotate(*sid, l, a, b)
+                            .expect("this error should never occur");
+                    } else {
+                        map.activate(&sid);
+                    }
+                    excluded += 1;
+                }
+            } else {
+                j += 1;
             }
         }
+
         if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
             break;
@@ -1084,7 +1068,7 @@ fn update_tables(
         "found {} included nodes ({} included bps) and {} excluded nodes, and discarded the rest",
         included,
         included_bp,
-        excluded
+        excluded,
     );
 
     // Compute prefix sum
@@ -1401,8 +1385,8 @@ pub fn write_ordered_histgrowth_html<W: Write>(
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use std::str::from_utf8;
     use std::io::Cursor;
+    use std::str::from_utf8;
 
     fn mock_graph_auxilliary() -> GraphAuxilliary {
         GraphAuxilliary {
@@ -1429,7 +1413,7 @@ mod tests {
         let data = b"W\tG01\t0\tU00096.3\t3\t4641652\t>3>4>5>7>8>";
         let (path_segment, data) = parse_walk_identifier(data);
         dbg!(&path_segment);
-        
+
         assert_eq!(path_segment.sample, "G01".to_string());
         assert_eq!(path_segment.haplotype, Some("0".to_string()));
         assert_eq!(path_segment.seqid, Some("U00096.3".to_string()));
@@ -1451,7 +1435,10 @@ mod tests {
         let data = b"P\tGCF_000005845.2_ASM584v2_genomic.fna#0#contig1\t1+,2+,3+,4+\t*";
         let (path_segment, rest) = parse_path_identifier(data);
 
-        assert_eq!(path_segment.to_string(), "GCF_000005845.2_ASM584v2_genomic.fna#0#contig1");
+        assert_eq!(
+            path_segment.to_string(),
+            "GCF_000005845.2_ASM584v2_genomic.fna#0#contig1"
+        );
         assert_eq!(from_utf8(rest).unwrap(), "1+,2+,3+,4+\t*");
     }
 
@@ -1518,7 +1505,6 @@ mod tests {
     //    assert!(item_table.items[2].contains(&2));
     //}
 
-
     // parse_bed_to_path_segments testing
     #[test]
     fn test_parse_bed_with_1_column() {
@@ -1527,15 +1513,14 @@ mod tests {
         let result = parse_bed_to_path_segments(&mut reader, true);
         assert_eq!(
             result,
-            vec![
-                PathSegment::from_str("chr1"),
-                PathSegment::from_str("chr2"),
-            ]
+            vec![PathSegment::from_str("chr1"), PathSegment::from_str("chr2"),]
         );
     }
 
     #[test]
-    #[should_panic(expected = "error in line 1: row must have either 1, 3, or 12 columns, but has 2")]
+    #[should_panic(
+        expected = "error in line 1: row must have either 1, 3, or 12 columns, but has 2"
+    )]
     fn test_parse_bed_with_2_columns() {
         let bed_data = b"chr1\t1000\n";
         let mut reader = BufReader::new(Cursor::new(bed_data));
@@ -1558,13 +1543,13 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                { 
+                {
                     let mut tmp = PathSegment::from_str("chr1");
                     tmp.start = Some(1000);
                     tmp.end = Some(2000);
                     tmp
                 },
-                { 
+                {
                     let mut tmp = PathSegment::from_str("chr2");
                     tmp.start = Some(1500);
                     tmp.end = Some(2500);
@@ -1581,14 +1566,12 @@ mod tests {
         let result = parse_bed_to_path_segments(&mut reader, false);
         assert_eq!(
             result,
-            vec![
-                { 
-                    let mut tmp = PathSegment::from_str("chr1");
-                    tmp.start = Some(1000);
-                    tmp.end = Some(2000);
-                    tmp
-                }
-            ]
+            vec![{
+                let mut tmp = PathSegment::from_str("chr1");
+                tmp.start = Some(1000);
+                tmp.end = Some(2000);
+                tmp
+            }]
         );
     }
 
@@ -1600,13 +1583,13 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                { 
+                {
                     let mut tmp = PathSegment::from_str("chr1");
                     tmp.start = Some(1000);
                     tmp.end = Some(1100);
                     tmp
                 },
-                { 
+                {
                     let mut tmp = PathSegment::from_str("chr1");
                     tmp.start = Some(1900);
                     tmp.end = Some(2000);
@@ -1624,13 +1607,13 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                { 
+                {
                     let mut tmp = PathSegment::from_str("chr1");
                     tmp.start = Some(1000);
                     tmp.end = Some(2000);
                     tmp
                 },
-                { 
+                {
                     let mut tmp = PathSegment::from_str("chr2");
                     tmp.start = Some(1500);
                     tmp.end = Some(2500);
@@ -1649,15 +1632,18 @@ mod tests {
             PathSegment::from_str("b#0"),
             PathSegment::from_str("c#0"),
             PathSegment::from_str("c#1"),
-            PathSegment::from_str("d#0")
+            PathSegment::from_str("d#0"),
         ];
-        let test_groups = vec!["G1","G1","G2","G2","G2"];
+        let test_groups = vec!["G1", "G1", "G2", "G2", "G2"];
 
         let mut data = BufReader::new(std::fs::File::open(file_name).unwrap());
         let result = parse_groups(&mut data);
         assert!(result.is_ok(), "Expected successful group loading");
         let path_segments_group = result.unwrap();
-        assert!(path_segments_group.len() > 0, "Expected non-empty group assignments");
+        assert!(
+            path_segments_group.len() > 0,
+            "Expected non-empty group assignments"
+        );
         assert_eq!(path_segments_group.len(), 5); // number of paths == groups
         for (i, (path_seg, group)) in path_segments_group.into_iter().enumerate() {
             assert_eq!(path_seg, test_path_segments[i]);
@@ -1665,4 +1651,3 @@ mod tests {
         }
     }
 }
-

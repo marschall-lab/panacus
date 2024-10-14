@@ -648,7 +648,12 @@ fn bin_values(list: &Vec<u32>) -> (Vec<String>, Vec<usize>) {
     if bin_size < 1 {
         bin_size = 1;
     }
-    log::debug!("Binning with min: {}, max: {}, bin_size: {}", min, max, bin_size);
+    log::debug!(
+        "Binning with min: {}, max: {}, bin_size: {}",
+        min,
+        max,
+        bin_size
+    );
     let bins: Vec<_> = (min..max)
         .step_by(bin_size)
         .zip((min + (bin_size as u32)..max + 1).step_by(bin_size))

@@ -307,11 +307,11 @@ mod tests {
     fn test_hist_calc_growth_union() {
         let hist = Hist {
             count: CountType::Node,
-            coverage: vec![0,5,3,2],
+            coverage: vec![0, 5, 3, 2],
         };
 
         let t_coverage = Threshold::Absolute(0);
-        let test_growth: Vec<f64> =  vec![5.666666666666667, 8.333333333333334, 10.0];
+        let test_growth: Vec<f64> = vec![5.666666666666667, 8.333333333333334, 10.0];
         let growth = hist.calc_growth_union(&t_coverage);
         assert_eq!(growth, test_growth, "Wrong growth union");
     }
@@ -320,11 +320,11 @@ mod tests {
     fn test_hist_calc_growth_core() {
         let hist = Hist {
             count: CountType::Node,
-            coverage: vec![0,5,3,2],
+            coverage: vec![0, 5, 3, 2],
         };
 
         let t_coverage = Threshold::Absolute(0);
-        let test_core: Vec<f64> =  vec![5.666666666666666, 3.0, 2.0];
+        let test_core: Vec<f64> = vec![5.666666666666666, 3.0, 2.0];
         let core = hist.calc_growth_core(&t_coverage);
         assert_eq!(core, test_core, "Wrong growth core");
     }
@@ -333,13 +333,22 @@ mod tests {
     fn test_hist_calc_growth_quorum() {
         let hist = Hist {
             count: CountType::Node,
-            coverage: vec![0,5,3,2,3,5,0,4,2,1],
+            coverage: vec![0, 5, 3, 2, 3, 5, 0, 4, 2, 1],
         };
 
         let t_coverage = Threshold::Absolute(0);
         let t_quorum = Threshold::Relative(0.9);
-        let test_growth: Vec<f64> =  vec![11.88888888888889, 7.027777777777777, 4.761904761904761, 
-                    3.4444444444444438, 2.5952380952380953, 2.0, 1.5555555555555545, 1.2222222222222217, 1.0];
+        let test_growth: Vec<f64> = vec![
+            11.88888888888889,
+            7.027777777777777,
+            4.761904761904761,
+            3.4444444444444438,
+            2.5952380952380953,
+            2.0,
+            1.5555555555555545,
+            1.2222222222222217,
+            1.0,
+        ];
         let growth = hist.calc_growth_quorum(&t_coverage, &t_quorum);
         assert_eq!(growth, test_growth, "Wrong growth quorum");
     }
