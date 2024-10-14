@@ -481,6 +481,7 @@ pub enum Params {
 }
 
 impl Params {
+    #[allow(dead_code)]
     pub fn test_default_histgrowth() -> Self {
         Params::Histgrowth {
             gfa_file: String::new(),
