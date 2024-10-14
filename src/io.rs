@@ -170,16 +170,12 @@ pub fn parse_tsv<R: Read>(
 
     let mut is_header = true;
     for (i, row) in reader.enumerate() {
-        let row = row
-            .map_err(|_| {
-                let msg = format!("unable to parse row {}", i);
-                log::error!("{}", &msg);
-                Error::new(ErrorKind::Other, msg)
-            })?;
-        let row: Vec<Vec<u8>> = row
-            .bytes_columns()
-            .map(|x| x.to_vec())
-            .collect();
+        let row = row.map_err(|_| {
+            let msg = format!("unable to parse row {}", i);
+            log::error!("{}", &msg);
+            Error::new(ErrorKind::Other, msg)
+        })?;
+        let row: Vec<Vec<u8>> = row.bytes_columns().map(|x| x.to_vec()).collect();
         if row.is_empty() {
             log::info!("Empty row, skipping");
             continue;
@@ -193,7 +189,11 @@ pub fn parse_tsv<R: Read>(
             }
             comments.push(c);
         // Skip empty lines (still need to have appropriate amount of tabs)
-        } else if row.iter().map(|x| x.is_empty()).fold(true, |acc, x| acc && x) {
+        } else if row
+            .iter()
+            .map(|x| x.is_empty())
+            .fold(true, |acc, x| acc && x)
+        {
             log::debug!("Skipping empty line");
             continue;
         // Handle comments

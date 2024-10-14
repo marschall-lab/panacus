@@ -748,7 +748,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         let hists = Vec::new();
                         write_histgrowth_table(&hists, &growths, &hist_aux, out)?
                     }
-                },
+                }
                 OutputFormat::Html => {
                     if hist {
                         write_histgrowth_html(
@@ -762,16 +762,10 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
                         )?
                     } else {
                         write_histgrowth_html(
-                            &None,
-                            &growths,
-                            &hist_aux,
-                            filename,
-                            None,
-                            None,
-                            out,
+                            &None, &growths, &hist_aux, filename, None, None, out,
                         )?
                     }
-                },
+                }
             };
         }
         Params::Info {
