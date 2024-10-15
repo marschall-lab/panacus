@@ -170,16 +170,12 @@ pub fn parse_tsv<R: Read>(
 
     let mut is_header = true;
     for (i, row) in reader.enumerate() {
-        let row = row
-            .map_err(|_| {
-                let msg = format!("unable to parse row {}", i);
-                log::error!("{}", &msg);
-                Error::new(ErrorKind::Other, msg)
-            })?;
-        let row: Vec<Vec<u8>> = row
-            .bytes_columns()
-            .map(|x| x.to_vec())
-            .collect();
+        let row = row.map_err(|_| {
+            let msg = format!("unable to parse row {}", i);
+            log::error!("{}", &msg);
+            Error::new(ErrorKind::Other, msg)
+        })?;
+        let row: Vec<Vec<u8>> = row.bytes_columns().map(|x| x.to_vec()).collect();
         if row.is_empty() {
             log::info!("Empty row, skipping");
             continue;
@@ -193,7 +189,11 @@ pub fn parse_tsv<R: Read>(
             }
             comments.push(c);
         // Skip empty lines (still need to have appropriate amount of tabs)
-        } else if row.iter().map(|x| x.is_empty()).fold(true, |acc, x| acc && x) {
+        } else if row
+            .iter()
+            .map(|x| x.is_empty())
+            .fold(true, |acc, x| acc && x)
+        {
             log::debug!("Skipping empty line");
             continue;
         // Handle comments
@@ -1210,11 +1210,7 @@ pub fn write_ordered_table<W: Write>(
 
 pub fn write_hist_table<W: Write>(hists: &[Hist], out: &mut BufWriter<W>) -> Result<(), Error> {
     log::info!("reporting hist table");
-    writeln!(
-        out,
-        "# {}",
-        std::env::args().collect::<Vec<String>>().join(" ")
-    )?;
+    write_metadata_comments(out)?;
 
     let mut header_cols = vec![vec![
         "panacus".to_string(),
@@ -1241,11 +1237,7 @@ pub fn write_histgrowth_table<W: Write>(
     hist_aux: &HistAuxilliary,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
-    writeln!(
-        out,
-        "# {}",
-        std::env::args().collect::<Vec<String>>().join(" ")
-    )?;
+    write_metadata_comments(out)?;
 
     let mut header_cols = vec![vec![
         "panacus".to_string(),
@@ -1282,13 +1274,19 @@ pub fn write_histgrowth_table<W: Write>(
     write_table(&header_cols, &output_columns, out)
 }
 
-pub fn write_info<W: Write>(info: Info, out: &mut BufWriter<W>) -> Result<(), Error> {
-    log::info!("reporting graph info table");
+fn write_metadata_comments<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
     writeln!(
         out,
         "# {}",
         std::env::args().collect::<Vec<String>>().join(" ")
     )?;
+    let version = option_env!("GIT_HASH").unwrap_or(env!("CARGO_PKG_VERSION"));
+    writeln!(out, "# version {}", version)
+}
+
+pub fn write_info<W: Write>(info: Info, out: &mut BufWriter<W>) -> Result<(), Error> {
+    log::info!("reporting graph info table");
+    write_metadata_comments(out)?;
     writeln!(out, "{}", info)
 }
 
@@ -1298,11 +1296,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     log::info!("reporting ordered-growth table");
-    writeln!(
-        out,
-        "# {}",
-        std::env::args().collect::<Vec<String>>().join(" ")
-    )?;
+    write_metadata_comments(out)?;
 
     let mut output_columns: Vec<Vec<f64>> = hist_aux
         .coverage

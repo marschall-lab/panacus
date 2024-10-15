@@ -58,7 +58,12 @@ pub fn populate_constants(vars: &mut HashMap<&str, String>) {
         "symbols_svg",
         String::from_utf8_lossy(SYMBOLS_SVG).into_owned(),
     );
-    vars.insert("version", env!("CARGO_PKG_VERSION").to_string());
+    vars.insert(
+        "version",
+        option_env!("GIT_HASH")
+            .unwrap_or(env!("CARGO_PKG_VERSION"))
+            .to_string(),
+    );
 
     let now = OffsetDateTime::now_utc();
     vars.insert(
