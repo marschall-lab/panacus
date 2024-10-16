@@ -480,6 +480,7 @@ pub enum Params {
     //},
 }
 
+#[cfg(test)]
 impl Params {
     #[allow(dead_code)]
     pub fn test_default_histgrowth() -> Self {
