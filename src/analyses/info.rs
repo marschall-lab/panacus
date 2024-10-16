@@ -82,14 +82,10 @@ impl Analysis for Info {
                     id: "info-4".to_string(),
                     is_first: false,
                     name: "group".to_string(),
-                    items: vec![ReportItem::Bar {
-                        name: "info-group-nodes".to_string(),
-                        x_label: "nodes".to_string(),
-                        y_label: "#groups".to_string(),
-                        labels: vec![1, 2, 3],
-                        values: vec![4.0, 5.0, 6.0],
-                        log_toggle: true,
-                    }],
+                    items: vec![
+                        self.get_group_bar("node"),
+                        self.get_group_bar("bp"),
+                    ],
                 },
             ],
         }]
@@ -105,9 +101,6 @@ impl Analysis for Info {
                 arg!(-g --groupby <FILE> "Merge counts from paths by path-group mapping from given tab-separated two-column file"),
                 arg!(-H --"groupby-haplotype" "Merge counts from paths belonging to same haplotype"),
                 arg!(-S --"groupby-sample" "Merge counts from paths belonging to same sample"),
-                Arg::new("output_format").help("Choose output format: table (tab-separated-values) or html report").short('o').long("output-format")
-                .default_value("table").value_parser(clap_enum_variants!(OutputFormat)).ignore_case(true),
-                Arg::new("threads").short('t').long("threads").help("").default_value("0").value_parser(value_parser!(usize)),
             ])
     }
 
@@ -266,6 +259,60 @@ impl Info {
             ),
         ];
         (header, values)
+    }
+
+    fn get_group_bar(&self, countable: &str) -> ReportItem {
+        let groups = &self.group_info.as_ref().unwrap().groups;
+        let (labels, values): (Vec<_>, Vec<_>) = if countable == "node" {
+            groups.iter().map(|(k, v)| (k.to_string(), v.0)).unzip()
+        } else {
+            groups.iter().map(|(k, v)| (k.to_string(), v.1)).unzip()
+        };
+        if labels.len() <= 100 {
+            ReportItem::Bar {
+                id: format!("info-group-{}", countable),
+                name: countable.to_string(),
+                x_label: "groups".to_string(),
+                y_label: format!("#{}s", countable),
+                log_toggle: true,
+                labels,
+                values: values.into_iter().map(|v| v as f64).collect(),
+            }
+        } else {
+            let (labels, values) = Self::bin_values(values);
+            ReportItem::Bar {
+                id: format!("info-group-{}", countable),
+                name: countable.to_string(),
+                x_label: "groups".to_string(),
+                y_label: format!("#{}s", countable),
+                log_toggle: true,
+                labels,
+                values: values.into_iter().map(|v| v as f64).collect(),
+            }
+        }
+    }
+
+    fn bin_values(list: Vec<u32>) -> (Vec<String>, Vec<usize>) {
+        if list.is_empty() {
+            return (Vec::new(), Vec::new());
+        }
+        let n_bins = 50;
+        let max = *list.iter().max().unwrap();
+        let min = *list.iter().min().unwrap();
+        let bin_size = ((max - min) as f32 / n_bins as f32).round();
+        let bins: Vec<_> = (min..max)
+            .step_by(bin_size as usize)
+            .zip((min + (bin_size as u32)..max + 1).step_by(bin_size as usize))
+            .collect();
+        let values = bins
+            .iter()
+            .map(|(s, e)| list.iter().filter(|a| **a >= *s && **a < *e).count())
+            .collect::<Vec<_>>();
+        let bin_names = bins
+            .iter()
+            .map(|(s, e)| format!("{}-{}", s, e))
+            .collect::<Vec<_>>();
+        (bin_names, values)
     }
 
     fn get_path_table(&self) -> (Vec<String>, Vec<Vec<String>>) {

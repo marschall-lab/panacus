@@ -40,6 +40,18 @@ pub struct AnalysisSection {
 }
 
 impl AnalysisSection {
+    fn set_first(mut self) -> Self {
+        let mut is_first = true; 
+        for tab in &mut self.tabs {
+            if is_first {
+                tab.is_first = true;
+                is_first = false;
+            } else {
+                tab.is_first = false;
+            }
+        }
+        self
+    }
     fn into_html(self, registry: &mut Handlebars) -> Result<(String, String), RenderError> {
         if !registry.has_template("analysis_section") {
             registry.register_template_file("analysis_section", "./hbs/analysis_section.hbs")?;
@@ -218,10 +230,11 @@ impl AnalysisTab {
 
 pub enum ReportItem {
     Bar {
+        id: String,
         name: String,
         x_label: String,
         y_label: String,
-        labels: Vec<u32>,
+        labels: Vec<String>,
         values: Vec<f64>,
         log_toggle: bool,
     },
@@ -245,6 +258,7 @@ impl ReportItem {
                 Ok((registry.render("table", &data)?, String::new()))
             }
             Self::Bar {
+                id,
                 name,
                 x_label,
                 y_label,
@@ -256,8 +270,8 @@ impl ReportItem {
                     registry.register_template_file("bar", "./hbs/bar.hbs")?;
                 }
                 let js_object = format!(
-                    "new Bar('{}', '{}', '{}', {:?}, {:?}, {})",
-                    name, x_label, y_label, labels, values, log_toggle
+                    "new Bar('{}', '{}', '{}', '{}', {:?}, {:?}, {})",
+                    id, name, x_label, y_label, labels, values, log_toggle
                 );
                 let data = HashMap::from([
                     ("name".to_string(), to_json(name)),
@@ -265,7 +279,6 @@ impl ReportItem {
                 ]);
                 Ok((registry.render("bar", &data)?, js_object))
             }
-            _ => Ok((String::new(), String::new())),
         }
     }
 }

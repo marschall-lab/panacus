@@ -4,7 +4,7 @@ use std::io::{Error, ErrorKind};
 use std::str::FromStr;
 
 /* external crate */
-use clap::{crate_version, ArgMatches, Command};
+use clap::{crate_version, value_parser, Arg, ArgMatches, Command};
 use handlebars::Handlebars;
 
 use crate::analyses::growth::Growth;
@@ -15,6 +15,7 @@ use crate::analyses::ordered_histgrowth::OrderedHistgrowth;
 use crate::analyses::table::Table;
 use crate::analyses::{self, Analysis, AnalysisSection};
 use crate::data_manager::DataManager;
+use crate::io::OutputFormat;
 use crate::util::*;
 
 pub enum RequireThreshold {
@@ -105,9 +106,7 @@ pub fn parse_threshold_cli(
 pub fn set_number_of_threads(params: &ArgMatches) {
     //if num_threads is 0 then the Rayon will select
     //the number of threads to the core number automatically
-    let subcommand_name = params.subcommand_name().unwrap();
-    let matches = params.subcommand_matches(subcommand_name).unwrap();
-    let threads = matches.get_one("threads").unwrap();
+    let threads = params.get_one("threads").unwrap();
     rayon::ThreadPoolBuilder::new()
         .num_threads(*threads)
         .build_global()
@@ -118,11 +117,29 @@ pub fn set_number_of_threads(params: &ArgMatches) {
     );
 }
 
+fn write_output<T: Analysis, W: Write>(mut analysis: T, dm: &DataManager, out: &mut BufWriter<W>, matches: &ArgMatches) -> Result<(), Error> {
+    match matches.get_one("output_format").unwrap() {
+        OutputFormat::Table => { analysis.write_table(dm, out)?; },
+        OutputFormat::Html => {
+            let report = analysis.generate_report_section(dm);
+            let mut registry = Handlebars::new();
+            let html = AnalysisSection::generate_report(report, &mut registry).unwrap();
+            writeln!(out, "{}", html)?;
+        }
+    };
+    Ok(())
+} 
+
 pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
     let matches = Command::new("")
         .version(crate_version!())
         .author("Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>")
         .about("Calculate count statistics for pangenomic data")
+        .args(&[
+            Arg::new("output_format").global(true).help("Choose output format: table (tab-separated-values) or html report").short('o').long("output-format")
+            .default_value("table").value_parser(clap_enum_variants!(OutputFormat)).ignore_case(true),
+            Arg::new("threads").global(true).short('t').long("threads").help("").default_value("0").value_parser(value_parser!(usize)),
+        ])
         .subcommand(Info::get_subcommand())
         .subcommand(analyses::hist::Hist::get_subcommand())
         .subcommand(Histgrowth::get_subcommand())
@@ -134,37 +151,33 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
     set_number_of_threads(&matches);
     if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let mut info = Info::build(&dm, &matches)?;
-        // info.write_table(&dm, out)?;
-        let report = info.generate_report_section(&dm);
-        let mut registry = Handlebars::new();
-        let html = AnalysisSection::generate_report(report, &mut registry).unwrap();
-        writeln!(out, "{}", html)?;
+        let info = Info::build(&dm, &matches)?;
+        write_output(*info, &dm, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) =
         crate::analyses::hist::Hist::get_input_requirements(&matches)
     {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let mut hist = analyses::hist::Hist::build(&dm, &matches)?;
-        hist.write_table(&dm, out)?;
+        let hist = analyses::hist::Hist::build(&dm, &matches)?;
+        write_output(*hist, &dm, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches)
     {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let mut histgrowth = Histgrowth::build(&dm, &matches)?;
-        histgrowth.write_table(&dm, out)?;
+        let histgrowth = Histgrowth::build(&dm, &matches)?;
+        write_output(*histgrowth, &dm, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) =
         OrderedHistgrowth::get_input_requirements(&matches)
     {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let mut ordered_histgrowth = OrderedHistgrowth::build(&dm, &matches)?;
-        ordered_histgrowth.write_table(&dm, out)?;
+        let ordered_histgrowth = OrderedHistgrowth::build(&dm, &matches)?;
+        write_output(*ordered_histgrowth, &dm, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) = Table::get_input_requirements(&matches) {
         let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let mut table = Table::build(&dm, &matches)?;
-        table.write_table(&dm, out)?;
+        let table = Table::build(&dm, &matches)?;
+        write_output(*table, &dm, out, &matches)?;
     } else if matches.subcommand_matches("growth").is_some() {
         let dm = DataManager::new();
-        let mut growth = Growth::build(&dm, &matches)?;
-        growth.write_table(&dm, out)?;
+        let growth = Growth::build(&dm, &matches)?;
+        write_output(*growth, &dm, out, &matches)?;
     }
 
     //match params {

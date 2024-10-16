@@ -53,10 +53,7 @@ impl Analysis for Table {
                 arg!(-H --"groupby-haplotype" "Merge counts from paths belonging to same haplotype"),
                 arg!(-S --"groupby-sample" "Merge counts from paths belonging to same sample"),
                 arg!(-a --"total" "Summarize by totaling presence/absence over all groups"),
-                Arg::new("output_format").help("Choose output format: table (tab-separated-values) or html report").short('o').long("output-format")
-                .default_value("table").value_parser(clap_enum_variants!(OutputFormat)).ignore_case(true),
                 Arg::new("count").help("Graph quantity to be counted").default_value("node").ignore_case(true).short('c').long("count").value_parser(clap_enum_variants!(CountType)),
-                Arg::new("threads").short('t').long("threads").help("").default_value("0").value_parser(value_parser!(usize)),
             ])
     }
 

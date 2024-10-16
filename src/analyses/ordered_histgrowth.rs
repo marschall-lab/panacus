@@ -64,14 +64,11 @@ impl Analysis for OrderedHistgrowth {
                 arg!(-H --"groupby-haplotype" "Merge counts from paths belonging to same haplotype"),
                 arg!(-S --"groupby-sample" "Merge counts from paths belonging to same sample"),
                 arg!(-O --order <FILE> "The ordered histogram will be produced according to order of paths/groups in the supplied file (1-column list). If this option is not used, the order is determined by the rank of paths/groups in the subset list, and if that option is not used, the order is determined by the rank of paths/groups in the GFA file."),
-                Arg::new("output_format").help("Choose output format: table (tab-separated-values) or html report").short('o').long("output-format")
-                    .default_value("table").value_parser(clap_enum_variants!(OutputFormat)).ignore_case(true),
                 Arg::new("count").help("Graph quantity to be counted").default_value("node").ignore_case(true).short('c').long("count").value_parser(clap_enum_variants!(CountType)),
                 Arg::new("coverage").help("Ignore all countables with a coverage lower than the specified threshold. The coverage of a countable corresponds to the number of path/walk that contain it. Repeated appearances of a countable in the same path/walk are counted as one. You can pass a comma-separated list of coverage thresholds, each one will produce a separated growth curve (e.g., --coverage 2,3). Use --quorum to set a threshold in conjunction with each coverage (e.g., --quorum 0.5,0.9)")
                     .short('l').long("coverage").default_value("1"),
                 Arg::new("quorum").help("Unlike the --coverage parameter, which specifies a minimum constant number of paths for all growth point m (1 <= m <= num_paths), --quorum adjust the threshold based on m. At each m, a countable is counted in the average growth if the countable is contained in at least floor(m*quorum) paths. Example: A quorum of 0.9 requires a countable to be in 90% of paths for each subset size m. At m=10, it must appear in at least 9 paths. At m=100, it must appear in at least 90 paths. A quorum of 1 (100%) requires presence in all paths of the subset, corresponding to the core. Default: 0, a countable counts if it is present in any path at each growth point. Specify multiple quorum values with a comma-separated list (e.g., --quorum 0.5,0.9). Use --coverage to set static path thresholds in conjunction with variable quorum percentages (e.g., --coverage 5,10).")
                     .short('q').long("quorum").default_value("0"),
-                Arg::new("threads").short('t').long("threads").help("").default_value("0").value_parser(value_parser!(usize)),
             ])
     }
 
