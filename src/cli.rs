@@ -480,6 +480,7 @@ pub enum Params {
     //},
 }
 
+#[cfg(test)]
 impl Params {
     pub fn test_default_histgrowth() -> Self {
         Params::Histgrowth {
