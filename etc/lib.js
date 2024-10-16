@@ -4,11 +4,14 @@
 
 const PCOLORS = ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4'];
 
-class Hist {
-    constructor(count_type, index, coverage) {
-        this.count = count_type;
-        this.index = index;
-        this.coverage = coverage;
+class Bar {
+    constructor(name, x_label, y_label, labels, values, log_toggle) {
+        this.name = name;
+        this.x_label = x_label;
+        this.y_label = y_label;
+        this.labels = labels;
+        this.values = values;
+        this.log_toggle = log_toggle;
     }
 }
 
@@ -135,8 +138,9 @@ function buildInfoTableDownload(table, infoType, prefix) {
 }
 
 
-function buildLogToggle(chart, obj) {
-    document.getElementById('btn-logscale-plot-' + obj.constructor.name.toLowerCase() + '-' + obj.count).addEventListener('change', function(event) {
+function buildLogToggle(chart, name) {
+    console.log(name);
+    document.getElementById('btn-logscale-plot-' + name).addEventListener('change', function(event) {
         if (event.currentTarget.checked) {
             chart.options.scales.y.type = 'logarithmic';
         } else {

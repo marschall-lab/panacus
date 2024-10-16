@@ -32,10 +32,6 @@ pub trait Analysis {
     ) -> Option<(HashSet<InputRequirement>, ViewParams, String)>;
 }
 
-pub trait IntoHtml {
-    fn into_html(self, registry: &mut Handlebars) -> Result<String, RenderError>;
-}
-
 pub struct AnalysisSection {
     name: String,
     id: String,
@@ -43,28 +39,40 @@ pub struct AnalysisSection {
     tabs: Vec<AnalysisTab>,
 }
 
-impl IntoHtml for AnalysisSection {
-    fn into_html(self, registry: &mut Handlebars) -> Result<String, RenderError> {
+impl AnalysisSection {
+    fn into_html(self, registry: &mut Handlebars) -> Result<(String, String), RenderError> {
         if !registry.has_template("analysis_section") {
             registry.register_template_file("analysis_section", "./hbs/analysis_section.hbs")?;
         }
         let mut tab_navigation: Vec<HashMap<&str, handlebars::JsonValue>> = Vec::new();
         let mut tab_content: Vec<String> = Vec::new();
+        let mut js_objects = Vec::new();
         for tab in self.tabs {
-            let (cont, id, name, is_first) = tab.into_html(registry)?;
+            let id = tab.id.clone();
+            let name = tab.name.clone();
+            let is_first = tab.is_first;
+            let (cont, js_object) = tab.into_html(registry)?;
+            js_objects.push(js_object);
             tab_navigation.push(HashMap::from([
-                    ("id", to_json(id)),
-                    ("name", to_json(name)),
-                    ("is_first", to_json(is_first)),
+                ("id", to_json(id)),
+                ("name", to_json(name)),
+                ("is_first", to_json(is_first)),
             ]));
             tab_content.push(cont);
-        } 
+        }
         let vars = HashMap::from([
             ("tab_navigation", to_json(tab_navigation)),
-            ("tab_content", to_json(tab_content))
+            ("tab_content", to_json(tab_content)),
         ]);
         let result = registry.render("analysis_section", &vars)?;
-        Ok(result)
+        Ok((
+            result,
+            js_objects
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(",\n"),
+        ))
     }
 }
 
@@ -79,82 +87,100 @@ pub const PANACUS_LOGO: &[u8] = include_bytes!("../etc/panacus-illustration-smal
 pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
 
 impl AnalysisSection {
-    pub fn generate_report(sections: Vec<Self>, registry: &mut Handlebars) -> Result<String, RenderError> {
+    pub fn generate_report(
+        sections: Vec<Self>,
+        registry: &mut Handlebars,
+    ) -> Result<String, RenderError> {
         if !registry.has_template("report") {
             registry.register_template_file("report", "./hbs/report.hbs")?;
         }
-        let content = Self::generate_report_content(sections, registry)?;
+        let (content, js_objects) = Self::generate_report_content(sections, registry)?;
         //eprintln!("{}", content);
-        let mut vars = HashMap::from([
-            ("content", content),
-        ]);
+        let mut vars = HashMap::from([("content", content), ("data_hook", js_objects)]);
         Self::populate_constants(&mut vars);
         registry.render("report", &vars)
     }
 
-    fn generate_report_content(sections: Vec<Self>, registry: &mut Handlebars) -> Result<String, RenderError> {
+    fn generate_report_content(
+        sections: Vec<Self>,
+        registry: &mut Handlebars,
+    ) -> Result<(String, String), RenderError> {
         if !registry.has_template("report_content") {
             registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
         }
-        let sections = sections.into_iter()
-            .map(|s| HashMap::from([
-                    ("is_first", to_json(s.is_first)),
-                    ("name", to_json(&s.name)),
-                    ("id", to_json(&s.id)),
-                    ("content", to_json(s.into_html(registry).unwrap())),
-                    ]))
+        let mut js_objects = Vec::new();
+        let sections = sections
+            .into_iter()
+            .map(|s| {
+                let is_first = to_json(s.is_first);
+                let name = to_json(&s.name);
+                let id = to_json(&s.id);
+                let (content, js_object) = s.into_html(registry).unwrap();
+                js_objects.push(js_object);
+                HashMap::from([
+                    ("is_first", is_first),
+                    ("name", name),
+                    ("id", id),
+                    ("content", to_json(content)),
+                ])
+            })
             .collect::<Vec<HashMap<_, _>>>();
         let text = registry.render("report_content", &sections)?;
         eprintln!("{}", text);
-        Ok(text)
+        let js_objects = js_objects
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(",\n");
+        let js_objects = format!("const objects = [\n{}\n];", &js_objects);
+        Ok((text, js_objects))
     }
 
+    pub fn populate_constants(vars: &mut HashMap<&str, String>) {
+        vars.insert(
+            "bootstrap_color_modes_js",
+            String::from_utf8_lossy(BOOTSTRAP_COLOR_MODES_JS).into_owned(),
+        );
+        vars.insert(
+            "bootstrap_css",
+            String::from_utf8_lossy(BOOTSTRAP_CSS).into_owned(),
+        );
+        vars.insert(
+            "bootstrap_js",
+            String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
+        );
+        vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
+        vars.insert(
+            "custom_css",
+            String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
+        );
+        vars.insert(
+            "custom_lib_js",
+            String::from_utf8_lossy(CUSTOM_LIB_JS).into_owned(),
+        );
+        vars.insert(
+            "hook_after_js",
+            String::from_utf8_lossy(HOOK_AFTER_JS).into_owned(),
+        );
+        vars.insert(
+            "panacus_logo",
+            general_purpose::STANDARD_NO_PAD.encode(PANACUS_LOGO),
+        );
+        vars.insert(
+            "symbols_svg",
+            String::from_utf8_lossy(SYMBOLS_SVG).into_owned(),
+        );
+        vars.insert("version", env!("CARGO_PKG_VERSION").to_string());
 
-pub fn populate_constants(vars: &mut HashMap<&str, String>) {
-    vars.insert(
-        "bootstrap_color_modes_js",
-        String::from_utf8_lossy(BOOTSTRAP_COLOR_MODES_JS).into_owned(),
-    );
-    vars.insert(
-        "bootstrap_css",
-        String::from_utf8_lossy(BOOTSTRAP_CSS).into_owned(),
-    );
-    vars.insert(
-        "bootstrap_js",
-        String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
-    );
-    vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
-    vars.insert(
-        "custom_css",
-        String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
-    );
-    vars.insert(
-        "custom_lib_js",
-        String::from_utf8_lossy(CUSTOM_LIB_JS).into_owned(),
-    );
-    vars.insert(
-        "hook_after_js",
-        String::from_utf8_lossy(HOOK_AFTER_JS).into_owned(),
-    );
-    vars.insert(
-        "panacus_logo",
-        general_purpose::STANDARD_NO_PAD.encode(PANACUS_LOGO),
-    );
-    vars.insert(
-        "symbols_svg",
-        String::from_utf8_lossy(SYMBOLS_SVG).into_owned(),
-    );
-    vars.insert("version", env!("CARGO_PKG_VERSION").to_string());
-
-    let now = OffsetDateTime::now_utc();
-    vars.insert(
-        "timestamp",
-        now.format(&format_description!(
-            "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
-        ))
-        .unwrap(),
-    );
-}
+        let now = OffsetDateTime::now_utc();
+        vars.insert(
+            "timestamp",
+            now.format(&format_description!(
+                "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
+            ))
+            .unwrap(),
+        );
+    }
 }
 
 pub struct AnalysisTab {
@@ -165,44 +191,81 @@ pub struct AnalysisTab {
 }
 
 impl AnalysisTab {
-    fn into_html(self, registry: &mut Handlebars) -> Result<(String, String, String, bool), RenderError> {
+    fn into_html(self, registry: &mut Handlebars) -> Result<(String, String), RenderError> {
         if !registry.has_template("analysis_tab") {
-            registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs");
+            registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
         }
-        let items = self.items.into_iter().map(|x| x.into_html(registry)).collect::<Result<Vec<_>, _>>()?;
+        let items = self
+            .items
+            .into_iter()
+            .map(|x| x.into_html(registry))
+            .collect::<Result<Vec<_>, _>>()?;
+        let (items, js_objects): (Vec<_>, Vec<_>) = items.into_iter().unzip();
+        let js_objects = js_objects
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(",\n");
         let vars = HashMap::from([
             ("id", to_json(&self.id)),
             ("name", to_json(&self.name)),
             ("items", to_json(items)),
             ("is_first", to_json(self.is_first)),
         ]);
-        Ok((registry.render("analysis_tab", &vars)?, self.id, self.name, self.is_first))
+        Ok((registry.render("analysis_tab", &vars)?, js_objects))
     }
 }
 
 pub enum ReportItem {
-    Hist,
-    Bar,
+    Bar {
+        name: String,
+        x_label: String,
+        y_label: String,
+        labels: Vec<u32>,
+        values: Vec<f64>,
+        log_toggle: bool,
+    },
     Table {
         header: Vec<String>,
         values: Vec<Vec<String>>,
     },
 }
 
-impl IntoHtml for ReportItem {
-    fn into_html(self, registry: &mut Handlebars) -> Result<String, RenderError> {
+impl ReportItem {
+    fn into_html(self, registry: &mut Handlebars) -> Result<(String, String), RenderError> {
         match self {
             Self::Table { header, values } => {
                 if !registry.has_template("table") {
-                    registry.register_template_file("table", "./hbs/table.hbs");
+                    registry.register_template_file("table", "./hbs/table.hbs")?;
                 }
                 let data = HashMap::from([
                     ("header".to_string(), to_json(header)),
-                    ("values".to_string(), to_json(values))
+                    ("values".to_string(), to_json(values)),
                 ]);
-                registry.render("table", &data)
-            },
-            _ => Ok(String::new()),
+                Ok((registry.render("table", &data)?, String::new()))
+            }
+            Self::Bar {
+                name,
+                x_label,
+                y_label,
+                labels,
+                values,
+                log_toggle,
+            } => {
+                if !registry.has_template("bar") {
+                    registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                }
+                let js_object = format!(
+                    "new Bar('{}', '{}', '{}', {:?}, {:?}, {})",
+                    name, x_label, y_label, labels, values, log_toggle
+                );
+                let data = HashMap::from([
+                    ("name".to_string(), to_json(name)),
+                    ("log_toggle".to_string(), to_json(log_toggle)),
+                ]);
+                Ok((registry.render("bar", &data)?, js_object))
+            }
+            _ => Ok((String::new(), String::new())),
         }
     }
 }

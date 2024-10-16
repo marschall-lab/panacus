@@ -1,0 +1,9 @@
+{{#if log_toggle}}
+<div class="d-flex flex-row-reverse">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="btn-logscale-plot-bar-{{name}}">
+        <label class="form-check-label" for="btn-logscale-plot-bar-{{name}}">log-scale</label>
+    </div>
+</div>
+{{/if}}
+<canvas id="chart-bar-{{name}}"></canvas>

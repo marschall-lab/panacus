@@ -7,7 +7,7 @@ use std::{
 use clap::{arg, value_parser, Arg, ArgMatches, Command};
 
 use crate::{
-    analyses::{Analysis, InputRequirement, AnalysisSection},
+    analyses::{Analysis, AnalysisSection, InputRequirement},
     clap_enum_variants,
     data_manager::{DataManager, Edge, ItemId, ViewParams},
     io::OutputFormat,
@@ -55,32 +55,44 @@ impl Analysis for Info {
                     id: "info-1".to_string(),
                     is_first: true,
                     name: "graph".to_string(),
-                    items: vec![
-                        ReportItem::Table { 
-                            header: graph_header, 
-                            values: graph_values, 
-                        }
-                    ]
+                    items: vec![ReportItem::Table {
+                        header: graph_header,
+                        values: graph_values,
+                    }],
                 },
                 AnalysisTab {
                     id: "info-2".to_string(),
                     is_first: false,
                     name: "node".to_string(),
-                    items: vec![
-                        ReportItem::Table { header: node_header, values: node_values }
-                    ]
+                    items: vec![ReportItem::Table {
+                        header: node_header,
+                        values: node_values,
+                    }],
                 },
                 AnalysisTab {
                     id: "info-3".to_string(),
                     is_first: false,
                     name: "path".to_string(),
-                    items: vec![
-                        ReportItem::Table { header: path_header, values: path_values }
-                    ]
-                }
-            ]
-        },
-        ]
+                    items: vec![ReportItem::Table {
+                        header: path_header,
+                        values: path_values,
+                    }],
+                },
+                AnalysisTab {
+                    id: "info-4".to_string(),
+                    is_first: false,
+                    name: "group".to_string(),
+                    items: vec![ReportItem::Bar {
+                        name: "info-group-nodes".to_string(),
+                        x_label: "nodes".to_string(),
+                        y_label: "#groups".to_string(),
+                        labels: vec![1, 2, 3],
+                        values: vec![4.0, 5.0, 6.0],
+                        log_toggle: true,
+                    }],
+                },
+            ],
+        }]
     }
 
     fn get_subcommand() -> Command {
@@ -137,16 +149,66 @@ impl Info {
     fn get_graph_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
         let header = Self::get_header();
         let values = vec![
-            Self::get_row("graph", "total", "node", self.graph_info.node_count.to_string()),
-            Self::get_row("graph", "total", "bp", self.graph_info.basepairs.to_string()),
-            Self::get_row("graph", "total", "edge", self.graph_info.edge_count.to_string()),
-            Self::get_row("graph", "total", "path", self.path_info.no_paths.to_string()),
-            Self::get_row("graph", "total", "group", self.graph_info.group_count.to_string()),
-            Self::get_row("graph", "total", "0-degree node", self.graph_info.number_0_degree.to_string()),
-            Self::get_row("graph", "total", "component", self.graph_info.connected_components.to_string()),
-            Self::get_row("graph", "largest", "component", self.graph_info.largest_component.to_string()),
-            Self::get_row("graph", "smallest", "component", self.graph_info.smallest_component.to_string()),
-            Self::get_row("graph", "median", "component", self.graph_info.median_component.to_string()),
+            Self::get_row(
+                "graph",
+                "total",
+                "node",
+                self.graph_info.node_count.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "total",
+                "bp",
+                self.graph_info.basepairs.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "total",
+                "edge",
+                self.graph_info.edge_count.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "total",
+                "path",
+                self.path_info.no_paths.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "total",
+                "group",
+                self.graph_info.group_count.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "total",
+                "0-degree node",
+                self.graph_info.number_0_degree.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "total",
+                "component",
+                self.graph_info.connected_components.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "largest",
+                "component",
+                self.graph_info.largest_component.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "smallest",
+                "component",
+                self.graph_info.smallest_component.to_string(),
+            ),
+            Self::get_row(
+                "graph",
+                "median",
+                "component",
+                self.graph_info.median_component.to_string(),
+            ),
         ];
         (header, values)
     }
@@ -154,14 +216,54 @@ impl Info {
     fn get_node_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
         let header = Self::get_header();
         let values = vec![
-            Self::get_row("node", "average", "bp", self.graph_info.average_node.to_string()),
-            Self::get_row("node", "average", "degree", self.graph_info.average_degree.to_string()),
-            Self::get_row("node", "longest", "bp", self.graph_info.largest_node.to_string()),
-            Self::get_row("node", "shortest", "bp", self.graph_info.shortest_node.to_string()),
-            Self::get_row("node", "median", "bp", self.graph_info.median_node.to_string()),
-            Self::get_row("node", "N50 node", "bp", self.graph_info.n50_node.to_string()),
-            Self::get_row("node", "max", "degree", self.graph_info.max_degree.to_string()),
-            Self::get_row("node", "min", "degree", self.graph_info.min_degree.to_string()),
+            Self::get_row(
+                "node",
+                "average",
+                "bp",
+                self.graph_info.average_node.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "average",
+                "degree",
+                self.graph_info.average_degree.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "longest",
+                "bp",
+                self.graph_info.largest_node.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "shortest",
+                "bp",
+                self.graph_info.shortest_node.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "median",
+                "bp",
+                self.graph_info.median_node.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "N50 node",
+                "bp",
+                self.graph_info.n50_node.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "max",
+                "degree",
+                self.graph_info.max_degree.to_string(),
+            ),
+            Self::get_row(
+                "node",
+                "min",
+                "degree",
+                self.graph_info.min_degree.to_string(),
+            ),
         ];
         (header, values)
     }
@@ -169,18 +271,53 @@ impl Info {
     fn get_path_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
         let header = Self::get_header();
         let values = vec![
-            Self::get_row("path", "average", "bp", self.path_info.bp_len.average.to_string()),
-            Self::get_row("path", "average", "node", self.path_info.node_len.average.to_string()),
-            Self::get_row("path", "longest", "bp", self.path_info.bp_len.longest.to_string()),
-            Self::get_row("path", "longest", "node", self.path_info.node_len.longest.to_string()),
-            Self::get_row("path", "shortest", "bp", self.path_info.bp_len.shortest.to_string()),
-            Self::get_row("path", "shortest", "node", self.path_info.node_len.shortest.to_string()),
+            Self::get_row(
+                "path",
+                "average",
+                "bp",
+                self.path_info.bp_len.average.to_string(),
+            ),
+            Self::get_row(
+                "path",
+                "average",
+                "node",
+                self.path_info.node_len.average.to_string(),
+            ),
+            Self::get_row(
+                "path",
+                "longest",
+                "bp",
+                self.path_info.bp_len.longest.to_string(),
+            ),
+            Self::get_row(
+                "path",
+                "longest",
+                "node",
+                self.path_info.node_len.longest.to_string(),
+            ),
+            Self::get_row(
+                "path",
+                "shortest",
+                "bp",
+                self.path_info.bp_len.shortest.to_string(),
+            ),
+            Self::get_row(
+                "path",
+                "shortest",
+                "node",
+                self.path_info.node_len.shortest.to_string(),
+            ),
         ];
         (header, values)
     }
 
     fn get_row(first: &str, second: &str, third: &str, value: String) -> Vec<String> {
-        vec![first.to_string(), second.to_string(), third.to_string(), value]
+        vec![
+            first.to_string(),
+            second.to_string(),
+            third.to_string(),
+            value,
+        ]
     }
 
     fn get_header() -> Vec<String> {

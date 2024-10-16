@@ -9,20 +9,80 @@ new bootstrap.Tooltip(tooltipTriggerEl)
 
 // const plots = hists.concat(growths);
 // 
-// const pluginCanvasBackgroundColor = {
-//   id: 'customCanvasBackgroundColor',
-//   beforeDraw: (chart, args, options) => {
-//     const {ctx, chartArea: { top, bottom, left, right, width, height },
-//         scales: {x, y}
-//     } = chart;
-//     ctx.save();
-//     ctx.globalCompositeOperation = 'destination-over';
-//     ctx.fillStyle = options.color || '#99ffff';
-//     ctx.fillRect(left, top, width, height);
-//     ctx.restore();
-//   }
-// }
-// 
+const pluginCanvasBackgroundColor = {
+  id: 'customCanvasBackgroundColor',
+  beforeDraw: (chart, args, options) => {
+    const {ctx, chartArea: { top, bottom, left, right, width, height },
+        scales: {x, y}
+    } = chart;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.fillStyle = options.color || '#99ffff';
+    ctx.fillRect(left, top, width, height);
+    ctx.restore();
+  }
+}
+
+
+objects.forEach(element => {
+    if (element instanceof Bar) {
+        console.log("Bar Case");
+        let h = element;
+        var ctx = document.getElementById('chart-bar-' + h.name);
+        var myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: h.labels,
+                datasets: [{
+                    label: h.name,
+                    data: h.values,
+                    borderWidth: 1,
+                    backgroundColor: PCOLORS[0],
+                    borderColor: '#FFFFFF'
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: h.y_label,
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            color: '#FFFFFF',
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: h.x_label,
+                        },
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 65
+                        }
+                    },
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        // buildPlotDownload(myChart, h, fname);
+        // buildHistTableDownload(myChart, h, fname);
+        if (h.log_toggle) {
+            buildLogToggle(myChart, "bar-" + h.name);
+        }
+    }
+})
+
 // for (let i=0; i < hists.length; i++) {
 //     var h = hists[i];
 //     var ctx = document.getElementById('chart-hist-' + h.count);
