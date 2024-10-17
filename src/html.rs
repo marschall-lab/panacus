@@ -782,10 +782,10 @@ pub fn write_histgrowth_html<W: Write>(
 	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
 {{{nav}}}
  	</div>
-  	<div class="tab-content w-100" id="v-pills-tabContent">{{#if hist_content}}
+  	<div class="tab-content w-100" id="v-pills-tabContent">
 		<div class="tab-pane fade show active" id="v-pills-info" role="tabpanel" aria-labelledby="v-pills-info-tab">
 {{{info_content}}}
-		</div>
+		</div>{{#if hist_content}}
         <div class="tab-pane fade {{#unless info_content}} show active{{/unless}}" id="v-pills-hist" role="tabpanel" aria-labelledby="v-pills-hist-tab">
 {{{hist_content}}}
 		</div>{{/if}}
