@@ -4,13 +4,11 @@ use std::{
     io::{BufWriter, Error, Write},
 };
 
-use clap::{arg, value_parser, Arg, ArgMatches, Command};
+use clap::{arg, ArgMatches, Command};
 
 use crate::{
     analyses::{Analysis, AnalysisSection, InputRequirement},
-    clap_enum_variants,
     data_manager::{DataManager, Edge, ItemId, ViewParams},
-    io::OutputFormat,
     util::{averageu32, median_already_sorted, n50_already_sorted},
 };
 
@@ -82,10 +80,7 @@ impl Analysis for Info {
                     id: "info-4".to_string(),
                     is_first: false,
                     name: "group".to_string(),
-                    items: vec![
-                        self.get_group_bar("node"),
-                        self.get_group_bar("bp"),
-                    ],
+                    items: vec![self.get_group_bar("node"), self.get_group_bar("bp")],
                 },
             ],
         }]

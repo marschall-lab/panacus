@@ -5,11 +5,10 @@ use std::{
     io::{BufReader, BufWriter, Error},
 };
 
-use clap::{arg, value_parser, Arg, Command};
+use clap::{arg, Arg, Command};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::data_manager::Hist;
-use crate::{clap_enum_variants, io::OutputFormat};
 use crate::{
     data_manager::{HistAuxilliary, ViewParams},
     io::{parse_hists, write_table},

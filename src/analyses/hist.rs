@@ -4,12 +4,12 @@ use std::{
     io::{BufWriter, Error},
 };
 
-use clap::{arg, value_parser, Arg, ArgMatches, Command};
+use clap::{arg, Arg, ArgMatches, Command};
 
+use crate::clap_enum_variants;
 use crate::{
     analyses::InputRequirement, data_manager::ViewParams, io::write_table, util::CountType,
 };
-use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, AnalysisSection};
 

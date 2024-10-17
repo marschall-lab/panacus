@@ -41,7 +41,7 @@ pub struct AnalysisSection {
 
 impl AnalysisSection {
     fn set_first(mut self) -> Self {
-        let mut is_first = true; 
+        let mut is_first = true;
         for tab in &mut self.tabs {
             if is_first {
                 tab.is_first = true;
@@ -102,13 +102,18 @@ impl AnalysisSection {
     pub fn generate_report(
         sections: Vec<Self>,
         registry: &mut Handlebars,
+        filename: &str,
     ) -> Result<String, RenderError> {
         if !registry.has_template("report") {
             registry.register_template_file("report", "./hbs/report.hbs")?;
         }
         let (content, js_objects) = Self::generate_report_content(sections, registry)?;
         //eprintln!("{}", content);
-        let mut vars = HashMap::from([("content", content), ("data_hook", js_objects)]);
+        let mut vars = HashMap::from([
+            ("content", content),
+            ("data_hook", js_objects),
+            ("fname", filename.to_string()),
+        ]);
         Self::populate_constants(&mut vars);
         registry.render("report", &vars)
     }
@@ -238,6 +243,15 @@ pub enum ReportItem {
         values: Vec<f64>,
         log_toggle: bool,
     },
+    MultiBar {
+        id: String,
+        names: Vec<String>,
+        x_label: String,
+        y_label: String,
+        labels: Vec<String>,
+        values: Vec<Vec<f64>>,
+        log_toggle: bool,
+    },
     Table {
         header: Vec<String>,
         values: Vec<Vec<String>>,
@@ -274,7 +288,29 @@ impl ReportItem {
                     id, name, x_label, y_label, labels, values, log_toggle
                 );
                 let data = HashMap::from([
-                    ("name".to_string(), to_json(name)),
+                    ("name".to_string(), to_json(id)),
+                    ("log_toggle".to_string(), to_json(log_toggle)),
+                ]);
+                Ok((registry.render("bar", &data)?, js_object))
+            }
+            Self::MultiBar {
+                id,
+                names,
+                x_label,
+                y_label,
+                labels,
+                values,
+                log_toggle,
+            } => {
+                if !registry.has_template("bar") {
+                    registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                }
+                let js_object = format!(
+                    "new MultiBar('{}', {:?}, '{}', '{}', {:?}, {:?}, {})",
+                    id, names, x_label, y_label, labels, values, log_toggle
+                );
+                let data = HashMap::from([
+                    ("name".to_string(), to_json(id)),
                     ("log_toggle".to_string(), to_json(log_toggle)),
                 ]);
                 Ok((registry.render("bar", &data)?, js_object))

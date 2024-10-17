@@ -16,6 +16,18 @@ class Bar {
     }
 }
 
+class MultiBar {
+    constructor(id, names, x_label, y_label, labels, values, log_toggle) {
+        this.id = id;
+        this.names = names;
+        this.x_label = x_label;
+        this.y_label = y_label;
+        this.labels = labels;
+        this.values = values;
+        this.log_toggle = log_toggle;
+    }
+}
+
 class Group {
     constructor(count_type, index, length, is_hist) {
         this.count = count_type;
@@ -140,7 +152,6 @@ function buildInfoTableDownload(table, infoType, prefix) {
 
 
 function buildLogToggle(chart, name) {
-    console.log(name);
     document.getElementById('btn-logscale-plot-' + name).addEventListener('change', function(event) {
         if (event.currentTarget.checked) {
             chart.options.scales.y.type = 'logarithmic';

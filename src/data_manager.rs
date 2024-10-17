@@ -189,6 +189,10 @@ impl DataManager {
         self.abacus_aux.as_ref().unwrap().count_groups()
     }
 
+    pub fn get_fname(&self) -> String {
+        self.gfa_file.to_string()
+    }
+
     pub fn get_groups(&self) -> &HashMap<PathSegment, String> {
         Self::check_and_error(self.abacus_aux.as_ref(), "abacus_aux -> groups");
         &self.abacus_aux.as_ref().unwrap().groups

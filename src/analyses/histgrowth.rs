@@ -4,17 +4,17 @@ use std::{
     io::{BufWriter, Error},
 };
 
-use clap::{arg, value_parser, Arg, Command};
+use clap::{arg, Arg, Command};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::analyses::{AnalysisTab, ReportItem};
+use crate::clap_enum_variants;
 use crate::{
     analyses::InputRequirement,
     data_manager::{HistAuxilliary, ViewParams},
     io::write_table,
     util::CountType,
 };
-use crate::{clap_enum_variants, io::OutputFormat};
 
 use super::{Analysis, AnalysisSection};
 
@@ -92,39 +92,66 @@ impl Analysis for Histgrowth {
         &mut self,
         dm: &crate::data_manager::DataManager,
     ) -> Vec<AnalysisSection> {
-        let histogram_tabs = dm.get_hists().iter().map(|(k, v)| {
-            AnalysisTab {
-                id: k.to_string(),
+        let histogram_tabs = dm
+            .get_hists()
+            .iter()
+            .map(|(k, v)| AnalysisTab {
+                id: format!("tab-cov-hist-{}", k),
                 name: k.to_string(),
                 is_first: false,
-                items: vec![
-                    ReportItem::Bar {
-                        id: format!("cov-hist-{}", k.to_string()),
-                        name: format!("cov-hist-{}", k.to_string()),
-                        x_label: "taxa".to_string(),
-                        y_label: format!("#{}s", k.to_string()),
-                        labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
-                        values: v.coverage.iter().map(|c| *c as f64).collect(),
-                        log_toggle: true,
-                    }
-                ],
-            }
-        }).collect::<Vec<_>>();
+                items: vec![ReportItem::Bar {
+                    id: format!("cov-hist-{}", k.to_string()),
+                    name: dm.get_fname(),
+                    x_label: "taxa".to_string(),
+                    y_label: format!("#{}s", k.to_string()),
+                    labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
+                    values: v.coverage.iter().map(|c| *c as f64).collect(),
+                    log_toggle: true,
+                }],
+            })
+            .collect::<Vec<_>>();
+        let growth_labels = (0..self.hist_aux.coverage.len())
+            .map(|i| {
+                format!(
+                    "coverage ≥ {}, quorum ≥ {}%",
+                    self.hist_aux.coverage[i].get_string(),
+                    self.hist_aux.quorum[i].get_string()
+                )
+            })
+            .collect::<Vec<_>>();
+        let growth_tabs = self
+            .growths
+            .iter()
+            .map(|(k, v)| AnalysisTab {
+                id: format!("tab-pan-growth-{}", k),
+                name: k.to_string(),
+                is_first: false,
+                items: vec![ReportItem::MultiBar {
+                    id: format!("pan-growth-{}", k.to_string()),
+                    names: growth_labels.clone(),
+                    x_label: "taxa".to_string(),
+                    y_label: format!("#{}s", k.to_string()),
+                    labels: (1..v[0].len()).map(|i| i.to_string()).collect(),
+                    values: v.clone(),
+                    log_toggle: false,
+                }],
+            })
+            .collect();
         vec![
             AnalysisSection {
                 name: "coverage histogram".to_string(),
                 id: "coverage-histogram".to_string(),
                 is_first: true,
                 tabs: histogram_tabs,
-            }.set_first(),
+            }
+            .set_first(),
             AnalysisSection {
                 name: "pangenome growth".to_string(),
                 id: "pangenome-growth".to_string(),
                 is_first: false,
-                tabs: vec![
-
-                ],
-            }.set_first(),
+                tabs: growth_tabs,
+            }
+            .set_first(),
         ]
     }
 

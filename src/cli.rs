@@ -117,18 +117,26 @@ pub fn set_number_of_threads(params: &ArgMatches) {
     );
 }
 
-fn write_output<T: Analysis, W: Write>(mut analysis: T, dm: &DataManager, out: &mut BufWriter<W>, matches: &ArgMatches) -> Result<(), Error> {
+fn write_output<T: Analysis, W: Write>(
+    mut analysis: T,
+    dm: &DataManager,
+    out: &mut BufWriter<W>,
+    matches: &ArgMatches,
+) -> Result<(), Error> {
     match matches.get_one("output_format").unwrap() {
-        OutputFormat::Table => { analysis.write_table(dm, out)?; },
+        OutputFormat::Table => {
+            analysis.write_table(dm, out)?;
+        }
         OutputFormat::Html => {
             let report = analysis.generate_report_section(dm);
             let mut registry = Handlebars::new();
-            let html = AnalysisSection::generate_report(report, &mut registry).unwrap();
+            let html =
+                AnalysisSection::generate_report(report, &mut registry, &dm.get_fname()).unwrap();
             writeln!(out, "{}", html)?;
         }
     };
     Ok(())
-} 
+}
 
 pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
     let matches = Command::new("")

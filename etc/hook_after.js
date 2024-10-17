@@ -26,9 +26,8 @@ const pluginCanvasBackgroundColor = {
 
 objects.forEach(element => {
     if (element instanceof Bar) {
-        console.log("Bar Case");
         let h = element;
-        var ctx = document.getElementById('chart-bar-' + h.name);
+        var ctx = document.getElementById('chart-bar-' + h.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -78,7 +77,65 @@ objects.forEach(element => {
         // buildPlotDownload(myChart, h, fname);
         // buildHistTableDownload(myChart, h, fname);
         if (h.log_toggle) {
-            buildLogToggle(myChart, "bar-" + h.name);
+            buildLogToggle(myChart, "bar-" + h.id);
+        }
+    } else if (element instanceof MultiBar) {
+        let m = element;
+        var ctx = document.getElementById('chart-bar-' + m.id);
+        var myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: m.labels,
+                datasets: Array.from(m.values.entries()).reverse().map(function([i, v]) {
+                    return {
+                        label: m.names[i],
+                        data: v,
+                        borderWidth: 1,
+                        backgroundColor: PCOLORS[i % PCOLORS.length],
+                        borderColor: '#FFFFFF'
+                    };
+                }),
+            },
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: m.y_label,
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        stacked: false,
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: m.x_label,
+                        },
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 65
+                        },
+                        stacked: true,
+                    },
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        // buildPlotDownload(myChart, h, fname);
+        // buildHistTableDownload(myChart, h, fname);
+        if (m.log_toggle) {
+            buildLogToggle(myChart, "bar-" + m.name);
         }
     }
 })
