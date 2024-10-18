@@ -143,6 +143,7 @@ impl Analysis for Histgrowth {
                 id: "coverage-histogram".to_string(),
                 is_first: true,
                 tabs: histogram_tabs,
+                table: None,
             }
             .set_first(),
             AnalysisSection {
@@ -150,6 +151,7 @@ impl Analysis for Histgrowth {
                 id: "pangenome-growth".to_string(),
                 is_first: false,
                 tabs: growth_tabs,
+                table: None,
             }
             .set_first(),
         ]

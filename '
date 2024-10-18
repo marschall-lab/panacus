@@ -52,8 +52,8 @@
     </main>
     <script>
     const fname = '{{{fname}}}';
-const objects = {{{data_hook}}};
-    console.log(objects);
+const objects = JSON.parse('{{{data_hook.datasets}}}');
+const tables = JSON.parse('{{{data_hook.tables}}}');
 {{{hook_after_js}}}
     </script>
 </body>

@@ -24,7 +24,9 @@ const pluginCanvasBackgroundColor = {
 }
 
 
-objects.forEach(element => {
+for (let key in objects.datasets) {
+    let element = objects.datasets[key];
+    console.log(key + element)
     if (element instanceof Bar) {
         let h = element;
         var ctx = document.getElementById('chart-bar-' + h.id);
@@ -74,8 +76,7 @@ objects.forEach(element => {
             },
             plugins: [pluginCanvasBackgroundColor],
         });
-        // buildPlotDownload(myChart, h, fname);
-        // buildHistTableDownload(myChart, h, fname);
+        buildPlotDownload(myChart, h.id, fname);
         if (h.log_toggle) {
             buildLogToggle(myChart, "bar-" + h.id);
         }
@@ -132,13 +133,18 @@ objects.forEach(element => {
             },
             plugins: [pluginCanvasBackgroundColor],
         });
-        // buildPlotDownload(myChart, h, fname);
-        // buildHistTableDownload(myChart, h, fname);
+        buildPlotDownload(myChart, m.id, fname);
         if (m.log_toggle) {
-            buildLogToggle(myChart, "bar-" + m.name);
+            buildLogToggle(myChart, "bar-" + m.id);
         }
     }
-})
+}
+
+
+for (let key in objects.tables) {
+    let table = objects.tables[key];
+    buildTableDownload(table, key, key + '_' + fname);
+}
 
 // for (let i=0; i < hists.length; i++) {
 //     var h = hists[i];

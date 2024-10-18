@@ -44,16 +44,24 @@ impl Analysis for Info {
         let node_values = Self::remove_duplication(node_values);
         let (path_header, path_values) = self.get_path_table();
         let path_values = Self::remove_duplication(path_values);
+
+        let mut buf = BufWriter::new(Vec::new());
+        self.write_table(_dm, &mut buf).expect("Can write to string");
+        let bytes = buf.into_inner().unwrap();
+        let table = String::from_utf8(bytes).unwrap();
+        let table = format!("`{}`", &table);
         vec![AnalysisSection {
             name: "pangenome info".to_string(),
             id: "info".to_string(),
             is_first: true,
+            table: Some(table),
             tabs: vec![
                 AnalysisTab {
                     id: "info-1".to_string(),
                     is_first: true,
                     name: "graph".to_string(),
                     items: vec![ReportItem::Table {
+                        id: "info-1-table".to_string(),
                         header: graph_header,
                         values: graph_values,
                     }],
@@ -63,6 +71,7 @@ impl Analysis for Info {
                     is_first: false,
                     name: "node".to_string(),
                     items: vec![ReportItem::Table {
+                        id: "info-2-table".to_string(),
                         header: node_header,
                         values: node_values,
                     }],
@@ -72,6 +81,7 @@ impl Analysis for Info {
                     is_first: false,
                     name: "path".to_string(),
                     items: vec![ReportItem::Table {
+                        id: "info-3-table".to_string(),
                         header: path_header,
                         values: path_values,
                     }],

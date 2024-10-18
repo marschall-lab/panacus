@@ -70,11 +70,11 @@ class Growth {
 
 
 function buildPlotDownload(chart, obj, prefix) {
-    console.log('btn-download-plot-' + obj.constructor.name.toLowerCase() + '-' + obj.count);
-    document.getElementById('btn-download-plot-' + obj.constructor.name.toLowerCase() + '-' + obj.count).onclick = function() {
+    console.log('btn-download-plot-' + obj);
+    document.getElementById('btn-download-plot-' + obj).onclick = function() {
         var a = document.createElement('a');
         a.href = chart.toBase64Image();
-        a.download = prefix + '_' + obj.constructor.name.toLowerCase() + '_' + obj.count + '.png';
+        a.download = prefix + '_' + obj + '.png';
         a.click();
     };
 }
@@ -140,12 +140,12 @@ function buildGrowthTableDownload(chart, obj, prefix) {
     };
 }
 
-function buildInfoTableDownload(table, infoType, prefix) {
-    document.getElementById('btn-download-table-info-' + infoType).onclick = function() {
+function buildTableDownload(table, id, prefix) {
+    document.getElementById('btn-download-table-' + id).onclick = function() {
         let blob = new Blob([table], {type: 'text/plain'});
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = prefix + '_info.tsv';
+        a.download = prefix + '_table.tsv';
         a.click();
     };
 }

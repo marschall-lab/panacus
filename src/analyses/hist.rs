@@ -59,6 +59,12 @@ impl Analysis for Hist {
         &mut self,
         dm: &crate::data_manager::DataManager,
     ) -> Vec<AnalysisSection> {
+        
+        let mut buf = BufWriter::new(Vec::new());
+        self.write_table(dm, &mut buf).expect("Can write to string");
+        let bytes = buf.into_inner().unwrap();
+        let table = String::from_utf8(bytes).unwrap();
+        let table = format!("`{}`", &table);
         let histogram_tabs = dm
             .get_hists()
             .iter()
@@ -82,6 +88,7 @@ impl Analysis for Hist {
                 name: "coverage histogram".to_string(),
                 id: "coverage-histogram".to_string(),
                 is_first: true,
+                table: Some(table),
                 tabs: histogram_tabs,
             }
             .set_first(),
