@@ -6,6 +6,7 @@ use std::{
 
 use clap::{arg, Arg, ArgMatches, Command};
 
+use crate::analyses::{AnalysisTab, ReportItem};
 use crate::clap_enum_variants;
 use crate::{
     analyses::InputRequirement, data_manager::ViewParams, io::write_table, util::CountType,
@@ -56,9 +57,35 @@ impl Analysis for Hist {
 
     fn generate_report_section(
         &mut self,
-        _dm: &crate::data_manager::DataManager,
+        dm: &crate::data_manager::DataManager,
     ) -> Vec<AnalysisSection> {
-        Vec::new()
+        let histogram_tabs = dm
+            .get_hists()
+            .iter()
+            .map(|(k, v)| AnalysisTab {
+                id: format!("tab-cov-hist-{}", k),
+                name: k.to_string(),
+                is_first: false,
+                items: vec![ReportItem::Bar {
+                    id: format!("cov-hist-{}", k.to_string()),
+                    name: dm.get_fname(),
+                    x_label: "taxa".to_string(),
+                    y_label: format!("#{}s", k.to_string()),
+                    labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
+                    values: v.coverage.iter().map(|c| *c as f64).collect(),
+                    log_toggle: true,
+                }],
+            })
+            .collect::<Vec<_>>();
+        vec![
+            AnalysisSection {
+                name: "coverage histogram".to_string(),
+                id: "coverage-histogram".to_string(),
+                is_first: true,
+                tabs: histogram_tabs,
+            }
+            .set_first(),
+        ]
     }
 
     fn get_subcommand() -> Command {
