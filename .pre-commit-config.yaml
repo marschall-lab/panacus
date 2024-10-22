@@ -1,0 +1,22 @@
+# .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.1.0  # this is optional, use `pre-commit autoupdate` to get the latest rev!
+    hooks:
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+    -   id: trailing-whitespace
+-   repo: https://github.com/backplane/pre-commit-rust-hooks
+    rev: v1.1.0
+    hooks:
+    -   id: fmt
+    -   id: check
+    -   id: test
+-   repo: local
+    hooks:
+    -   id: set-version
+        name: set-version
+        entry: bash ./set-version.sh
+        language: system
+        files: 'Cargo.toml'
+        pass_filenames: false

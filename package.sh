@@ -8,7 +8,7 @@
 
 NAME="panacus"
 EXEC="panacus"
-VERSION="0.2.5"
+VERSION="$(cargo read-manifest | jq .version | sed "s/\"//g")"
 ARCH="${PANACUS_TARGET}"
 # ARCH="x86_64-unknown-linux-musl"
 # ARCH="x86_64-apple-darwin"
@@ -44,6 +44,7 @@ cp target/${ARCH}/release/${EXEC} ./pkg/${NAME}-${VERSION}_${ARCH}/bin/
 strip ./pkg/${NAME}-${VERSION}_${ARCH}/bin/${EXEC}
 
 cp LICENSE ./pkg/${NAME}-${VERSION}_${ARCH}/
+bash ./set-version.sh
 cp README.md ./pkg/${NAME}-${VERSION}_${ARCH}/
 cp -r examples ./pkg/${NAME}-${VERSION}_${ARCH}/
 
