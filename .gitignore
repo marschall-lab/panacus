@@ -2,6 +2,7 @@
 **/*.swo
 **/*.swp
 **/.DS_Store
+**/*.tar.gz
 Cargo.lock
 binary_release/
 target/

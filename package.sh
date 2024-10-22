@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
+# Best way to use this script is to run it in the form:
+# -------------------------------------------------------
+# PANACUS_TARGET="x86_64-unknown-linux-musl" ./package.sh
+# -------------------------------------------------------
+# Output is in the pkg directory
+
 NAME="panacus"
 EXEC="panacus"
 VERSION="0.2.5"
-ARCH="x86_64-unknown-linux-musl"
+ARCH="${PANACUS_TARGET}"
+# ARCH="x86_64-unknown-linux-musl"
 # ARCH="x86_64-apple-darwin"
 
 echo "Packaging ${NAME}, ${EXEC}, ${VERSION}, ${ARCH}"
@@ -41,5 +48,5 @@ cp README.md ./pkg/${NAME}-${VERSION}_${ARCH}/
 cp -r examples ./pkg/${NAME}-${VERSION}_${ARCH}/
 
 cd ./pkg && tar -czf ./${NAME}-${VERSION}_${ARCH}.tar.gz ./${NAME}-${VERSION}_${ARCH}
-echo "Cleaning up"
-rm -rf ./pkg/${NAME}-${VERSION}_${ARCH}
+echo "Cleaning up ./pkg/${NAME}-${VERSION}_${ARCH}"
+rm -rf ./${NAME}-${VERSION}_${ARCH}
