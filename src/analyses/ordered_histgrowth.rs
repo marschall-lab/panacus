@@ -98,6 +98,11 @@ impl Analysis for OrderedHistgrowth {
         for c in &mut growths {
             c.insert(0, f64::NAN);
         }
+        let mut buf = BufWriter::new(Vec::new());
+        self.write_table(dm, &mut buf).expect("Can write to string");
+        let bytes = buf.into_inner().unwrap();
+        let table = String::from_utf8(bytes).unwrap();
+        let table = format!("`{}`", &table);
         let k = dm.get_abacus_by_group().count;
         let growth_tabs = vec![AnalysisTab {
                 id: format!("tab-pan-growth-{}", k),
@@ -127,7 +132,7 @@ impl Analysis for OrderedHistgrowth {
                 id: "pangenome-growth".to_string(),
                 is_first: false,
                 tabs: growth_tabs,
-                table: None,
+                table: Some(table),
             }
             .set_first(),
         ]
