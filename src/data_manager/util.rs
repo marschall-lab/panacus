@@ -595,7 +595,7 @@ pub fn parse_walk_seq_update_tables(
                 .get(node)
                 .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
             let idx = (sid.0 as usize) % SIZE_T;
-            if let Ok(_) = mutex_vec[idx].lock() {
+            if mutex_vec[idx].lock().is_ok() {
                 unsafe {
                     (*items_ptr.0)[idx].push(sid.0);
                     (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
@@ -704,7 +704,7 @@ pub fn parse_path_seq_update_tables(
 
         let idx = (sid.0 as usize) % SIZE_T;
 
-        if let Ok(_) = mutex_vec[idx].lock() {
+        if mutex_vec[idx].lock().is_ok() {
             unsafe {
                 (*items_ptr.0)[idx].push(sid.0);
                 (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;

@@ -34,7 +34,7 @@ impl Analysis for Info {
         _dm: &DataManager,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
-        writeln!(out, "{}", self.to_string())
+        writeln!(out, "{}", self)
     }
 
     fn generate_report_section(&mut self, _dm: &DataManager) -> Vec<AnalysisSection> {

@@ -58,7 +58,7 @@ pub fn parse_bed_to_path_segments<R: Read>(
 
         if path_name.starts_with("browser ")
             || path_name.starts_with("track ")
-            || path_name.starts_with("#")
+            || path_name.starts_with('#')
         {
             continue;
         }
@@ -66,16 +66,12 @@ pub fn parse_bed_to_path_segments<R: Read>(
         if fields.len() == 1 {
             segments.push(PathSegment::from_str(path_name));
         } else if fields.len() >= 3 {
-            let start = usize::from_str(fields[1]).expect(&format!(
-                "error line {}: `{}` is not an usize",
+            let start = usize::from_str(fields[1]).unwrap_or_else(|_| panic!("error line {}: `{}` is not an usize",
                 i + 1,
-                fields[1]
-            ));
-            let end = usize::from_str(fields[2]).expect(&format!(
-                "error line {}: `{}` is not an usize",
+                fields[1]));
+            let end = usize::from_str(fields[2]).unwrap_or_else(|_| panic!("error line {}: `{}` is not an usize",
                 i + 1,
-                fields[2]
-            ));
+                fields[2]));
 
             if use_block_info && fields.len() == 12 {
                 let block_count = fields[9].parse::<usize>().unwrap_or(0);
@@ -131,7 +127,7 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment
             }
         }
         let line = String::from_utf8(buf.clone())
-            .expect(&format!("error in line {}: some character is not UTF-8", i));
+            .unwrap_or_else(|_| panic!("error in line {}: some character is not UTF-8", i));
         let columns: Vec<&str> = line.split('\t').collect();
 
         if columns.len() != 2 {

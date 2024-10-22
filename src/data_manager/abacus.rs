@@ -68,7 +68,7 @@ impl AbacusAuxilliary {
 
         let order = if let Some(order) = &params.order {
             let maybe_order = AbacusAuxilliary::complement_with_group_assignments(
-                AbacusAuxilliary::load_coord_list(&order)?,
+                AbacusAuxilliary::load_coord_list(order)?,
                 &groups,
             )?;
             if let Some(o) = &maybe_order {

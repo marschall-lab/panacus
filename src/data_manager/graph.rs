@@ -4,7 +4,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::str::{self, FromStr};
-use std::{fmt, usize};
+use std::fmt;
 
 /* private use */
 use crate::io::bufreader_from_compressed_gfa;

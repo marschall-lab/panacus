@@ -129,10 +129,10 @@ impl Analysis for Growth {
                 name: k.to_string(),
                 is_first: false,
                 items: vec![ReportItem::MultiBar {
-                    id: format!("pan-growth-{}", k.to_string()),
+                    id: format!("pan-growth-{}", k),
                     names: growth_labels.clone(),
                     x_label: "taxa".to_string(),
-                    y_label: format!("#{}s", k.to_string()),
+                    y_label: format!("#{}s", k),
                     labels: (1..v[0].len()).map(|i| i.to_string()).collect(),
                     values: v.clone(),
                     log_toggle: false,

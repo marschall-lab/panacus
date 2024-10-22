@@ -93,7 +93,7 @@ impl AnalysisSection {
         let result = registry.render("analysis_section", &vars)?;
         let mut js_objects = js_objects
                 .into_iter()
-                .reduce(|acc, e| combine_vars(acc, e)).expect("Report needs to have at least one item");
+                .reduce(combine_vars).expect("Report needs to have at least one item");
         js_objects.insert("tables".to_string(),  match self.table {
             None => HashMap::new(),
             Some(table_content) => HashMap::from([(self.id, table_content)]),
@@ -118,11 +118,11 @@ pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
 fn get_js_objects_string(objects: JsVars) -> String {
     let mut res = String::from("{");
     for (k, v) in objects {
-        res.push_str("\"");
+        res.push('"');
         res.push_str(&k);
         res.push_str("\": {");
         for (subkey, subvalue) in v {
-            res.push_str("\"");
+            res.push('"');
             res.push_str(&subkey);
             res.push_str("\": ");
             res.push_str(&subvalue);
@@ -130,7 +130,7 @@ fn get_js_objects_string(objects: JsVars) -> String {
         }
         res.push_str("}, ");
     }
-    res.push_str("}");
+    res.push('}');
     res
 }
 
@@ -223,7 +223,7 @@ impl AnalysisSection {
         eprintln!("{}", text);
         let js_objects = js_objects
             .into_iter()
-            .reduce(|acc, e| combine_vars(acc, e)).expect("Report needs to contain at least one item");
+            .reduce(combine_vars).expect("Report needs to contain at least one item");
         Ok((text, js_objects))
     }
 }
@@ -248,7 +248,7 @@ impl AnalysisTab {
         let (items, js_objects): (Vec<_>, Vec<_>) = items.into_iter().unzip();
         let js_objects = js_objects
             .into_iter()
-            .reduce(|acc, e| combine_vars(acc, e)).expect("Tab has at least one item");
+            .reduce(combine_vars).expect("Tab has at least one item");
         let vars = HashMap::from([
             ("id", to_json(&self.id)),
             ("name", to_json(&self.name)),

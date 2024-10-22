@@ -73,10 +73,10 @@ impl Analysis for Hist {
                 name: k.to_string(),
                 is_first: false,
                 items: vec![ReportItem::Bar {
-                    id: format!("cov-hist-{}", k.to_string()),
+                    id: format!("cov-hist-{}", k),
                     name: dm.get_fname(),
                     x_label: "taxa".to_string(),
-                    y_label: format!("#{}s", k.to_string()),
+                    y_label: format!("#{}s", k),
                     labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
                     values: v.coverage.iter().map(|c| *c as f64).collect(),
                     log_toggle: true,

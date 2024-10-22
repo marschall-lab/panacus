@@ -51,18 +51,18 @@ impl DataManager {
         input_requirements: HashSet<Req>,
         view_params: &ViewParams,
     ) -> Result<Self, Error> {
-        let mut dm = Self::from_gfa(&gfa_file, input_requirements);
+        let mut dm = Self::from_gfa(gfa_file, input_requirements);
         if view_params.groupby_sample {
             dm = dm.with_sample_group();
         } else if view_params.groupby_haplotype {
             dm = dm.with_haplo_group();
-        } else if view_params.groupby != "" {
+        } else if !view_params.groupby.is_empty() {
             dm = dm.with_group(&view_params.groupby);
         }
-        if view_params.positive_list != "" {
+        if !view_params.positive_list.is_empty() {
             dm = dm.include_coords(&view_params.positive_list);
         }
-        if view_params.negative_list != "" {
+        if !view_params.negative_list.is_empty() {
             dm = dm.exclude_coords(&view_params.negative_list);
         }
         if view_params.order.is_some() {
@@ -205,12 +205,12 @@ impl DataManager {
 
     pub fn get_hists(&self) -> &HashMap<CountType, Hist> {
         Self::check_and_error(self.hists.as_ref(), "hists");
-        &self.hists.as_ref().unwrap()
+        self.hists.as_ref().unwrap()
     }
 
     pub fn get_abacus_by_group(&self) -> &AbacusByGroup {
         Self::check_and_error(self.group_abacus.as_ref(), "abacus_by_group");
-        &self.group_abacus.as_ref().unwrap()
+        self.group_abacus.as_ref().unwrap()
     }
 
     pub fn write_abacus_by_group<W: Write>(
@@ -222,13 +222,13 @@ impl DataManager {
         self.group_abacus
             .as_ref()
             .unwrap()
-            .to_tsv(total, out, &self.graph_aux.as_ref().unwrap())
+            .to_tsv(total, out, self.graph_aux.as_ref().unwrap())
     }
 
     fn set_abacus_aux(mut self) -> Result<Self, Error> {
         self.abacus_aux = Some(AbacusAuxilliary::from_datamgr(
             &self.abacus_aux_params,
-            &self.graph_aux.as_ref().unwrap(),
+            self.graph_aux.as_ref().unwrap(),
         )?);
         Ok(self)
     }
@@ -238,7 +238,7 @@ impl DataManager {
         for (k, v) in self.total_abaci.as_ref().unwrap() {
             hists.insert(
                 *k,
-                Hist::from_abacus(v, Some(&self.graph_aux.as_ref().unwrap())),
+                Hist::from_abacus(v, Some(self.graph_aux.as_ref().unwrap())),
             );
         }
         self.hists = Some(hists);
@@ -261,7 +261,7 @@ impl DataManager {
         let abacus = AbacusByGroup::from_gfa(
             &mut data,
             self.abacus_aux.as_ref().unwrap(),
-            &self.graph_aux.as_ref().unwrap(),
+            self.graph_aux.as_ref().unwrap(),
             self.count_type,
             true,
         )?;
@@ -280,7 +280,7 @@ impl DataManager {
                     let (abacus, path_lens) = AbacusByTotal::from_gfa(
                         &mut data,
                         self.abacus_aux.as_ref().unwrap(),
-                        &self.graph_aux.as_ref().unwrap(),
+                        self.graph_aux.as_ref().unwrap(),
                         count_type,
                     );
                     if count_type == CountType::Node
@@ -296,7 +296,7 @@ impl DataManager {
             let (abacus, path_lens) = AbacusByTotal::from_gfa(
                 &mut data,
                 self.abacus_aux.as_ref().unwrap(),
-                &self.graph_aux.as_ref().unwrap(),
+                self.graph_aux.as_ref().unwrap(),
                 self.count_type,
             );
             if self.input_requirements.contains(&Req::PathLens) {
