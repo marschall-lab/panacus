@@ -1,5 +1,5 @@
 /*!
-  * Panacus JS library 
+  * Panacus JS library
   */
 
 const PCOLORS = ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4'];
@@ -24,7 +24,7 @@ class Group {
 
 class Growth {
     constructor(count_type, index, coverage_t, quorum_t, growths) {
-        this.count = count_type; 
+        this.count = count_type;
         this.index = index;
         this.growths = {};
         var srt = [];
@@ -88,11 +88,11 @@ function buildGrowthTableDownload(chart, obj, prefix) {
         var table = '';
 
         var thresholds = obj.getThresholds();
-        var growths = 'panacus\tgrowth' 
+        var growths = 'panacus\tgrowth'
         if (typeof obj.index[0] === 'string' || obj.index[0] instanceof String) {
             growths = 'panacus\tordered-growth'
         }
-        var counts = '\ncount\t' + obj.count 
+        var counts = '\ncount\t' + obj.count
         cs = '\ncoverage\t' + thresholds[0][0];
         qs = '\nquorum\t' + thresholds[0][1];
         zero = '\n0\tNaN'
@@ -145,4 +145,3 @@ function buildLogToggle(chart, obj) {
         chart.update();
     });
 }
-

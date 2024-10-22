@@ -74,7 +74,7 @@ impl AbacusAuxilliary {
             //    groupby_sample,
             //    groupby_haplotype,
             //    ..
-            //} 
+            //}
             => {
                 let groups = AbacusAuxilliary::load_groups(
                     groupby,
@@ -199,7 +199,7 @@ impl AbacusAuxilliary {
                 v.into_iter()
                     .map(|p| {
                         // check if path segment defined in coords associated with a specific path,
-                        // it is not considered a group 
+                        // it is not considered a group
                         if path_to_group.contains_key(&p.clear_coords()) {
                             Ok(vec![p])
                         } else if group2paths.contains_key(&p.id()) {

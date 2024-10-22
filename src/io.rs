@@ -836,7 +836,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
                 && !intersects(include_coords, &(start, end))
                 && !intersects(exclude_coords, &(start, end))
             {
-                log::debug!("path {} does not intersect with subset coordinates in interval {}..{} nor with exclude coordinates {}..{}  and therefore is skipped from processing", 
+                log::debug!("path {} does not intersect with subset coordinates in interval {}..{} nor with exclude coordinates {}..{}  and therefore is skipped from processing",
                     &path_seg, &include_coords.first().unwrap_or(&(0,0)).0, &include_coords.last().unwrap_or(&(0,0)).1, &exclude_coords.first().unwrap_or(&(0,0)).0, &exclude_coords.last().unwrap_or(&(0,0)).1);
 
                 // update prefix sum

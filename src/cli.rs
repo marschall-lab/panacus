@@ -569,10 +569,10 @@ pub fn set_number_of_threads(params: &Params) {
     | Params::Info { threads, .. }
     | Params::OrderedHistgrowth { threads, .. }
     | Params::Table { threads, .. }
-    //| Params::Cdbg { threads, .. } 
+    //| Params::Cdbg { threads, .. }
     = params {
-        //if num_threads is 0 then the Rayon will select 
-        //the number of threads to the core number automatically 
+        //if num_threads is 0 then the Rayon will select
+        //the number of threads to the core number automatically
         rayon::ThreadPoolBuilder::new()
             .num_threads(*threads)
             .build_global()
@@ -635,7 +635,7 @@ pub fn run<W: Write>(params: Params, out: &mut BufWriter<W>) -> Result<(), Error
     //    groupby_haplotype,
     //    groupby_sample,
     //    ..
-    //} 
+    //}
     = params
     {
         validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)?;

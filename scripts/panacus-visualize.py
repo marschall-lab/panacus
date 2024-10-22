@@ -264,6 +264,3 @@ if __name__ == '__main__':
         save_split_figures(axs, f, args.format, args.split_prefix)
 
     plt.close()
-
-
-

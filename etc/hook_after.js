@@ -219,7 +219,7 @@ for (let i=0; i < growths.length; i++) {
                     beginAtZero: true,
                     grid: {
                         color: '#FFFFFF',
-                    }, 
+                    },
                     stacked: false,
                 },
                 x: {
@@ -256,6 +256,3 @@ tabs.forEach(function(tab) {
         document.querySelector(event.relatedTarget.dataset.bsTarget).classList.add('d-none');
     });
 });
-
-
-
