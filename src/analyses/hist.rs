@@ -59,7 +59,6 @@ impl Analysis for Hist {
         &mut self,
         dm: &crate::data_manager::DataManager,
     ) -> Vec<AnalysisSection> {
-        
         let mut buf = BufWriter::new(Vec::new());
         self.write_table(dm, &mut buf).expect("Can write to string");
         let bytes = buf.into_inner().unwrap();
@@ -83,16 +82,14 @@ impl Analysis for Hist {
                 }],
             })
             .collect::<Vec<_>>();
-        vec![
-            AnalysisSection {
-                name: "coverage histogram".to_string(),
-                id: "coverage-histogram".to_string(),
-                is_first: true,
-                table: Some(table),
-                tabs: histogram_tabs,
-            }
-            .set_first(),
-        ]
+        vec![AnalysisSection {
+            name: "coverage histogram".to_string(),
+            id: "coverage-histogram".to_string(),
+            is_first: true,
+            table: Some(table),
+            tabs: histogram_tabs,
+        }
+        .set_first()]
     }
 
     fn get_subcommand() -> Command {

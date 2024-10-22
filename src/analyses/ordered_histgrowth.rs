@@ -5,8 +5,8 @@ use std::{
 };
 
 use clap::{arg, Arg, Command};
-use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 
 use crate::analyses::{AnalysisTab, ReportItem};
@@ -71,7 +71,7 @@ impl Analysis for OrderedHistgrowth {
                     log_toggle: true,
                 }],
             })
-        .collect::<Vec<_>>();
+            .collect::<Vec<_>>();
         let growth_labels = (0..self.hist_aux.coverage.len())
             .map(|i| {
                 format!(
@@ -80,8 +80,9 @@ impl Analysis for OrderedHistgrowth {
                     self.hist_aux.quorum[i].get_string()
                 )
             })
-        .collect::<Vec<_>>();
-        let mut growths: Vec<Vec<f64>> = self.hist_aux
+            .collect::<Vec<_>>();
+        let mut growths: Vec<Vec<f64>> = self
+            .hist_aux
             .coverage
             .par_iter()
             .zip(&self.hist_aux.quorum)
@@ -91,9 +92,10 @@ impl Analysis for OrderedHistgrowth {
                     &c,
                     &q
                 );
-                dm.get_abacus_by_group().calc_growth(c, q, dm.get_node_lens())
+                dm.get_abacus_by_group()
+                    .calc_growth(c, q, dm.get_node_lens())
             })
-        .collect();
+            .collect();
         // insert empty row for 0 element
         for c in &mut growths {
             c.insert(0, f64::NAN);
@@ -105,19 +107,19 @@ impl Analysis for OrderedHistgrowth {
         let table = format!("`{}`", &table);
         let k = dm.get_abacus_by_group().count;
         let growth_tabs = vec![AnalysisTab {
-                id: format!("tab-pan-growth-{}", k),
-                name: k.to_string(),
-                is_first: false,
-                items: vec![ReportItem::MultiBar {
-                    id: format!("pan-growth-{}", k),
-                    names: growth_labels.clone(),
-                    x_label: "taxa".to_string(),
-                    y_label: format!("#{}s", k),
-                    labels: dm.get_abacus_by_group().groups.clone(),
-                    values: growths,
-                    log_toggle: false,
-                }]},
-        ];
+            id: format!("tab-pan-growth-{}", k),
+            name: k.to_string(),
+            is_first: false,
+            items: vec![ReportItem::MultiBar {
+                id: format!("pan-growth-{}", k),
+                names: growth_labels.clone(),
+                x_label: "taxa".to_string(),
+                y_label: format!("#{}s", k),
+                labels: dm.get_abacus_by_group().groups.clone(),
+                values: growths,
+                log_toggle: false,
+            }],
+        }];
         vec![
             AnalysisSection {
                 name: "coverage histogram".to_string(),

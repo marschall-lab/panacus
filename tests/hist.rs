@@ -19,10 +19,13 @@ fn hist_html_gets_written_successfully() -> Result<(), Box<dyn std::error::Error
 
     cmd.arg("hist")
         .arg("tests/test_files/t_groups.gfa")
-        .arg("-o").arg("html");
+        .arg("-o")
+        .arg("html");
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("<canvas id=\"chart-bar-cov-hist-node\"></canvas>"))
+        .stdout(predicate::str::contains(
+            "<canvas id=\"chart-bar-cov-hist-node\"></canvas>",
+        ))
         .stdout(predicate::str::contains("panacus\thist"));
     Ok(())
 }

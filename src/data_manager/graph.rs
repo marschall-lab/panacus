@@ -2,9 +2,9 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
+use std::fmt;
 use std::io::BufRead;
 use std::str::{self, FromStr};
-use std::fmt;
 
 /* private use */
 use crate::io::bufreader_from_compressed_gfa;

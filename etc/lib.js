@@ -1,5 +1,5 @@
 /*!
-  * Panacus JS library 
+  * Panacus JS library
   */
 
 const PCOLORS = ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4'];
@@ -59,4 +59,3 @@ function buildLogToggle(chart, name) {
         chart.update();
     });
 }
-

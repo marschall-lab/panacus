@@ -19,10 +19,13 @@ fn growth_html_gets_written_successfully() -> Result<(), Box<dyn std::error::Err
 
     cmd.arg("growth")
         .arg("tests/test_files/t_groups.hist.tsv")
-        .arg("-o").arg("html");
+        .arg("-o")
+        .arg("html");
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("<canvas id=\"chart-bar-pan-growth-node\"></canvas>"))
+        .stdout(predicate::str::contains(
+            "<canvas id=\"chart-bar-pan-growth-node\"></canvas>",
+        ))
         .stdout(predicate::str::contains("panacus\thist\tgrowth"));
     Ok(())
 }

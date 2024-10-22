@@ -45,7 +45,7 @@ Make sure you have [conda](https://conda.io)/[mamba](https://anaconda.org/conda-
 mamba install -c conda-forge -c bioconda panacus
 ```
 
-### From binary release 
+### From binary release
 #### Linux x86\_64
 ```shell
 wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.4/panacus-0.2.4_linux_x86_64.tar.gz
@@ -57,7 +57,7 @@ pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f panacus-0.2.4_linux_x86_64/bin)":$PATH
 
-# you are ready to go! 
+# you are ready to go!
 panacus --help
 ```
 
@@ -72,7 +72,7 @@ pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f panacus-0.2.4_macos_arm64/bin)":$PATH
 
-# you are ready to go! 
+# you are ready to go!
 panacus --help
 ```
 
@@ -93,7 +93,7 @@ pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f bin)":$PATH
 
-# you are ready to go! 
+# you are ready to go!
 panacus --help
 
 ```

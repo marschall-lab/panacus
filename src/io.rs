@@ -66,12 +66,12 @@ pub fn parse_bed_to_path_segments<R: Read>(
         if fields.len() == 1 {
             segments.push(PathSegment::from_str(path_name));
         } else if fields.len() >= 3 {
-            let start = usize::from_str(fields[1]).unwrap_or_else(|_| panic!("error line {}: `{}` is not an usize",
-                i + 1,
-                fields[1]));
-            let end = usize::from_str(fields[2]).unwrap_or_else(|_| panic!("error line {}: `{}` is not an usize",
-                i + 1,
-                fields[2]));
+            let start = usize::from_str(fields[1]).unwrap_or_else(|_| {
+                panic!("error line {}: `{}` is not an usize", i + 1, fields[1])
+            });
+            let end = usize::from_str(fields[2]).unwrap_or_else(|_| {
+                panic!("error line {}: `{}` is not an usize", i + 1, fields[2])
+            });
 
             if use_block_info && fields.len() == 12 {
                 let block_count = fields[9].parse::<usize>().unwrap_or(0);

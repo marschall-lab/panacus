@@ -88,20 +88,21 @@ impl AnalysisSection {
         let vars = HashMap::from([
             ("tab_navigation", to_json(tab_navigation)),
             ("tab_content", to_json(tab_content)),
-            ("id", to_json(&self.id))
+            ("id", to_json(&self.id)),
         ]);
         let result = registry.render("analysis_section", &vars)?;
         let mut js_objects = js_objects
-                .into_iter()
-                .reduce(combine_vars).expect("Report needs to have at least one item");
-        js_objects.insert("tables".to_string(),  match self.table {
-            None => HashMap::new(),
-            Some(table_content) => HashMap::from([(self.id, table_content)]),
-        });
-        Ok((
-            result,
-            js_objects,
-        ))
+            .into_iter()
+            .reduce(combine_vars)
+            .expect("Report needs to have at least one item");
+        js_objects.insert(
+            "tables".to_string(),
+            match self.table {
+                None => HashMap::new(),
+                Some(table_content) => HashMap::from([(self.id, table_content)]),
+            },
+        );
+        Ok((result, js_objects))
     }
 }
 
@@ -195,10 +196,7 @@ impl AnalysisSection {
         registry.render("report", &vars)
     }
 
-    fn generate_report_content(
-        sections: Vec<Self>,
-        registry: &mut Handlebars,
-    ) -> RenderedHTML {
+    fn generate_report_content(sections: Vec<Self>, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("report_content") {
             registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
         }
@@ -223,7 +221,8 @@ impl AnalysisSection {
         eprintln!("{}", text);
         let js_objects = js_objects
             .into_iter()
-            .reduce(combine_vars).expect("Report needs to contain at least one item");
+            .reduce(combine_vars)
+            .expect("Report needs to contain at least one item");
         Ok((text, js_objects))
     }
 }
@@ -248,7 +247,8 @@ impl AnalysisTab {
         let (items, js_objects): (Vec<_>, Vec<_>) = items.into_iter().unzip();
         let js_objects = js_objects
             .into_iter()
-            .reduce(combine_vars).expect("Tab has at least one item");
+            .reduce(combine_vars)
+            .expect("Tab has at least one item");
         let vars = HashMap::from([
             ("id", to_json(&self.id)),
             ("name", to_json(&self.name)),
@@ -297,9 +297,10 @@ impl ReportItem {
                     ("header".to_string(), to_json(header)),
                     ("values".to_string(), to_json(values)),
                 ]);
-                Ok((registry.render("table", &data)?, HashMap::from([
-                            ("datasets".to_string(), HashMap::new()),
-                ])))
+                Ok((
+                    registry.render("table", &data)?,
+                    HashMap::from([("datasets".to_string(), HashMap::new())]),
+                ))
             }
             Self::Bar {
                 id,
@@ -321,11 +322,13 @@ impl ReportItem {
                     ("id".to_string(), to_json(&id)),
                     ("log_toggle".to_string(), to_json(log_toggle)),
                 ]);
-                Ok((registry.render("bar", &data)?, HashMap::from([
-                            ("datasets".to_string(), HashMap::from([
-                                                                   (id.clone(), js_object)
-                            ])),
-                ])))
+                Ok((
+                    registry.render("bar", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
+                ))
             }
             Self::MultiBar {
                 id,
@@ -347,11 +350,13 @@ impl ReportItem {
                     ("id".to_string(), to_json(&id)),
                     ("log_toggle".to_string(), to_json(log_toggle)),
                 ]);
-                Ok((registry.render("bar", &data)?, HashMap::from([
-                            ("datasets".to_string(), HashMap::from([
-                                                                   (id.clone(), js_object)
-                            ])),
-                ])))
+                Ok((
+                    registry.render("bar", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
+                ))
             }
         }
     }

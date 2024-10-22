@@ -15,7 +15,7 @@ gfa_chrM = list(file="chrM_test.gfa", short="chrM")
 # https://media.githubusercontent.com/media/lucaparmigiani/chr22.hprc-v1.0-pggb.gfa.gz/refs/heads/main/chr22.hprc-v1.0-pggb.gfa.gz
 #gfa_chr22 = list(file="chr22.hprc-v1.0-pggb.gfa.gz", short="chr22")
 
-### General functions 
+### General functions
 #--------------------------------------------------------------------------------
 check_res = function(out_rel, out_dev) {
     res_release = read.csv(out_rel, sep="\t",skip=1)
@@ -40,7 +40,7 @@ run = function(cmd, ...) {
     for (i in seq_along(args)) {
         cmd <- sub(paste0("\\{", i, "\\}"), args[[i]], cmd)
     }
-  
+
     cat(cmd,"\n")
     system(cmd, intern = intern)
 }
@@ -74,34 +74,34 @@ histgrowth_dev = function(gfa, params=NULL) {
 
 ### Bench ChrM
 #--------------------------------------------------------------------------------
-##Nodes 
+##Nodes
 # Sample -S
 params=c("-S -q 0,0.5,1.0 -l 0,1,2")
 out_rel = histgrowth_release(gfa_chrM, params)
-out_dev = histgrowth_dev(gfa_chrM, params)    
+out_dev = histgrowth_dev(gfa_chrM, params)
 check_res(out_rel, out_dev)
 
 # Haplotype -H
 params=c("-H -q 0,0.5,1.0 -l 0,1,2")
-out_rel = histgrowth_release(gfa_chrM, params) 
-out_dev = histgrowth_dev(gfa_chrM, params) 
+out_rel = histgrowth_release(gfa_chrM, params)
+out_dev = histgrowth_dev(gfa_chrM, params)
 check_res(out_rel, out_dev)
 
 ##Edges
 # Sample -S
 params=c("-c edge -S -q 0,0.5,1.0 -l 0,1,2")
-out_rel = histgrowth_release(gfa_chrM, params)        
-out_dev = histgrowth_dev(gfa_chrM, params)      
+out_rel = histgrowth_release(gfa_chrM, params)
+out_dev = histgrowth_dev(gfa_chrM, params)
 check_res(out_rel, out_dev)
 # Haplotype -H
 params=c("-c edge -H -q 0,0.5,1.0 -l 0,1,2")
-out_rel = histgrowth_release(gfa_chrM, params)        
-out_dev = histgrowth_dev(gfa_chrM, params)      
+out_rel = histgrowth_release(gfa_chrM, params)
+out_dev = histgrowth_dev(gfa_chrM, params)
 check_res(out_rel, out_dev)
 
 ### Bench Chr22
 #--------------------------------------------------------------------------------
-##Nodes 
+##Nodes
 # Sample -S
 params=c("-S -q 0,0.5,1.0 -l 0,1,2")
 out_rel = histgrowth_release(gfa_chr22, params) #time: ~17s
@@ -117,11 +117,11 @@ check_res(out_rel, out_dev)
 ##Edges
 # Sample -S
 params=c("-c edge -S -q 0,0.5,1.0 -l 0,1,2")
-out_rel = histgrowth_release(gfa_chr22, params) #time: ~79s       
+out_rel = histgrowth_release(gfa_chr22, params) #time: ~79s
 out_dev = histgrowth_dev(gfa_chr22, params) #ŧime: ~79s
 check_res(out_rel, out_dev)
 # Haplotype -H
 params=c("-c edge -H -q 0,0.5,1.0 -l 0,1,2")
-out_rel = histgrowth_release(gfa_chr22, params)        
-out_dev = histgrowth_dev(gfa_chr22, params)      
+out_rel = histgrowth_release(gfa_chr22, params)
+out_dev = histgrowth_dev(gfa_chr22, params)
 check_res(out_rel, out_dev)

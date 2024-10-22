@@ -46,7 +46,8 @@ impl Analysis for Info {
         let path_values = Self::remove_duplication(path_values);
 
         let mut buf = BufWriter::new(Vec::new());
-        self.write_table(_dm, &mut buf).expect("Can write to string");
+        self.write_table(_dm, &mut buf)
+            .expect("Can write to string");
         let bytes = buf.into_inner().unwrap();
         let table = String::from_utf8(bytes).unwrap();
         let table = format!("`{}`", &table);
