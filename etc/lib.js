@@ -48,7 +48,6 @@ function buildTableDownload(table, id, prefix) {
     };
 }
 
-
 function buildLogToggle(chart, name) {
     document.getElementById('btn-logscale-plot-' + name).addEventListener('change', function(event) {
         if (event.currentTarget.checked) {

@@ -181,6 +181,7 @@ impl IntervalContainer {
     }
 
     pub fn add(&mut self, id: ItemId, start: usize, end: usize) {
+        log::debug!("add {}:{}-{} to interval container", id, start, end);
         // produce union of intervals
         self.map
             .entry(id)
@@ -188,16 +189,32 @@ impl IntervalContainer {
                 let i = x
                     .binary_search_by_key(&start, |&(y, _)| y)
                     .unwrap_or_else(|z| z);
+                log::debug!(
+                    "binary search of ({}, {}) in {:?} returned {}",
+                    start,
+                    end,
+                    x,
+                    i
+                );
                 if i > 0 && x[i - 1].1 >= start {
-                    if x[i - 1].1 <= end {
-                        x[i - 1].1 = end;
+                    if x[i - 1].1 < end {
+                        let mut stop = end;
+                        while i < x.len() && x[i].0 <= end {
+                            stop = std::cmp::max(stop, x[i].1);
+                            x.remove(i);
+                        }
+                        x[i - 1].1 = stop;
                     }
                     // else do nothing, because the new interval is fully enclosed in the previous
                     // interval
-                } else if i < x.len() && x[i].1 >= start && x[i].1 < end {
-                    x[i].1 = end;
-                } else if i < x.len() && x[i].0 <= end {
-                    x[i].0 = start;
+                } else if i < x.len() && x[i].1 >= start && x[i].0 <= end {
+                    x[i].0 = std::cmp::min(x[i].0, start);
+                    let mut stop = std::cmp::max(x[i].1, end);
+                    while i + 1 < x.len() && x[i + 1].0 <= end {
+                        stop = std::cmp::max(stop, x[i + 1].1);
+                        x.remove(i + 1);
+                    }
+                    x[i].1 = stop;
                 } else {
                     x.insert(i, (start, end));
                 }
@@ -496,3 +513,33 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
 //
 //    b + (1.0 + (a - b).exp2()).log2()
 //}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::data_manager::ItemId;
+
+    #[test]
+    fn test_interval_container() {
+        let mut ic = IntervalContainer::new();
+        ic.add(ItemId(0), 5, 6);
+        ic.add(ItemId(0), 9, 10);
+        ic.add(ItemId(0), 7, 8);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(5, 6), (7, 8), (9, 10)]));
+        ic.add(ItemId(0), 4, 5);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(4, 6), (7, 8), (9, 10)]));
+        ic.add(ItemId(0), 0, 11);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 11)]));
+        ic.add(ItemId(0), 11, 12);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12)]));
+        ic.add(ItemId(0), 13, 15);
+        ic.add(ItemId(0), 16, 20);
+        assert_eq!(
+            ic.map.get(&ItemId(0)),
+            Some(&vec![(0, 12), (13, 15), (16, 20)])
+        );
+        ic.add(ItemId(0), 14, 17);
+        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12), (13, 20)]));
+    }
+}

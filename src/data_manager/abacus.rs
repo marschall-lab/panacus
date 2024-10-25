@@ -339,7 +339,7 @@ impl AbacusAuxilliary {
             while i < v.len() {
                 if v[i - 1].1 >= v[i].0 {
                     let x = v.remove(i);
-                    v[i - 1].1 = x.1;
+                    v[i - 1].1 = std::cmp::max(v[i - 1].1, x.1);
                 } else {
                     i += 1
                 }
@@ -360,7 +360,7 @@ impl AbacusAuxilliary {
     ) {
         // *only relevant for bps count in combination with subset option*
         // this table stores the number of bps of nodes that are *partially* uncovered by subset
-        // coodinates
+        // coordinates
         let subset_covered_bps: Option<IntervalContainer> =
             if count == &CountType::Bp && self.include_coords.is_some() {
                 Some(IntervalContainer::new())

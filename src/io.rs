@@ -66,12 +66,16 @@ pub fn parse_bed_to_path_segments<R: Read>(
         if fields.len() == 1 {
             segments.push(PathSegment::from_str(path_name));
         } else if fields.len() >= 3 {
-            let start = usize::from_str(fields[1]).unwrap_or_else(|_| {
-                panic!("error line {}: `{}` is not an usize", i + 1, fields[1])
-            });
-            let end = usize::from_str(fields[2]).unwrap_or_else(|_| {
-                panic!("error line {}: `{}` is not an usize", i + 1, fields[2])
-            });
+            let start = usize::from_str(fields[1]).expect(&format!(
+                "error line {}: `{}` is not an usize",
+                i + 1,
+                fields[1]
+            ));
+            let end = usize::from_str(fields[2]).expect(&format!(
+                "error line {}: `{}` is not an usize",
+                i + 1,
+                fields[2]
+            ));
 
             if use_block_info && fields.len() == 12 {
                 let block_count = fields[9].parse::<usize>().unwrap_or(0);
@@ -127,7 +131,7 @@ pub fn parse_groups<R: Read>(data: &mut BufReader<R>) -> Result<Vec<(PathSegment
             }
         }
         let line = String::from_utf8(buf.clone())
-            .unwrap_or_else(|_| panic!("error in line {}: some character is not UTF-8", i));
+            .expect(&format!("error in line {}: some character is not UTF-8", i));
         let columns: Vec<&str> = line.split('\t').collect();
 
         if columns.len() != 2 {
@@ -158,15 +162,17 @@ pub fn parse_tsv<R: Read>(
 
     let mut is_header = true;
     for (i, row) in reader.enumerate() {
-        let row: Vec<Vec<u8>> = row
-            .map_err(|_| {
-                let msg = format!("unable to parse row {}", i);
-                log::error!("{}", &msg);
-                Error::new(ErrorKind::Other, msg)
-            })?
-            .bytes_columns()
-            .map(|x| x.to_vec())
-            .collect();
+        let row = row.map_err(|_| {
+            let msg = format!("unable to parse row {}", i);
+            log::error!("{}", &msg);
+            Error::new(ErrorKind::Other, msg)
+        })?;
+        let row: Vec<Vec<u8>> = row.bytes_columns().map(|x| x.to_vec()).collect();
+        if row.is_empty() {
+            log::info!("Empty row, skipping");
+            continue;
+        }
+        // Push header
         if is_header && (b'#' == row[0][0]) {
             let mut c = row[0].to_vec();
             for e in &row[1..] {
@@ -174,6 +180,24 @@ pub fn parse_tsv<R: Read>(
                 c.extend(e);
             }
             comments.push(c);
+        // Skip empty lines (still need to have appropriate amount of tabs)
+        } else if row
+            .iter()
+            .map(|x| x.is_empty())
+            .fold(true, |acc, x| acc && x)
+        {
+            log::debug!("Skipping empty line");
+            continue;
+        // Handle comments
+        } else if b'#' == row[0][0] {
+            log::debug!("Handling comment");
+            let mut c = row[0].to_vec();
+            for e in &row[1..] {
+                c.push(b'\t');
+                c.extend(e);
+            }
+            comments.push(c);
+        // Push everything else
         } else {
             is_header = false;
             table.push(row);
@@ -515,6 +539,15 @@ pub fn write_ordered_table<W: Write>(
 //     }
 //     write_table(&header_cols, &output_columns, out)
 // }
+fn write_metadata_comments<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
+    writeln!(
+        out,
+        "# {}",
+        std::env::args().collect::<Vec<String>>().join(" ")
+    )?;
+    let version = option_env!("GIT_HASH").unwrap_or(env!("CARGO_PKG_VERSION"));
+    writeln!(out, "# version {}", version)
+}
 
 pub fn write_ordered_histgrowth_table<W: Write>(
     abacus_group: &AbacusByGroup,
@@ -523,11 +556,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
     log::info!("reporting ordered-growth table");
-    writeln!(
-        out,
-        "# {}",
-        std::env::args().collect::<Vec<String>>().join(" ")
-    )?;
+    write_metadata_comments(out)?;
 
     let mut output_columns: Vec<Vec<f64>> = hist_aux
         .coverage
@@ -561,7 +590,7 @@ pub fn write_ordered_histgrowth_table<W: Write>(
             .zip(hist_aux.coverage.iter())
             .zip(&hist_aux.quorum)
             .map(|(((p, t), c), q)| {
-                vec![p.to_string(), t.to_string(), c.to_string(), q.to_string()]
+                vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
             })
             .collect::<Vec<Vec<String>>>(),
     );
@@ -592,6 +621,75 @@ mod tests {
     //        degree: Some(Vec::new()),
     //        //extremities: Some(Vec::new())
     //    }
+    // use super::*;
+    // use std::collections::HashMap;
+    // use std::io::Cursor;
+    // use std::str::from_utf8;
+
+    // fn mock_graph_auxilliary() -> GraphAuxilliary {
+    //     GraphAuxilliary {
+    //         node2id: {
+    //             let mut node2id = HashMap::new();
+    //             node2id.insert(b"node1".to_vec(), ItemId(1));
+    //             node2id.insert(b"node2".to_vec(), ItemId(2));
+    //             node2id.insert(b"node3".to_vec(), ItemId(3));
+    //             node2id
+    //         },
+    //         node_lens: Vec::new(),
+    //         edge2id: None,
+    //         path_segments: Vec::new(),
+    //         node_count: 3,
+    //         edge_count: 0,
+    //         degree: Some(Vec::new()),
+    //         //extremities: Some(Vec::new())
+    //     }
+    // }
+
+    // // Test parse_walk_identifier function
+    // #[test]
+    // fn test_parse_walk_identifier() {
+    //     let data = b"W\tG01\t0\tU00096.3\t3\t4641652\t>3>4>5>7>8>";
+    //     let (path_segment, data) = parse_walk_identifier(data);
+    //     dbg!(&path_segment);
+
+    //     assert_eq!(path_segment.sample, "G01".to_string());
+    //     assert_eq!(path_segment.haplotype, Some("0".to_string()));
+    //     assert_eq!(path_segment.seqid, Some("U00096.3".to_string()));
+    //     assert_eq!(path_segment.start, Some(3));
+    //     assert_eq!(path_segment.end, Some(4641652));
+    //     assert_eq!(from_utf8(data).unwrap(), ">3>4>5>7>8>");
+    // }
+
+    // #[test]
+    // #[should_panic(expected = "unwrap")]
+    // fn test_parse_walk_identifier_invalid_utf8() {
+    //     let data = b"W\tG01\t0\tU00096.3\t3\t>3>4>5>7>8>";
+    //     parse_walk_identifier(data);
+    // }
+
+    // // Test parse_path_identifier function
+    // #[test]
+    // fn test_parse_path_identifier() {
+    //     let data = b"P\tGCF_000005845.2_ASM584v2_genomic.fna#0#contig1\t1+,2+,3+,4+\t*";
+    //     let (path_segment, rest) = parse_path_identifier(data);
+
+    //     assert_eq!(
+    //         path_segment.to_string(),
+    //         "GCF_000005845.2_ASM584v2_genomic.fna#0#contig1"
+    //     );
+    //     assert_eq!(from_utf8(rest).unwrap(), "1+,2+,3+,4+\t*");
+    // }
+
+    //// Test parse_walk_seq_to_item_vec function
+    //#[test]
+    //fn test_parse_walk_seq_to_item_vec() {
+    //    let data = b">node1<node2\t";
+    //    let graph_aux = MockGraphAuxilliary::new();
+
+    //    let result = parse_walk_seq_to_item_vec(data, &graph_aux);
+    //    assert_eq!(result.len(), 2);
+    //    assert_eq!(result[0], (1, Orientation::Forward));
+    //    assert_eq!(result[1], (2, Orientation::Backward));
     //}
     //
     //// Test parse_walk_identifier function
@@ -837,4 +935,150 @@ mod tests {
     //        assert_eq!(group, test_groups[i]);
     //    }
     //}
+
+    // parse_bed_to_path_segments testing
+    // #[test]
+    // fn test_parse_bed_with_1_column() {
+    //     let bed_data = b"chr1\nchr2";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     let result = parse_bed_to_path_segments(&mut reader, true);
+    //     assert_eq!(
+    //         result,
+    //         vec![PathSegment::from_str("chr1"), PathSegment::from_str("chr2"),]
+    //     );
+    // }
+
+    // #[test]
+    // #[should_panic(
+    //     expected = "error in line 1: row must have either 1, 3, or 12 columns, but has 2"
+    // )]
+    // fn test_parse_bed_with_2_columns() {
+    //     let bed_data = b"chr1\t1000\n";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     parse_bed_to_path_segments(&mut reader, false);
+    // }
+
+    // #[test]
+    // #[should_panic(expected = "error line 1: `100.5` is not an usize")]
+    // fn test_parse_bed_with_2_columns_no_usize() {
+    //     let bed_data = b"chr1\t100.5\tACGT\n";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     parse_bed_to_path_segments(&mut reader, false);
+    // }
+
+    // #[test]
+    // fn test_parse_bed_with_3_columns() {
+    //     let bed_data = b"chr1\t1000\t2000\nchr2\t1500\t2500";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     let result = parse_bed_to_path_segments(&mut reader, false);
+    //     assert_eq!(
+    //         result,
+    //         vec![
+    //             {
+    //                 let mut tmp = PathSegment::from_str("chr1");
+    //                 tmp.start = Some(1000);
+    //                 tmp.end = Some(2000);
+    //                 tmp
+    //             },
+    //             {
+    //                 let mut tmp = PathSegment::from_str("chr2");
+    //                 tmp.start = Some(1500);
+    //                 tmp.end = Some(2500);
+    //                 tmp
+    //             }
+    //         ]
+    //     );
+    // }
+
+    // #[test]
+    // fn test_parse_bed_with_12_columns_no_block() {
+    //     let bed_data = b"chr1\t1000\t2000\tname\t0\t+\t1000\t2000\t0\t2\t100,100\t0,900\n";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     let result = parse_bed_to_path_segments(&mut reader, false);
+    //     assert_eq!(
+    //         result,
+    //         vec![{
+    //             let mut tmp = PathSegment::from_str("chr1");
+    //             tmp.start = Some(1000);
+    //             tmp.end = Some(2000);
+    //             tmp
+    //         }]
+    //     );
+    // }
+
+    // #[test]
+    // fn test_parse_bed_with_12_columns_with_block() {
+    //     let bed_data = b"chr1\t1000\t2000\tname\t0\t+\t1000\t2000\t0\t2\t100,100\t0,900\n";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     let result = parse_bed_to_path_segments(&mut reader, true);
+    //     assert_eq!(
+    //         result,
+    //         vec![
+    //             {
+    //                 let mut tmp = PathSegment::from_str("chr1");
+    //                 tmp.start = Some(1000);
+    //                 tmp.end = Some(1100);
+    //                 tmp
+    //             },
+    //             {
+    //                 let mut tmp = PathSegment::from_str("chr1");
+    //                 tmp.start = Some(1900);
+    //                 tmp.end = Some(2000);
+    //                 tmp
+    //             }
+    //         ]
+    //     );
+    // }
+
+    // #[test]
+    // fn test_parse_bed_with_header() {
+    //     let bed_data = b"browser position chr1:1-1000\nbrowser position chr7:127471196-127495720\nbrowser hide all\ntrack name='ItemRGBDemo' description='Item RGB demonstration' visibility=2 itemRgb='On'\nchr1\t1000\t2000\nchr2\t1500\t2500\n";
+    //     let mut reader = BufReader::new(Cursor::new(bed_data));
+    //     let result = parse_bed_to_path_segments(&mut reader, false);
+    //     assert_eq!(
+    //         result,
+    //         vec![
+    //             {
+    //                 let mut tmp = PathSegment::from_str("chr1");
+    //                 tmp.start = Some(1000);
+    //                 tmp.end = Some(2000);
+    //                 tmp
+    //             },
+    //             {
+    //                 let mut tmp = PathSegment::from_str("chr2");
+    //                 tmp.start = Some(1500);
+    //                 tmp.end = Some(2500);
+    //                 tmp
+    //             }
+    //         ]
+    //     );
+    // }
+
+    // #[test]
+    // fn test_parse_groups_with_valid_input() {
+    //     //let (graph_aux, _, _) = setup_test_data();
+    //     let file_name = "test/test_groups.txt";
+    //     let test_path_segments = vec![
+    //         PathSegment::from_str("a#0"),
+    //         PathSegment::from_str("b#0"),
+    //         PathSegment::from_str("c#0"),
+    //         PathSegment::from_str("c#1"),
+    //         PathSegment::from_str("d#0"),
+    //     ];
+    //     let test_groups = vec!["G1", "G1", "G2", "G2", "G2"];
+
+    //     let mut data = BufReader::new(std::fs::File::open(file_name).unwrap());
+    //     let result = parse_groups(&mut data);
+    //     assert!(result.is_ok(), "Expected successful group loading");
+    //     let path_segments_group = result.unwrap();
+    //     assert!(
+    //         path_segments_group.len() > 0,
+    //         "Expected non-empty group assignments"
+    //     );
+    //     assert_eq!(path_segments_group.len(), 5); // number of paths == groups
+    //     for (i, (path_seg, group)) in path_segments_group.into_iter().enumerate() {
+    //         assert_eq!(path_seg, test_path_segments[i]);
+    //         assert_eq!(group, test_groups[i]);
+    //     }
+    // }
 }

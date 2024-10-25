@@ -458,11 +458,6 @@ impl PathSegment {
         if let Some(c) = PATHID_PANSN.captures(s) {
             let segments: Vec<&str> = c.iter().filter_map(|x| x.map(|y| y.as_str())).collect();
             // first capture group is the string itself
-            //log::debug!(
-            //    "path id {} can be decomposed into capture groups {:?}",
-            //    s,
-            //    segments
-            //);
             match segments.len() {
                 4 => {
                     res.sample = segments[1].to_string();
@@ -472,10 +467,10 @@ impl PathSegment {
                             res.seqid = Some(segments[3][1..].to_string());
                         }
                         Some(cc) => {
-                            log::debug!("path has coodinates {:?}", cc);
                             res.seqid = Some(cc.get(1).unwrap().as_str().to_string());
                             res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
                             res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
+                            log::debug!("path has coordinates {} ", res);
                         }
                     }
                 }
@@ -486,19 +481,19 @@ impl PathSegment {
                             res.haplotype = Some(segments[2][1..].to_string());
                         }
                         Some(cc) => {
-                            log::debug!("path has coodinates {:?}", cc);
                             res.haplotype = Some(cc.get(1).unwrap().as_str().to_string());
                             res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
                             res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
+                            log::debug!("path has coordinates {} ", res);
                         }
                     }
                 }
                 2 => {
                     if let Some(cc) = PATHID_COORDS.captures(segments[1]) {
-                        log::debug!("path has coodinates {:?}", cc);
                         res.sample = cc.get(1).unwrap().as_str().to_string();
                         res.start = usize::from_str(cc.get(2).unwrap().as_str()).ok();
                         res.end = usize::from_str(cc.get(3).unwrap().as_str()).ok();
+                        log::debug!("path has coordinates {}", res);
                     }
                 }
                 _ => (),

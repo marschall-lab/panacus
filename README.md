@@ -48,14 +48,14 @@ mamba install -c conda-forge -c bioconda panacus
 ### From binary release
 #### Linux x86\_64
 ```shell
-wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.4/panacus-0.2.4_linux_x86_64.tar.gz
-tar -xzvf panacus-0.2.4_linux_x86_64.tar.gz
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.5/panacus-0.2.5_x86_64-unknown-linux-musl.tar.gz
+tar -xzvf panacus-0.2.5_x86_64-unknown-linux-musl.tar.gz
 
 # install the Python libraries necessary for panacus-visualize
 pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 
 # suggestion: add tool to path in your ~/.bashrc
-export PATH="$(readlink -f panacus-0.2.4_linux_x86_64/bin)":$PATH
+export PATH="$(readlink -f panacus-0.2.5_x86_64-unknown-linux-musl/bin)":$PATH
 
 # you are ready to go!
 panacus --help
@@ -63,14 +63,14 @@ panacus --help
 
 #### Mac OSX arm64
 ```shell
-wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.4/panacus-0.2.4_macos_arm64.tar.gz
-tar -xzvf panacus-0.2.4_macos_arm64.tar.gz
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.5/panacus-0.2.5_aarch64-apple-darwin.tar.gz
+tar -xzvf panacus-0.2.5_aarch64-apple-darwin.tar.gz
 
 # install the Python libraries necessary for panacus-visualize
 pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 
 # suggestion: add tool to path in your ~/.bashrc
-export PATH="$(readlink -f panacus-0.2.4_macos_arm64/bin)":$PATH
+export PATH="$(readlink -f panacus-0.2.5_aarch64-apple-darwin/bin)":$PATH
 
 # you are ready to go!
 panacus --help
