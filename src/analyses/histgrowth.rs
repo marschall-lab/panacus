@@ -7,8 +7,8 @@ use std::{
 use clap::{arg, Arg, Command};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-use crate::analyses::{AnalysisTab, ReportItem};
 use crate::clap_enum_variants;
+use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
     analyses::InputRequirement,
     data_manager::{HistAuxilliary, ViewParams},

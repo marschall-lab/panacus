@@ -6,8 +6,8 @@ use std::{
 
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analyses::{AnalysisTab, ReportItem};
 use crate::clap_enum_variants;
+use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
     analyses::InputRequirement, data_manager::ViewParams, io::write_table, util::CountType,
 };

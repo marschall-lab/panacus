@@ -8,8 +8,8 @@ use std::{
 use clap::{arg, Arg, Command};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::analyses::{AnalysisTab, ReportItem};
 use crate::data_manager::Hist;
+use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
     data_manager::{HistAuxilliary, ViewParams},
     io::{parse_hists, write_table},

@@ -9,10 +9,9 @@ use clap::{arg, ArgMatches, Command};
 use crate::{
     analyses::{Analysis, AnalysisSection, InputRequirement},
     data_manager::{DataManager, Edge, ItemId, ViewParams},
+    html_report::{AnalysisTab, ReportItem},
     util::{averageu32, median_already_sorted, n50_already_sorted},
 };
-
-use super::{AnalysisTab, ReportItem};
 
 pub struct Info {
     pub graph_info: GraphInfo,

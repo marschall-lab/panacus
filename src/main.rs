@@ -7,6 +7,7 @@ use std::time::Instant;
 mod analyses;
 mod cli;
 mod data_manager;
+mod html_report;
 // mod graph;
 // mod hist;
 // mod html;

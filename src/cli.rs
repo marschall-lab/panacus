@@ -13,8 +13,9 @@ use crate::analyses::histgrowth::Histgrowth;
 use crate::analyses::info::Info;
 use crate::analyses::ordered_histgrowth::OrderedHistgrowth;
 use crate::analyses::table::Table;
-use crate::analyses::{self, Analysis, AnalysisSection};
+use crate::analyses::{self, Analysis};
 use crate::data_manager::DataManager;
+use crate::html_report::AnalysisSection;
 use crate::io::OutputFormat;
 use crate::util::*;
 

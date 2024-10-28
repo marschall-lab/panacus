@@ -9,8 +9,8 @@ use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 
-use crate::analyses::{AnalysisTab, ReportItem};
 use crate::clap_enum_variants;
+use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
     analyses::InputRequirement,
     data_manager::{HistAuxilliary, ViewParams},
