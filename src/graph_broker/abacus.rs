@@ -52,13 +52,13 @@ pub struct GraphMask {
 impl GraphMask {
     pub fn from_datamgr(
         params: &GraphMaskParameters,
-        graph_aux: &GraphStorage,
+        graph_storage: &GraphStorage,
     ) -> Result<Self, Error> {
         let groups = GraphMask::load_groups(
             &params.groupby,
             params.groupby_haplotype,
             params.groupby_sample,
-            graph_aux,
+            graph_storage,
         )?;
         let include_coords = GraphMask::complement_with_group_assignments(
             GraphMask::load_coord_list(&params.positive_list)?,
@@ -82,7 +82,7 @@ impl GraphMask {
                             Some(e) => e.iter().collect(),
                             None => HashSet::new(),
                         };
-                        graph_aux
+                        graph_storage
                             .path_segments
                             .iter()
                             .filter_map(|x| {
@@ -213,10 +213,10 @@ impl GraphMask {
         file_name: &str,
         groupby_haplotype: bool,
         groupby_sample: bool,
-        graph_aux: &GraphStorage,
+        graph_storage: &GraphStorage,
     ) -> Result<HashMap<PathSegment, String>, Error> {
         if groupby_haplotype {
-            Ok(graph_aux
+            Ok(graph_storage
                 .path_segments
                 .iter()
                 .map(|x| {
@@ -231,7 +231,7 @@ impl GraphMask {
                 })
                 .collect())
         } else if groupby_sample {
-            Ok(graph_aux
+            Ok(graph_storage
                 .path_segments
                 .iter()
                 .map(|x| (x.clear_coords(), x.sample.clone()))
@@ -262,14 +262,14 @@ impl GraphMask {
             log::debug!("loaded {} group assignments", path_to_group.len());
 
             // augment the group assignments with yet unassigned path segments
-            graph_aux.path_segments.iter().for_each(|x| {
+            graph_storage.path_segments.iter().for_each(|x| {
                 let path = x.clear_coords();
                 path_to_group.entry(path).or_insert_with(|| x.id());
             });
             Ok(path_to_group)
         } else {
             log::info!("no explicit grouping instruction given, group paths by their IDs (sample ID+haplotype ID+seq ID)");
-            Ok(graph_aux
+            Ok(graph_storage
                 .path_segments
                 .iter()
                 .map(|x| (x.clear_coords(), x.id()))
@@ -278,7 +278,7 @@ impl GraphMask {
     }
 
     fn get_path_order<'a>(&'a self, path_segments: &[PathSegment]) -> Vec<(ItemIdSize, &'a str)> {
-        // orders elements of path_segments by the order in abacus_aux.include; the returned vector
+        // orders elements of path_segments by the order in graph_mask.include; the returned vector
         // maps indices of path_segments to the group identifier
 
         let mut group_to_paths: HashMap<&'a str, Vec<(ItemIdSize, &'a str)>> = HashMap::default();
@@ -353,7 +353,7 @@ impl GraphMask {
 
     pub fn load_optional_subsetting(
         &self,
-        graph_aux: &GraphStorage,
+        graph_storage: &GraphStorage,
         count: &CountType,
     ) -> (
         Option<IntervalContainer>,
@@ -374,7 +374,7 @@ impl GraphMask {
         // this table stores information about excluded nodes *if* the exclude setting is used
         let exclude_table = self.exclude_coords.as_ref().map(|_| {
             ActiveTable::new(
-                graph_aux.number_of_items(count) + 1,
+                graph_storage.number_of_items(count) + 1,
                 count == &CountType::Bp,
             )
         });
@@ -406,17 +406,17 @@ pub struct AbacusByTotal {
 impl AbacusByTotal {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut BufReader<R>,
-        abacus_aux: &GraphMask,
-        graph_aux: &GraphStorage,
-        count: CountType,
+        graph_mask: &GraphMask,
+        graph_storage: &GraphStorage,
+        count_type: CountType,
     ) -> (Self, HashMap<PathSegment, (u32, u32)>) {
         let (item_table, exclude_table, subset_covered_bps, paths_len) =
-            parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
+            parse_gfa_paths_walks(data, graph_mask, graph_storage, &count_type);
         (
             Self::item_table_to_abacus(
-                abacus_aux,
-                graph_aux,
-                count,
+                graph_mask,
+                graph_storage,
+                count_type,
                 item_table,
                 exclude_table,
                 subset_covered_bps,
@@ -426,8 +426,8 @@ impl AbacusByTotal {
     }
 
     pub fn item_table_to_abacus(
-        abacus_aux: &GraphMask,
-        graph_aux: &GraphStorage,
+        graph_mask: &GraphMask,
+        graph_storage: &GraphStorage,
         count: CountType,
         item_table: ItemTable,
         exclude_table: Option<ActiveTable>,
@@ -435,14 +435,14 @@ impl AbacusByTotal {
     ) -> Self {
         log::info!("counting abacus entries..");
         // first element in countable is "zero" element. It is ignored in counting
-        let mut countable: Vec<CountSize> = vec![0; graph_aux.number_of_items(&count) + 1];
+        let mut countable: Vec<CountSize> = vec![0; graph_storage.number_of_items(&count) + 1];
         // countable with ID "0" is special and should not be considered in coverage histogram
         countable[0] = CountSize::MAX;
         let mut last: Vec<ItemIdSize> =
-            vec![ItemIdSize::MAX; graph_aux.number_of_items(&count) + 1];
+            vec![ItemIdSize::MAX; graph_storage.number_of_items(&count) + 1];
 
         let mut groups = Vec::new();
-        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+        for (path_id, group_id) in graph_mask.get_path_order(&graph_storage.path_segments) {
             if groups.is_empty() || groups.last().unwrap() != group_id {
                 groups.push(group_id.to_string());
             }
@@ -468,7 +468,7 @@ impl AbacusByTotal {
             uncovered_bps: Some(quantify_uncovered_bps(
                 &exclude_table,
                 &subset_covered_bps,
-                graph_aux,
+                graph_storage,
             )),
             groups,
         }
@@ -476,19 +476,19 @@ impl AbacusByTotal {
 
     // pub fn from_cdbg_gfa<R: std::io::Read>(
     //     data: &mut BufReader<R>,
-    //     abacus_aux: &GraphMask,
-    //     graph_aux: &GraphStorage,
+    //     graph_mask: &GraphMask,
+    //     graph_storage: &GraphStorage,
     //     k: usize,
     //     unimer: &Vec<usize>,
     // ) -> Self {
-    //     let item_table = parse_cdbg_gfa_paths_walks(data, abacus_aux, graph_aux, k);
-    //     Self::k_plus_one_mer_table_to_abacus(item_table, &abacus_aux, &graph_aux, k, unimer)
+    //     let item_table = parse_cdbg_gfa_paths_walks(data, graph_mask, graph_storage, k);
+    //     Self::k_plus_one_mer_table_to_abacus(item_table, &graph_mask, &graph_storage, k, unimer)
     // }
 
     // pub fn k_plus_one_mer_table_to_abacus(
     //     item_table: ItemTable,
-    //     abacus_aux: &GraphMask,
-    //     graph_aux: &GraphStorage,
+    //     graph_mask: &GraphMask,
+    //     graph_storage: &GraphStorage,
     //     k: usize,
     //     unimer: &Vec<usize>,
     // ) -> Self {
@@ -498,13 +498,13 @@ impl AbacusByTotal {
     //         [(); SIZE_T].map(|_| HashMap::default());
 
     //     let mut groups = Vec::new();
-    //     for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+    //     for (path_id, group_id) in graph_mask.get_path_order(&graph_storage.path_segments) {
     //         if groups.is_empty() || groups.last().unwrap() != group_id {
     //             groups.push(group_id.to_string());
     //         }
     //         AbacusByTotal::create_infix_eq_table(
     //             &item_table,
-    //             &graph_aux,
+    //             &graph_storage,
     //             &mut infix_eq_tables,
     //             path_id,
     //             groups.len() as u32 - 1,
@@ -555,7 +555,7 @@ impl AbacusByTotal {
 
     // fn create_infix_eq_table(
     //     item_table: &ItemTable,
-    //     _graph_aux: &GraphStorage,
+    //     _graph_storage: &GraphStorage,
     //     infix_eq_tables: &mut [HashMap<u64, InfixEqStorage>; SIZE_T],
     //     path_id: ItemIdSize,
     //     group_id: u32,
@@ -652,7 +652,7 @@ impl AbacusByTotal {
         hist
     }
 
-    pub fn construct_hist_bps(&self, graph_aux: &GraphStorage) -> Vec<usize> {
+    pub fn construct_hist_bps(&self, graph_storage: &GraphStorage) -> Vec<usize> {
         log::info!("constructing bp histogram..");
         // hist must be of size = num_groups + 1; having an index that starts
         // from 1, instead of 0, makes easier the calculation in hist2pangrowth.
@@ -663,7 +663,7 @@ impl AbacusByTotal {
                     log::info!("coverage {} of item {} exceeds the number of groups {}, it'll be ignored in the count", cov, id, self.groups.len());
                 }
             } else {
-                hist[*cov as usize] += graph_aux.node_lens[id] as usize;
+                hist[*cov as usize] += graph_storage.node_lens[id] as usize;
             }
         }
 
@@ -686,28 +686,28 @@ pub struct AbacusByGroup {
     pub c: Vec<GroupSize>,
     pub uncovered_bps: HashMap<ItemIdSize, usize>,
     pub groups: Vec<String>,
-    // pub graph_aux: &'a GraphStorage,
+    // pub graph_storage: &'a GraphStorage,
 }
 
 impl AbacusByGroup {
     pub fn from_gfa<R: std::io::Read>(
         data: &mut std::io::BufReader<R>,
-        abacus_aux: &GraphMask,
-        graph_aux: &GraphStorage,
+        graph_mask: &GraphMask,
+        graph_storage: &GraphStorage,
         count: CountType,
         report_values: bool,
     ) -> Result<Self, Error> {
         log::info!("parsing path + walk sequences");
         let (item_table, exclude_table, subset_covered_bps, _paths_len) =
-            parse_gfa_paths_walks(data, abacus_aux, graph_aux, &count);
+            parse_gfa_paths_walks(data, graph_mask, graph_storage, &count);
 
         let mut path_order: Vec<(ItemIdSize, GroupSize)> = Vec::new();
         let mut groups: Vec<String> = Vec::new();
 
-        for (path_id, group_id) in abacus_aux.get_path_order(&graph_aux.path_segments) {
+        for (path_id, group_id) in graph_mask.get_path_order(&graph_storage.path_segments) {
             log::debug!(
                 "processing path {} (group {})",
-                &graph_aux.path_segments[path_id as usize],
+                &graph_storage.path_segments[path_id as usize],
                 group_id
             );
             if groups.is_empty() || groups.last().unwrap() != group_id {
@@ -723,7 +723,7 @@ impl AbacusByGroup {
             &item_table,
             &exclude_table,
             &path_order,
-            graph_aux.number_of_items(&count),
+            graph_storage.number_of_items(&count),
         );
         let (v, c) =
             AbacusByGroup::compute_column_values(&item_table, &path_order, &r, report_values);
@@ -738,7 +738,11 @@ impl AbacusByGroup {
             r,
             v,
             c,
-            uncovered_bps: quantify_uncovered_bps(&exclude_table, &subset_covered_bps, graph_aux),
+            uncovered_bps: quantify_uncovered_bps(
+                &exclude_table,
+                &subset_covered_bps,
+                graph_storage,
+            ),
             groups,
         })
     }
@@ -948,13 +952,13 @@ impl AbacusByGroup {
         &self,
         total: bool,
         out: &mut BufWriter<W>,
-        graph_aux: &GraphStorage,
+        graph_storage: &GraphStorage,
     ) -> Result<(), Error> {
         // create mapping from numerical node ids to original node identifiers
         log::info!("reporting coverage table");
         let dummy = Vec::new();
-        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; graph_aux.node_count + 1];
-        for (node, id) in graph_aux.node2id.iter() {
+        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; graph_storage.node_count + 1];
+        for (node, id) in graph_storage.node2id.iter() {
             id2node[id.0 as usize] = node;
         }
 
@@ -975,7 +979,7 @@ impl AbacusByGroup {
                 it.next();
                 for (i, (&start, &end)) in it {
                     let bp = if self.count == CountType::Bp {
-                        graph_aux.node_lens[i] as usize
+                        graph_storage.node_lens[i] as usize
                             - *self.uncovered_bps.get(&(i as ItemIdSize)).unwrap_or(&0)
                     } else {
                         1
@@ -1003,14 +1007,14 @@ impl AbacusByGroup {
                 }
             }
             CountType::Edge => {
-                if let Some(edge2id) = &graph_aux.edge2id {
+                if let Some(edge2id) = &graph_storage.edge2id {
                     let dummy_edge = Edge(
                         ItemId(0),
                         Orientation::default(),
                         ItemId(0),
                         Orientation::default(),
                     );
-                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; graph_aux.edge_count + 1];
+                    let mut id2edge: Vec<&Edge> = vec![&dummy_edge; graph_storage.edge_count + 1];
                     for (edge, id) in edge2id.iter() {
                         id2edge[id.0 as usize] = edge;
                     }
@@ -1076,7 +1080,7 @@ impl AbacusByGroup {
 pub fn quantify_uncovered_bps(
     exclude_table: &Option<ActiveTable>,
     subset_covered_bps: &Option<IntervalContainer>,
-    graph_aux: &GraphStorage,
+    graph_storage: &GraphStorage,
 ) -> HashMap<ItemIdSize, usize> {
     //
     // 1. if subset is specified, then the node-based coverage calculated by the coverage()
@@ -1098,7 +1102,7 @@ pub fn quantify_uncovered_bps(
         for sid in subset_map.keys() {
             // ignore COMPETELY excluded nodes
             if exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid.0 as usize] {
-                let l = graph_aux.node_len(sid) as usize;
+                let l = graph_storage.node_len(sid) as usize;
                 let covered = subset_map.total_coverage(
                     sid,
                     &exclude_table
@@ -1138,7 +1142,7 @@ mod tests {
         assert_eq!(calculated, expected);
     }
 
-    fn get_graph_aux_path_segments() -> GraphStorage {
+    fn get_graph_storage_path_segments() -> GraphStorage {
         GraphStorage {
             degree: None,
             edge2id: None,
@@ -1167,8 +1171,8 @@ mod tests {
     #[test]
     fn test_load_groups_haplotype() -> Result<(), Error> {
         let expected = get_load_groups_expected_hashmap(["s1#1", "s1#1", "s1#2", "s2#1"]);
-        let graph_aux = get_graph_aux_path_segments();
-        let calculated = GraphMask::load_groups("", true, false, &graph_aux)?;
+        let graph_storage = get_graph_storage_path_segments();
+        let calculated = GraphMask::load_groups("", true, false, &graph_storage)?;
         assert_eq!(calculated, expected);
         Ok(())
     }
@@ -1176,8 +1180,8 @@ mod tests {
     #[test]
     fn test_load_groups_sample() -> Result<(), Error> {
         let expected = get_load_groups_expected_hashmap(["s1", "s1", "s1", "s2"]);
-        let graph_aux = get_graph_aux_path_segments();
-        let calculated = GraphMask::load_groups("", false, true, &graph_aux)?;
+        let graph_storage = get_graph_storage_path_segments();
+        let calculated = GraphMask::load_groups("", false, true, &graph_storage)?;
         assert_eq!(calculated, expected);
         Ok(())
     }
@@ -1197,13 +1201,13 @@ mod tests {
     #[test]
     fn test_load_groups_file() -> Result<(), Error> {
         let expected = get_load_groups_expected_hashmap(["g1", "g2", "g1", "g2"]);
-        let graph_aux = get_graph_aux_path_segments();
+        let graph_storage = get_graph_storage_path_segments();
         let text = "s1#1#1\tg1
 s1#1#2\tg2
 s1#2#2\tg1
 s2#1#2\tg2";
         let (_file, file_name) = get_temporary_file_name_with_content(text)?;
-        let calculated = GraphMask::load_groups(&file_name, false, false, &graph_aux)?;
+        let calculated = GraphMask::load_groups(&file_name, false, false, &graph_storage)?;
         assert_eq!(calculated, expected);
         Ok(())
     }
@@ -1211,8 +1215,8 @@ s2#1#2\tg2";
     #[test]
     fn test_load_groups_none() -> Result<(), Error> {
         let expected = get_load_groups_expected_hashmap(["s1#1#1", "s1#1#2", "s1#2#2", "s2#1#2"]);
-        let graph_aux = get_graph_aux_path_segments();
-        let calculated = GraphMask::load_groups("", false, false, &graph_aux)?;
+        let graph_storage = get_graph_storage_path_segments();
+        let calculated = GraphMask::load_groups("", false, false, &graph_storage)?;
         assert_eq!(calculated, expected);
         Ok(())
     }
@@ -1309,15 +1313,15 @@ s1#1#1\t25\t109";
 
     // fn setup_test_data_cdbg() -> (GraphStorage, Params, String) {
     //     let test_gfa_file = "test/cdbg.gfa";
-    //     let graph_aux = GraphStorage::from_gfa(test_gfa_file, CountType::Node);
+    //     let graph_storage = GraphStorage::from_gfa(test_gfa_file, CountType::Node);
     //     let params = Params::test_default_histgrowth();
-    //     (graph_aux, params, test_gfa_file.to_string())
+    //     (graph_storage, params, test_gfa_file.to_string())
     // }
 
     // #[test]
     // fn test_abacus_by_total_from_cdbg_gfa() {
-    //     let (graph_aux, params, test_gfa_file) = setup_test_data_cdbg();
-    //     let path_aux = GraphMask::from_params(&params, &graph_aux).unwrap();
+    //     let (graph_storage, params, test_gfa_file) = setup_test_data_cdbg();
+    //     let path_aux = GraphMask::from_params(&params, &graph_storage).unwrap();
     //     let test_abacus_by_total = AbacusByTotal {
     //         count: CountType::Node,
     //         countable: vec![CountSize::MAX, 6, 4, 4, 2, 1],
@@ -1334,7 +1338,7 @@ s1#1#1\t25\t109";
 
     //     let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
     //     let (abacus_by_total, _paths_len) =
-    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
+    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_storage, CountType::Node);
     //     assert_eq!(
     //         abacus_by_total.count, test_abacus_by_total.count,
     //         "Expected CountType to match Node"
@@ -1355,7 +1359,7 @@ s1#1#1\t25\t109";
 
     // fn setup_test_data_chr_m(count_type: CountType) -> (GraphStorage, Params, String) {
     //     let test_gfa_file = "test/chrM_test.gfa";
-    //     let graph_aux = GraphStorage::from_gfa(test_gfa_file, count_type);
+    //     let graph_storage = GraphStorage::from_gfa(test_gfa_file, count_type);
     //     let params = Params::Histgrowth {
     //         gfa_file: test_gfa_file.to_string(),
     //         count: count_type,
@@ -1371,14 +1375,14 @@ s1#1#1\t25\t109";
     //         threads: 0,
     //     };
 
-    //     (graph_aux, params, test_gfa_file.to_string())
+    //     (graph_storage, params, test_gfa_file.to_string())
     // }
 
     // #[test]
     // fn test_abacus_by_total_from_chr_m_node() {
     //     let count_type = CountType::Node;
-    //     let (graph_aux, params, test_gfa_file) = setup_test_data_chr_m(count_type);
-    //     let path_aux = GraphMask::from_params(&params, &graph_aux).unwrap();
+    //     let (graph_storage, params, test_gfa_file) = setup_test_data_chr_m(count_type);
+    //     let path_aux = GraphMask::from_params(&params, &graph_storage).unwrap();
     //     let test_abacus_by_total = AbacusByTotal {
     //         count: count_type,
     //         countable: vec![
@@ -1402,7 +1406,7 @@ s1#1#1\t25\t109";
 
     //     let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
     //     let (abacus_by_total, _paths_len) =
-    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, CountType::Node);
+    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_storage, CountType::Node);
     //     assert_eq!(
     //         abacus_by_total.count, test_abacus_by_total.count,
     //         "Expected CountType to match Node"
@@ -1427,8 +1431,8 @@ s1#1#1\t25\t109";
     // #[test]
     // fn test_abacus_by_total_from_chr_m_edge() {
     //     let count_type = CountType::Edge;
-    //     let (graph_aux, params, test_gfa_file) = setup_test_data_chr_m(count_type);
-    //     let path_aux = GraphMask::from_params(&params, &graph_aux).unwrap();
+    //     let (graph_storage, params, test_gfa_file) = setup_test_data_chr_m(count_type);
+    //     let path_aux = GraphMask::from_params(&params, &graph_storage).unwrap();
     //     let test_abacus_by_total = AbacusByTotal {
     //         count: count_type,
     //         countable: vec![
@@ -1456,7 +1460,7 @@ s1#1#1\t25\t109";
 
     //     let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
     //     let (abacus_by_total, _paths_len) =
-    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_storage, count_type);
     //     assert_eq!(
     //         abacus_by_total.count, test_abacus_by_total.count,
     //         "Expected CountType to match Edge"
@@ -1481,8 +1485,8 @@ s1#1#1\t25\t109";
     // #[test]
     // fn test_abacus_by_total_from_chr_m_bp() {
     //     let count_type = CountType::Bp;
-    //     let (graph_aux, params, test_gfa_file) = setup_test_data_chr_m(count_type);
-    //     let path_aux = GraphMask::from_params(&params, &graph_aux).unwrap();
+    //     let (graph_storage, params, test_gfa_file) = setup_test_data_chr_m(count_type);
+    //     let path_aux = GraphMask::from_params(&params, &graph_storage).unwrap();
     //     let test_abacus_by_total = AbacusByTotal {
     //         count: count_type,
     //         countable: vec![
@@ -1507,7 +1511,7 @@ s1#1#1\t25\t109";
 
     //     let mut data = bufreader_from_compressed_gfa(test_gfa_file.as_str());
     //     let (abacus_by_total, _paths_len) =
-    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_aux, count_type);
+    //         AbacusByTotal::from_gfa(&mut data, &path_aux, &graph_storage, count_type);
     //     assert_eq!(
     //         abacus_by_total.count, test_abacus_by_total.count,
     //         "Expected CountType to match Edge"
@@ -1525,22 +1529,22 @@ s1#1#1\t25\t109";
     //         "Expected same groups"
     //     );
     //     let test_hist = vec![0, 616, 31, 601, 15949];
-    //     let hist = abacus_by_total.construct_hist_bps(&graph_aux);
+    //     let hist = abacus_by_total.construct_hist_bps(&graph_storage);
     //     assert_eq!(hist, test_hist, "Expected same hist");
     // }
 
     // fn setup_test_data() -> (GraphStorage, Params, String) {
     //     let test_gfa_file = "test/cdbg.gfa";
-    //     let graph_aux = GraphStorage::from_gfa(test_gfa_file, CountType::Node);
+    //     let graph_storage = GraphStorage::from_gfa(test_gfa_file, CountType::Node);
     //     let params = Params::test_default_histgrowth();
-    //     (graph_aux, params, test_gfa_file.to_string())
+    //     (graph_storage, params, test_gfa_file.to_string())
     // }
 
     // #[test]
     // fn test_path_auxilliary_from_params_success() {
-    //     let (graph_aux, params, _) = setup_test_data();
+    //     let (graph_storage, params, _) = setup_test_data();
 
-    //     let path_aux = GraphMask::from_params(&params, &graph_aux);
+    //     let path_aux = GraphMask::from_params(&params, &graph_storage);
     //     assert!(
     //         path_aux.is_ok(),
     //         "Expected successful creation of GraphMask"
@@ -1553,9 +1557,9 @@ s1#1#1\t25\t109";
 
     // #[test]
     // fn test_path_auxilliary_load_groups_by_sample() {
-    //     let (graph_aux, _, _) = setup_test_data();
+    //     let (graph_storage, _, _) = setup_test_data();
 
-    //     let result = GraphMask::load_groups("", false, true, &graph_aux);
+    //     let result = GraphMask::load_groups("", false, true, &graph_storage);
     //     assert!(
     //         result.is_ok(),
     //         "Expected successful group loading by sample"
@@ -1570,9 +1574,9 @@ s1#1#1\t25\t109";
 
     // #[test]
     // fn test_path_auxilliary_load_groups_by_haplotype() {
-    //     let (graph_aux, _, _) = setup_test_data();
+    //     let (graph_storage, _, _) = setup_test_data();
 
-    //     let result = GraphMask::load_groups("", true, false, &graph_aux);
+    //     let result = GraphMask::load_groups("", true, false, &graph_storage);
     //     let groups = result.unwrap();
     //     let mut group_count = HashSet::new();
     //     for (_, g) in groups {
@@ -1654,10 +1658,10 @@ s1#1#1\t25\t109";
 
     // #[test]
     // fn test_get_path_order_with_exclusions() {
-    //     let (graph_aux, _, _) = setup_test_data();
+    //     let (graph_storage, _, _) = setup_test_data();
 
     //     let path_aux = GraphMask {
-    //         groups: GraphMask::load_groups("", false, false, &graph_aux).unwrap(),
+    //         groups: GraphMask::load_groups("", false, false, &graph_storage).unwrap(),
     //         include_coords: None,
     //         exclude_coords: Some(vec![
     //             PathSegment::from_str("a#1#h1"),
@@ -1666,7 +1670,7 @@ s1#1#1\t25\t109";
     //         ]), //duplicates do not cause any error
     //         order: None,
     //     };
-    //     let ordered_paths = path_aux.get_path_order(&graph_aux.path_segments);
+    //     let ordered_paths = path_aux.get_path_order(&graph_storage.path_segments);
     //     assert_eq!(
     //         ordered_paths.len(),
     //         4,
