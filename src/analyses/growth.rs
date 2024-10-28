@@ -8,10 +8,9 @@ use std::{
 use clap::{arg, Arg, Command};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::data_manager::Hist;
+use crate::graph_broker::{GraphMaskParameters, Hist, ThresholdContainer};
 use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
-    data_manager::{HistAuxilliary, ViewParams},
     io::{parse_hists, write_table},
     util::CountType,
 };
@@ -21,19 +20,19 @@ use super::{Analysis, AnalysisSection};
 pub struct Growth {
     growths: Vec<(CountType, Vec<Vec<f64>>)>,
     comments: Vec<Vec<u8>>,
-    hist_aux: HistAuxilliary,
+    hist_aux: ThresholdContainer,
     hists: Vec<Hist>,
 }
 
 impl Analysis for Growth {
     fn build(
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
         matches: &clap::ArgMatches,
     ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("growth").unwrap();
         let coverage = matches.get_one::<String>("coverage").cloned().unwrap();
         let quorum = matches.get_one::<String>("quorum").cloned().unwrap();
-        let hist_aux = HistAuxilliary::parse_params(&quorum, &coverage)?;
+        let hist_aux = ThresholdContainer::parse_params(&quorum, &coverage)?;
         let hist_file = matches
             .get_one::<String>("hist_file")
             .cloned()
@@ -59,7 +58,7 @@ impl Analysis for Growth {
 
     fn write_table<W: Write>(
         &mut self,
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
         log::info!("reporting hist table");
@@ -110,7 +109,7 @@ impl Analysis for Growth {
 
     fn generate_report_section(
         &mut self,
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
     ) -> Vec<AnalysisSection> {
         let growth_labels = (0..self.hist_aux.coverage.len())
             .map(|i| {
@@ -170,7 +169,11 @@ impl Analysis for Growth {
 
     fn get_input_requirements(
         _matches: &clap::ArgMatches,
-    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+    ) -> Option<(
+        HashSet<super::InputRequirement>,
+        GraphMaskParameters,
+        String,
+    )> {
         None
     }
 }

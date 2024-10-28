@@ -14,7 +14,7 @@ use crate::analyses::info::Info;
 use crate::analyses::ordered_histgrowth::OrderedHistgrowth;
 use crate::analyses::table::Table;
 use crate::analyses::{self, Analysis};
-use crate::data_manager::DataManager;
+use crate::graph_broker::GraphBroker;
 use crate::html_report::AnalysisSection;
 use crate::io::OutputFormat;
 use crate::util::*;
@@ -120,19 +120,19 @@ pub fn set_number_of_threads(params: &ArgMatches) {
 
 fn write_output<T: Analysis, W: Write>(
     mut analysis: T,
-    dm: &DataManager,
+    gb: &GraphBroker,
     out: &mut BufWriter<W>,
     matches: &ArgMatches,
 ) -> Result<(), Error> {
     match matches.get_one("output_format").unwrap() {
         OutputFormat::Table => {
-            analysis.write_table(dm, out)?;
+            analysis.write_table(gb, out)?;
         }
         OutputFormat::Html => {
-            let report = analysis.generate_report_section(dm);
+            let report = analysis.generate_report_section(gb);
             let mut registry = Handlebars::new();
             let html =
-                AnalysisSection::generate_report(report, &mut registry, &dm.get_fname()).unwrap();
+                AnalysisSection::generate_report(report, &mut registry, &gb.get_fname()).unwrap();
             writeln!(out, "{}", html)?;
         }
     };
@@ -159,34 +159,34 @@ pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
 
     set_number_of_threads(&matches);
     if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
-        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let info = Info::build(&dm, &matches)?;
-        write_output(*info, &dm, out, &matches)?;
+        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let info = Info::build(&gb, &matches)?;
+        write_output(*info, &gb, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) =
         crate::analyses::hist::Hist::get_input_requirements(&matches)
     {
-        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let hist = analyses::hist::Hist::build(&dm, &matches)?;
-        write_output(*hist, &dm, out, &matches)?;
+        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let hist = analyses::hist::Hist::build(&gb, &matches)?;
+        write_output(*hist, &gb, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches)
     {
-        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let histgrowth = Histgrowth::build(&dm, &matches)?;
-        write_output(*histgrowth, &dm, out, &matches)?;
+        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let histgrowth = Histgrowth::build(&gb, &matches)?;
+        write_output(*histgrowth, &gb, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) =
         OrderedHistgrowth::get_input_requirements(&matches)
     {
-        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let ordered_histgrowth = OrderedHistgrowth::build(&dm, &matches)?;
-        write_output(*ordered_histgrowth, &dm, out, &matches)?;
+        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let ordered_histgrowth = OrderedHistgrowth::build(&gb, &matches)?;
+        write_output(*ordered_histgrowth, &gb, out, &matches)?;
     } else if let Some((req, view_params, gfa_file)) = Table::get_input_requirements(&matches) {
-        let dm = DataManager::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let table = Table::build(&dm, &matches)?;
-        write_output(*table, &dm, out, &matches)?;
+        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+        let table = Table::build(&gb, &matches)?;
+        write_output(*table, &gb, out, &matches)?;
     } else if matches.subcommand_matches("growth").is_some() {
-        let dm = DataManager::new();
-        let growth = Growth::build(&dm, &matches)?;
-        write_output(*growth, &dm, out, &matches)?;
+        let gb = GraphBroker::new();
+        let growth = Growth::build(&gb, &matches)?;
+        write_output(*growth, &gb, out, &matches)?;
     }
     Ok(())
 }

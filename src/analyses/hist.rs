@@ -9,7 +9,7 @@ use clap::{arg, Arg, ArgMatches, Command};
 use crate::clap_enum_variants;
 use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
-    analyses::InputRequirement, data_manager::ViewParams, io::write_table, util::CountType,
+    analyses::InputRequirement, graph_broker::GraphMaskParameters, io::write_table, util::CountType,
 };
 
 use super::{Analysis, AnalysisSection};
@@ -18,7 +18,7 @@ pub struct Hist {}
 
 impl Analysis for Hist {
     fn build(
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
         _matches: &ArgMatches,
     ) -> Result<Box<Self>, Error> {
         Ok(Box::new(Self {}))
@@ -26,7 +26,7 @@ impl Analysis for Hist {
 
     fn write_table<W: Write>(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
         log::info!("reporting hist table");
@@ -43,7 +43,7 @@ impl Analysis for Hist {
             String::new(),
         ]];
         let mut output_columns = Vec::new();
-        for h in dm.get_hists().values() {
+        for h in gb.get_hists().values() {
             output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
             header_cols.push(vec![
                 "hist".to_string(),
@@ -57,14 +57,14 @@ impl Analysis for Hist {
 
     fn generate_report_section(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
     ) -> Vec<AnalysisSection> {
         let mut buf = BufWriter::new(Vec::new());
-        self.write_table(dm, &mut buf).expect("Can write to string");
+        self.write_table(gb, &mut buf).expect("Can write to string");
         let bytes = buf.into_inner().unwrap();
         let table = String::from_utf8(bytes).unwrap();
         let table = format!("`{}`", &table);
-        let histogram_tabs = dm
+        let histogram_tabs = gb
             .get_hists()
             .iter()
             .map(|(k, v)| AnalysisTab {
@@ -73,7 +73,7 @@ impl Analysis for Hist {
                 is_first: false,
                 items: vec![ReportItem::Bar {
                     id: format!("cov-hist-{}", k),
-                    name: dm.get_fname(),
+                    name: gb.get_fname(),
                     x_label: "taxa".to_string(),
                     y_label: format!("#{}s", k),
                     labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
@@ -108,12 +108,16 @@ impl Analysis for Hist {
 
     fn get_input_requirements(
         matches: &clap::ArgMatches,
-    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+    ) -> Option<(
+        HashSet<super::InputRequirement>,
+        GraphMaskParameters,
+        String,
+    )> {
         let matches = matches.subcommand_matches("hist")?;
         let mut req = HashSet::from([InputRequirement::Hist]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
-        let view = ViewParams {
+        let view = GraphMaskParameters {
             groupby: matches
                 .get_one::<String>("groupby")
                 .cloned()

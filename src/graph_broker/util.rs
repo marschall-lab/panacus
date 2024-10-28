@@ -9,19 +9,19 @@ use std::{
 use rayon::prelude::*;
 
 use crate::{
-    data_manager::Edge,
+    graph_broker::Edge,
     util::{
         intersects, is_contained, ActiveTable, CountType, IntervalContainer, ItemTable, Wrap,
         SIZE_T,
     },
 };
 
-use super::{abacus::AbacusAuxilliary, graph::GraphAuxilliary, ItemId, Orientation, PathSegment};
+use super::{abacus::GraphMask, graph::GraphStorage, ItemId, Orientation, PathSegment};
 
 pub fn parse_gfa_paths_walks<R: Read>(
     data: &mut BufReader<R>,
-    abacus_aux: &AbacusAuxilliary,
-    graph_aux: &GraphAuxilliary,
+    abacus_aux: &GraphMask,
+    graph_aux: &GraphStorage,
     count: &CountType,
 ) -> (
     ItemTable,
@@ -221,7 +221,7 @@ pub fn update_tables(
     subset_covered_bps: &mut Option<&mut IntervalContainer>,
     exclude_table: &mut Option<&mut ActiveTable>,
     num_path: usize,
-    graph_aux: &GraphAuxilliary,
+    graph_aux: &GraphStorage,
     path: Vec<(ItemId, Orientation)>,
     include_coords: &[(usize, usize)],
     exclude_coords: &[(usize, usize)],
@@ -409,7 +409,7 @@ pub fn update_tables_edgecount(
     item_table: &mut ItemTable,
     exclude_table: &mut Option<&mut ActiveTable>,
     num_path: usize,
-    graph_aux: &GraphAuxilliary,
+    graph_aux: &GraphStorage,
     path: Vec<(ItemId, Orientation)>,
     include_coords: &[(usize, usize)],
     exclude_coords: &[(usize, usize)],
@@ -443,7 +443,7 @@ pub fn update_tables_edgecount(
         let eid = graph_aux
             .edge2id
             .as_ref()
-            .expect("update_tables_edgecount requires edge2id map in GraphAuxilliary")
+            .expect("update_tables_edgecount requires edge2id map in GraphStorage")
             .get(&e)
             .unwrap_or_else(|| {
                 panic!(
@@ -479,7 +479,7 @@ pub fn update_tables_edgecount(
 
 pub fn parse_walk_seq_to_item_vec(
     data: &[u8],
-    graph_aux: &GraphAuxilliary,
+    graph_aux: &GraphStorage,
 ) -> Vec<(ItemId, Orientation)> {
     // later codes assumes that data is non-empty...
     if data.is_empty() {
@@ -559,7 +559,7 @@ pub fn parse_walk_seq_to_item_vec(
 
 pub fn parse_walk_seq_update_tables(
     data: &[u8],
-    graph_aux: &GraphAuxilliary,
+    graph_aux: &GraphStorage,
     item_table: &mut ItemTable,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
@@ -633,7 +633,7 @@ pub fn parse_walk_seq_update_tables(
 
 pub fn parse_path_seq_to_item_vec(
     data: &[u8],
-    graph_aux: &GraphAuxilliary,
+    graph_aux: &GraphStorage,
 ) -> Vec<(ItemId, Orientation)> {
     let mut it = data.iter();
     let end = it
@@ -666,7 +666,7 @@ pub fn parse_path_seq_to_item_vec(
 
 pub fn parse_path_seq_update_tables(
     data: &[u8],
-    graph_aux: &GraphAuxilliary,
+    graph_aux: &GraphStorage,
     item_table: &mut ItemTable,
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,

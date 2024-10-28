@@ -6,7 +6,7 @@ use std::time::Instant;
 // mod abacus;
 mod analyses;
 mod cli;
-mod data_manager;
+mod graph_broker;
 mod html_report;
 // mod graph;
 // mod hist;

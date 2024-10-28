@@ -4,8 +4,8 @@ use std::{
     str,
 };
 
-use abacus::{AbacusAuxilliary, AbacusByTotal};
-use graph::GraphAuxilliary;
+use abacus::{AbacusByTotal, GraphMask};
+use graph::GraphStorage;
 use strum::IntoEnumIterator;
 
 use crate::{
@@ -18,22 +18,22 @@ mod hist;
 mod util;
 
 pub use abacus::AbacusByGroup;
-pub use abacus::ViewParams;
+pub use abacus::GraphMaskParameters;
 pub use graph::Edge;
 pub use graph::ItemId;
 pub use graph::Orientation;
 pub use graph::PathSegment;
 pub use hist::Hist;
-pub use hist::HistAuxilliary;
+pub use hist::ThresholdContainer;
 
 #[derive(Debug)]
-pub struct DataManager {
-    // GraphAuxilliary
-    graph_aux: Option<GraphAuxilliary>,
+pub struct GraphBroker {
+    // GraphStorage
+    graph_aux: Option<GraphStorage>,
 
     // AbabcusAuxilliary
-    abacus_aux_params: ViewParams,
-    abacus_aux: Option<AbacusAuxilliary>,
+    abacus_aux_params: GraphMaskParameters,
+    abacus_aux: Option<GraphMask>,
 
     total_abaci: Option<HashMap<CountType, AbacusByTotal>>,
     group_abacus: Option<AbacusByGroup>,
@@ -45,37 +45,37 @@ pub struct DataManager {
     count_type: CountType,
 }
 
-impl DataManager {
+impl GraphBroker {
     pub fn from_gfa_with_view(
         gfa_file: &str,
         input_requirements: HashSet<Req>,
-        view_params: &ViewParams,
+        view_params: &GraphMaskParameters,
     ) -> Result<Self, Error> {
-        let mut dm = Self::from_gfa(gfa_file, input_requirements);
+        let mut gb = Self::from_gfa(gfa_file, input_requirements);
         if view_params.groupby_sample {
-            dm = dm.with_sample_group();
+            gb = gb.with_sample_group();
         } else if view_params.groupby_haplotype {
-            dm = dm.with_haplo_group();
+            gb = gb.with_haplo_group();
         } else if !view_params.groupby.is_empty() {
-            dm = dm.with_group(&view_params.groupby);
+            gb = gb.with_group(&view_params.groupby);
         }
         if !view_params.positive_list.is_empty() {
-            dm = dm.include_coords(&view_params.positive_list);
+            gb = gb.include_coords(&view_params.positive_list);
         }
         if !view_params.negative_list.is_empty() {
-            dm = dm.exclude_coords(&view_params.negative_list);
+            gb = gb.exclude_coords(&view_params.negative_list);
         }
         if view_params.order.is_some() {
             log::debug!("Order given");
-            dm = dm.with_order(view_params.order.as_ref().unwrap());
+            gb = gb.with_order(view_params.order.as_ref().unwrap());
         }
-        dm.finish()
+        gb.finish()
     }
 
     pub fn new() -> Self {
-        DataManager {
+        GraphBroker {
             graph_aux: None,
-            abacus_aux_params: ViewParams::default(),
+            abacus_aux_params: GraphMaskParameters::default(),
             abacus_aux: None,
             total_abaci: None,
             group_abacus: None,
@@ -102,10 +102,10 @@ impl DataManager {
         } else {
             CountType::Node
         };
-        let graph_aux = Some(GraphAuxilliary::from_gfa(gfa_file, count_type));
-        DataManager {
+        let graph_aux = Some(GraphStorage::from_gfa(gfa_file, count_type));
+        GraphBroker {
             graph_aux,
-            abacus_aux_params: ViewParams::default(),
+            abacus_aux_params: GraphMaskParameters::default(),
             abacus_aux: None,
             total_abaci: None,
             group_abacus: None,
@@ -148,14 +148,14 @@ impl DataManager {
     }
 
     pub fn finish(self) -> Result<Self, Error> {
-        let mut dm = self.set_abacus_aux()?.set_abaci_by_total();
-        if dm.input_requirements.contains(&Req::Hist) {
-            dm = dm.set_hists();
+        let mut gb = self.set_abacus_aux()?.set_abaci_by_total();
+        if gb.input_requirements.contains(&Req::Hist) {
+            gb = gb.set_hists();
         }
-        if dm.input_requirements.contains(&Req::AbacusByGroup) {
-            dm = dm.set_abacus_by_group()?;
+        if gb.input_requirements.contains(&Req::AbacusByGroup) {
+            gb = gb.set_abacus_by_group()?;
         }
-        Ok(dm)
+        Ok(gb)
     }
 
     pub fn get_degree(&self) -> &Vec<u32> {
@@ -226,7 +226,7 @@ impl DataManager {
     }
 
     fn set_abacus_aux(mut self) -> Result<Self, Error> {
-        self.abacus_aux = Some(AbacusAuxilliary::from_datamgr(
+        self.abacus_aux = Some(GraphMask::from_datamgr(
             &self.abacus_aux_params,
             self.graph_aux.as_ref().unwrap(),
         )?);

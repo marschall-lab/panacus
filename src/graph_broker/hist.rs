@@ -10,7 +10,7 @@ use crate::cli;
 use crate::util::{CountType, Threshold};
 
 use super::abacus::AbacusByTotal;
-use super::graph::GraphAuxilliary;
+use super::graph::GraphStorage;
 
 #[derive(Debug, Clone)]
 pub struct Hist {
@@ -36,7 +36,7 @@ pub fn choose(n: usize, k: usize) -> f64 {
 }
 
 impl Hist {
-    pub fn from_abacus(abacus: &AbacusByTotal, graph_aux: Option<&GraphAuxilliary>) -> Self {
+    pub fn from_abacus(abacus: &AbacusByTotal, graph_aux: Option<&GraphStorage>) -> Self {
         Self {
             count: abacus.count,
             coverage: match abacus.count {
@@ -65,7 +65,7 @@ impl Hist {
         }
     }
 
-    pub fn calc_all_growths(&self, hist_aux: &HistAuxilliary) -> Vec<Vec<f64>> {
+    pub fn calc_all_growths(&self, hist_aux: &ThresholdContainer) -> Vec<Vec<f64>> {
         let mut growths: Vec<Vec<f64>> = hist_aux
             .coverage
             .par_iter()
@@ -197,12 +197,12 @@ impl Hist {
     }
 }
 
-pub struct HistAuxilliary {
+pub struct ThresholdContainer {
     pub quorum: Vec<Threshold>,
     pub coverage: Vec<Threshold>,
 }
 
-impl HistAuxilliary {
+impl ThresholdContainer {
     pub fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {

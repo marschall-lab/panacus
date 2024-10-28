@@ -8,7 +8,7 @@ use clap::{arg, ArgMatches, Command};
 
 use crate::{
     analyses::{Analysis, AnalysisSection, InputRequirement},
-    data_manager::{DataManager, Edge, ItemId, ViewParams},
+    graph_broker::{Edge, GraphBroker, GraphMaskParameters, ItemId},
     html_report::{AnalysisTab, ReportItem},
     util::{averageu32, median_already_sorted, n50_already_sorted},
 };
@@ -20,23 +20,23 @@ pub struct Info {
 }
 
 impl Analysis for Info {
-    fn build(dm: &DataManager, _matches: &ArgMatches) -> Result<Box<Self>, Error> {
+    fn build(gb: &GraphBroker, _matches: &ArgMatches) -> Result<Box<Self>, Error> {
         Ok(Box::new(Info {
-            graph_info: GraphInfo::from(dm),
-            path_info: PathInfo::from(dm),
-            group_info: Some(GroupInfo::from(dm)),
+            graph_info: GraphInfo::from(gb),
+            path_info: PathInfo::from(gb),
+            group_info: Some(GroupInfo::from(gb)),
         }))
     }
 
     fn write_table<W: Write>(
         &mut self,
-        _dm: &DataManager,
+        _dm: &GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
         writeln!(out, "{}", self)
     }
 
-    fn generate_report_section(&mut self, _dm: &DataManager) -> Vec<AnalysisSection> {
+    fn generate_report_section(&mut self, _dm: &GraphBroker) -> Vec<AnalysisSection> {
         let (graph_header, graph_values) = self.get_graph_table();
         let graph_values = Self::remove_duplication(graph_values);
         let (node_header, node_values) = self.get_node_table();
@@ -111,7 +111,7 @@ impl Analysis for Info {
 
     fn get_input_requirements(
         matches: &ArgMatches,
-    ) -> Option<(HashSet<InputRequirement>, ViewParams, String)> {
+    ) -> Option<(HashSet<InputRequirement>, GraphMaskParameters, String)> {
         let matches = matches.subcommand_matches("info")?;
         let req = HashSet::from([
             InputRequirement::Node,
@@ -120,7 +120,7 @@ impl Analysis for Info {
             InputRequirement::PathLens,
         ]);
         // TODO: validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)
-        let view = ViewParams {
+        let view = GraphMaskParameters {
             groupby: matches
                 .get_one::<String>("groupby")
                 .cloned()
@@ -494,16 +494,16 @@ pub struct GraphInfo {
 }
 
 impl GraphInfo {
-    fn from(dm: &DataManager) -> Self {
-        let degree = dm.get_degree();
-        let mut node_lens_sorted = dm.get_node_lens()[1..].to_vec();
+    fn from(gb: &GraphBroker) -> Self {
+        let degree = gb.get_degree();
+        let mut node_lens_sorted = gb.get_node_lens()[1..].to_vec();
         node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
-        let mut components = connected_components(dm.get_edges(), dm.get_nodes());
+        let mut components = connected_components(gb.get_edges(), gb.get_nodes());
         components.sort();
 
         Self {
-            node_count: dm.get_node_count(),
-            edge_count: dm.get_edge_count(),
+            node_count: gb.get_node_count(),
+            edge_count: gb.get_edge_count(),
             average_degree: averageu32(&degree[1..]),
             max_degree: *degree[1..].iter().max().unwrap(),
             min_degree: *degree[1..].iter().min().unwrap(),
@@ -517,8 +517,8 @@ impl GraphInfo {
             average_node: averageu32(&node_lens_sorted),
             median_node: median_already_sorted(&node_lens_sorted),
             n50_node: n50_already_sorted(&node_lens_sorted).unwrap(),
-            basepairs: dm.get_node_lens().iter().sum(),
-            group_count: dm.get_group_count(),
+            basepairs: gb.get_node_lens().iter().sum(),
+            group_count: gb.get_group_count(),
         }
     }
 }
@@ -530,8 +530,8 @@ pub struct PathInfo {
 }
 
 impl PathInfo {
-    fn from(dm: &DataManager) -> Self {
-        let paths_len = dm.get_path_lens();
+    fn from(gb: &GraphBroker) -> Self {
+        let paths_len = gb.get_path_lens();
         let paths_bp_len: Vec<_> = paths_len.values().map(|x| x.1).collect();
         let paths_len: Vec<_> = paths_len.values().map(|x| x.0).collect();
         Self {
@@ -561,10 +561,10 @@ pub struct GroupInfo {
 }
 
 impl GroupInfo {
-    fn from(dm: &DataManager) -> Self {
-        let groups = dm.get_groups();
+    fn from(gb: &GraphBroker) -> Self {
+        let groups = gb.get_groups();
         let mut group_map: HashMap<String, (u32, u32)> = HashMap::new();
-        for (k, v) in dm.get_path_lens() {
+        for (k, v) in gb.get_path_lens() {
             if !groups.contains_key(k) {
                 continue;
             }

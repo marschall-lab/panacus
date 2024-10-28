@@ -11,7 +11,7 @@ use crate::clap_enum_variants;
 use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
     analyses::InputRequirement,
-    data_manager::{HistAuxilliary, ViewParams},
+    graph_broker::{GraphMaskParameters, ThresholdContainer},
     io::write_table,
     util::CountType,
 };
@@ -20,19 +20,19 @@ use super::{Analysis, AnalysisSection};
 
 pub struct Histgrowth {
     growths: Vec<(CountType, Vec<Vec<f64>>)>,
-    hist_aux: HistAuxilliary,
+    hist_aux: ThresholdContainer,
 }
 
 impl Analysis for Histgrowth {
     fn build(
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
         matches: &clap::ArgMatches,
     ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("histgrowth").unwrap();
         let coverage = matches.get_one::<String>("coverage").cloned().unwrap();
         let quorum = matches.get_one::<String>("quorum").cloned().unwrap();
-        let hist_aux = HistAuxilliary::parse_params(&quorum, &coverage)?;
-        let growths: Vec<_> = dm
+        let hist_aux = ThresholdContainer::parse_params(&quorum, &coverage)?;
+        let growths: Vec<_> = gb
             .get_hists()
             .values()
             .par_bridge()
@@ -43,7 +43,7 @@ impl Analysis for Histgrowth {
 
     fn write_table<W: Write>(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
         log::info!("reporting hist table");
@@ -61,7 +61,7 @@ impl Analysis for Histgrowth {
         ]];
         let mut output_columns: Vec<Vec<f64>> = Vec::new();
 
-        for h in dm.get_hists().values() {
+        for h in gb.get_hists().values() {
             output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
             header_cols.push(vec![
                 "hist".to_string(),
@@ -90,9 +90,9 @@ impl Analysis for Histgrowth {
 
     fn generate_report_section(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
     ) -> Vec<AnalysisSection> {
-        let histogram_tabs = dm
+        let histogram_tabs = gb
             .get_hists()
             .iter()
             .map(|(k, v)| AnalysisTab {
@@ -101,7 +101,7 @@ impl Analysis for Histgrowth {
                 is_first: false,
                 items: vec![ReportItem::Bar {
                     id: format!("cov-hist-{}", k),
-                    name: dm.get_fname(),
+                    name: gb.get_fname(),
                     x_label: "taxa".to_string(),
                     y_label: format!("#{}s", k),
                     labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
@@ -177,12 +177,16 @@ impl Analysis for Histgrowth {
 
     fn get_input_requirements(
         matches: &clap::ArgMatches,
-    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+    ) -> Option<(
+        HashSet<super::InputRequirement>,
+        GraphMaskParameters,
+        String,
+    )> {
         let matches = matches.subcommand_matches("histgrowth")?;
         let mut req = HashSet::from([InputRequirement::Hist]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
-        let view = ViewParams {
+        let view = GraphMaskParameters {
             groupby: matches
                 .get_one::<String>("groupby")
                 .cloned()

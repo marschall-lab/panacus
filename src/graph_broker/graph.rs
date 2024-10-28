@@ -161,7 +161,7 @@ pub fn get_extremities(node_dna: &[u8], k: usize) -> (u64, u64) {
 }
 
 #[derive(Debug, Clone)]
-pub struct GraphAuxilliary {
+pub struct GraphStorage {
     pub node2id: HashMap<Vec<u8>, ItemId>,
     pub node_lens: Vec<u32>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
@@ -172,7 +172,7 @@ pub struct GraphAuxilliary {
     // pub extremities: Option<Vec<(u64, u64)>>,
 }
 
-impl GraphAuxilliary {
+impl GraphStorage {
     pub fn from_gfa(gfa_file: &str, count_type: CountType) -> Self {
         let (node2id, path_segments, node_lens, _extremities) =
             Self::parse_nodes_gfa(gfa_file, None);

@@ -13,7 +13,7 @@ use crate::clap_enum_variants;
 use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{
     analyses::InputRequirement,
-    data_manager::{HistAuxilliary, ViewParams},
+    graph_broker::{GraphMaskParameters, ThresholdContainer},
     io::write_ordered_histgrowth_table,
     util::CountType,
 };
@@ -21,40 +21,40 @@ use crate::{
 use super::{Analysis, AnalysisSection};
 
 pub struct OrderedHistgrowth {
-    hist_aux: HistAuxilliary,
+    hist_aux: ThresholdContainer,
 }
 
 impl Analysis for OrderedHistgrowth {
     fn build(
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
         matches: &clap::ArgMatches,
     ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("ordered-histgrowth").unwrap();
         let coverage = matches.get_one::<String>("coverage").cloned().unwrap();
         let quorum = matches.get_one::<String>("quorum").cloned().unwrap();
-        let hist_aux = HistAuxilliary::parse_params(&quorum, &coverage)?;
+        let hist_aux = ThresholdContainer::parse_params(&quorum, &coverage)?;
         Ok(Box::new(Self { hist_aux }))
     }
 
     fn write_table<W: Write>(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
         log::info!("reporting hist table");
         write_ordered_histgrowth_table(
-            dm.get_abacus_by_group(),
+            gb.get_abacus_by_group(),
             &self.hist_aux,
-            dm.get_node_lens(),
+            gb.get_node_lens(),
             out,
         )
     }
 
     fn generate_report_section(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
     ) -> Vec<AnalysisSection> {
-        let histogram_tabs = dm
+        let histogram_tabs = gb
             .get_hists()
             .iter()
             .map(|(k, v)| AnalysisTab {
@@ -63,7 +63,7 @@ impl Analysis for OrderedHistgrowth {
                 is_first: false,
                 items: vec![ReportItem::Bar {
                     id: format!("cov-hist-{}", k),
-                    name: dm.get_fname(),
+                    name: gb.get_fname(),
                     x_label: "taxa".to_string(),
                     y_label: format!("#{}s", k),
                     labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
@@ -92,8 +92,8 @@ impl Analysis for OrderedHistgrowth {
                     &c,
                     &q
                 );
-                dm.get_abacus_by_group()
-                    .calc_growth(c, q, dm.get_node_lens())
+                gb.get_abacus_by_group()
+                    .calc_growth(c, q, gb.get_node_lens())
             })
             .collect();
         // insert empty row for 0 element
@@ -101,11 +101,11 @@ impl Analysis for OrderedHistgrowth {
             c.insert(0, f64::NAN);
         }
         let mut buf = BufWriter::new(Vec::new());
-        self.write_table(dm, &mut buf).expect("Can write to string");
+        self.write_table(gb, &mut buf).expect("Can write to string");
         let bytes = buf.into_inner().unwrap();
         let table = String::from_utf8(bytes).unwrap();
         let table = format!("`{}`", &table);
-        let k = dm.get_abacus_by_group().count;
+        let k = gb.get_abacus_by_group().count;
         let growth_tabs = vec![AnalysisTab {
             id: format!("tab-pan-growth-{}", k),
             name: k.to_string(),
@@ -115,7 +115,7 @@ impl Analysis for OrderedHistgrowth {
                 names: growth_labels.clone(),
                 x_label: "taxa".to_string(),
                 y_label: format!("#{}s", k),
-                labels: dm.get_abacus_by_group().groups.clone(),
+                labels: gb.get_abacus_by_group().groups.clone(),
                 values: growths,
                 log_toggle: false,
             }],
@@ -161,12 +161,16 @@ impl Analysis for OrderedHistgrowth {
 
     fn get_input_requirements(
         matches: &clap::ArgMatches,
-    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+    ) -> Option<(
+        HashSet<super::InputRequirement>,
+        GraphMaskParameters,
+        String,
+    )> {
         let matches = matches.subcommand_matches("ordered-histgrowth")?;
         let mut req = HashSet::from([InputRequirement::Hist, InputRequirement::AbacusByGroup]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
-        let view = ViewParams {
+        let view = GraphMaskParameters {
             groupby: matches
                 .get_one::<String>("groupby")
                 .cloned()

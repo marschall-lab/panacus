@@ -7,7 +7,7 @@ use std::{
 use clap::{arg, Arg, ArgMatches, Command};
 
 use crate::clap_enum_variants;
-use crate::{analyses::InputRequirement, data_manager::ViewParams, util::CountType};
+use crate::{analyses::InputRequirement, graph_broker::GraphMaskParameters, util::CountType};
 
 use super::{Analysis, AnalysisSection};
 
@@ -17,7 +17,7 @@ pub struct Table {
 
 impl Analysis for Table {
     fn build(
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
         matches: &ArgMatches,
     ) -> Result<Box<Self>, Error> {
         let matches = matches.subcommand_matches("table").unwrap();
@@ -28,16 +28,16 @@ impl Analysis for Table {
 
     fn write_table<W: Write>(
         &mut self,
-        dm: &crate::data_manager::DataManager,
+        gb: &crate::graph_broker::GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error> {
         log::info!("reporting coverage table");
-        dm.write_abacus_by_group(self.total, out)
+        gb.write_abacus_by_group(self.total, out)
     }
 
     fn generate_report_section(
         &mut self,
-        _dm: &crate::data_manager::DataManager,
+        _dm: &crate::graph_broker::GraphBroker,
     ) -> Vec<AnalysisSection> {
         Vec::new()
     }
@@ -59,12 +59,16 @@ impl Analysis for Table {
 
     fn get_input_requirements(
         matches: &clap::ArgMatches,
-    ) -> Option<(HashSet<super::InputRequirement>, ViewParams, String)> {
+    ) -> Option<(
+        HashSet<super::InputRequirement>,
+        GraphMaskParameters,
+        String,
+    )> {
         let matches = matches.subcommand_matches("table")?;
         let mut req = HashSet::from([InputRequirement::Hist, InputRequirement::AbacusByGroup]);
         let count = matches.get_one::<CountType>("count").cloned().unwrap();
         req.extend(Self::count_to_input_req(count));
-        let view = ViewParams {
+        let view = GraphMaskParameters {
             groupby: matches
                 .get_one::<String>("groupby")
                 .cloned()

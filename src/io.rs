@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use strum_macros::{EnumString, EnumVariantNames};
 
 /* internal use */
-use crate::data_manager::{AbacusByGroup, HistAuxilliary, PathSegment};
+use crate::graph_broker::{AbacusByGroup, PathSegment, ThresholdContainer};
 use crate::util::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames)]
@@ -405,8 +405,8 @@ pub fn parse_threshold_file<R: Read>(data: &mut BufReader<R>) -> Result<Vec<Thre
 
 // pub fn parse_cdbg_gfa_paths_walks<R: Read>(
 //     data: &mut BufReader<R>,
-//     abacus_aux: &AbacusAuxilliary,
-//     graph_aux: &GraphAuxilliary,
+//     abacus_aux: &GraphMask,
+//     graph_aux: &GraphStorage,
 //     k: usize,
 // ) -> ItemTable {
 //     let mut item_table = ItemTable::new(graph_aux.path_segments.len());
@@ -551,7 +551,7 @@ fn write_metadata_comments<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error
 
 pub fn write_ordered_histgrowth_table<W: Write>(
     abacus_group: &AbacusByGroup,
-    hist_aux: &HistAuxilliary,
+    hist_aux: &ThresholdContainer,
     node_lens: &Vec<u32>,
     out: &mut BufWriter<W>,
 ) -> Result<(), Error> {
@@ -604,8 +604,8 @@ mod tests {
     //use std::io::Cursor;
     //use std::str::from_utf8;
 
-    //fn mock_graph_auxilliary() -> GraphAuxilliary {
-    //    GraphAuxilliary {
+    //fn mock_graph_auxilliary() -> GraphStorage {
+    //    GraphStorage {
     //        node2id: {
     //            let mut node2id = HashMap::new();
     //            node2id.insert(b"node1".to_vec(), ItemId(1));
@@ -626,8 +626,8 @@ mod tests {
     // use std::io::Cursor;
     // use std::str::from_utf8;
 
-    // fn mock_graph_auxilliary() -> GraphAuxilliary {
-    //     GraphAuxilliary {
+    // fn mock_graph_auxilliary() -> GraphStorage {
+    //     GraphStorage {
     //         node2id: {
     //             let mut node2id = HashMap::new();
     //             node2id.insert(b"node1".to_vec(), ItemId(1));
@@ -684,7 +684,7 @@ mod tests {
     //#[test]
     //fn test_parse_walk_seq_to_item_vec() {
     //    let data = b">node1<node2\t";
-    //    let graph_aux = MockGraphAuxilliary::new();
+    //    let graph_aux = MockGraphStorage::new();
 
     //    let result = parse_walk_seq_to_item_vec(data, &graph_aux);
     //    assert_eq!(result.len(), 2);
@@ -731,7 +731,7 @@ mod tests {
     ////#[test]
     ////fn test_parse_walk_seq_to_item_vec() {
     ////    let data = b">node1<node2\t";
-    ////    let graph_aux = MockGraphAuxilliary::new();
+    ////    let graph_aux = MockGraphStorage::new();
     //
     ////    let result = parse_walk_seq_to_item_vec(data, &graph_aux);
     ////    assert_eq!(result.len(), 2);

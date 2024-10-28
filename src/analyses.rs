@@ -13,22 +13,22 @@ use std::{
 use clap::{ArgMatches, Command};
 
 use crate::{
-    data_manager::{DataManager, ViewParams},
+    graph_broker::{GraphBroker, GraphMaskParameters},
     html_report::AnalysisSection,
 };
 
 pub trait Analysis {
-    fn build(dm: &DataManager, matches: &ArgMatches) -> Result<Box<Self>, Error>;
+    fn build(gb: &GraphBroker, matches: &ArgMatches) -> Result<Box<Self>, Error>;
     fn write_table<W: Write>(
         &mut self,
-        dm: &DataManager,
+        gb: &GraphBroker,
         out: &mut BufWriter<W>,
     ) -> Result<(), Error>;
-    fn generate_report_section(&mut self, dm: &DataManager) -> Vec<AnalysisSection>;
+    fn generate_report_section(&mut self, gb: &GraphBroker) -> Vec<AnalysisSection>;
     fn get_subcommand() -> Command;
     fn get_input_requirements(
         matches: &ArgMatches,
-    ) -> Option<(HashSet<InputRequirement>, ViewParams, String)>;
+    ) -> Option<(HashSet<InputRequirement>, GraphMaskParameters, String)>;
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]

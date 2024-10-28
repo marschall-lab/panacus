@@ -6,7 +6,7 @@ use std::fmt;
 /* external use */
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
-use crate::data_manager::ItemId;
+use crate::graph_broker::ItemId;
 
 /* internal use */
 
@@ -518,7 +518,7 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
 mod tests {
 
     use super::*;
-    use crate::data_manager::ItemId;
+    use crate::graph_broker::ItemId;
 
     #[test]
     fn test_interval_container() {
