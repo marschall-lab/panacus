@@ -1,35 +1,14 @@
 /* standard use */
-use std::io::Write;
 use std::time::Instant;
 
-/* private use */
-// mod abacus;
-mod analyses;
-mod cli;
-mod graph_broker;
-mod html_report;
-// mod graph;
-// mod hist;
-// mod html;
-mod io;
-mod util;
+use panacus::run_cli;
 
 fn main() -> Result<(), std::io::Error> {
     env_logger::init();
     let timer = Instant::now();
 
     // print output to stdout
-    let mut out = std::io::BufWriter::new(std::io::stdout());
-
-    // read parameters and store them in memory
-    // let params = cli::read_params();
-    // cli::set_number_of_threads(&params);
-
-    // ride on!
-    cli::run(&mut out)?;
-
-    // clean up & close down
-    out.flush()?;
+    run_cli()?;
     let duration = timer.elapsed();
     log::info!("done; time elapsed: {:?} ", duration);
 

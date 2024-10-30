@@ -33,3 +33,8 @@ thousands = "0.2.0"
 tempfile = "3.13"
 assert_cmd = "2.0.8"
 predicates = "2.1.5"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "panacus_benchmark"
+harness = false
