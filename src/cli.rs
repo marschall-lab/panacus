@@ -7,12 +7,7 @@ use std::str::FromStr;
 use clap::{crate_version, value_parser, Arg, ArgMatches, Command};
 use handlebars::Handlebars;
 
-use crate::analyses::growth::Growth;
-use crate::analyses::histgrowth::Histgrowth;
 /* private use */
-use crate::analyses::info::Info;
-use crate::analyses::ordered_histgrowth::OrderedHistgrowth;
-use crate::analyses::table::Table;
 use crate::analyses::{self, Analysis};
 use crate::graph_broker::GraphBroker;
 use crate::html_report::AnalysisSection;
@@ -140,54 +135,54 @@ fn write_output<T: Analysis, W: Write>(
 }
 
 pub fn run<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
-    let matches = Command::new("")
-        .version(crate_version!())
-        .author("Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>")
-        .about("Calculate count statistics for pangenomic data")
-        .args(&[
-            Arg::new("output_format").global(true).help("Choose output format: table (tab-separated-values) or html report").short('o').long("output-format")
-            .default_value("table").value_parser(clap_enum_variants!(OutputFormat)).ignore_case(true),
-            Arg::new("threads").global(true).short('t').long("threads").help("").default_value("0").value_parser(value_parser!(usize)),
-        ])
-        .subcommand(Info::get_subcommand())
-        .subcommand(analyses::hist::Hist::get_subcommand())
-        .subcommand(Histgrowth::get_subcommand())
-        .subcommand(OrderedHistgrowth::get_subcommand())
-        .subcommand(Table::get_subcommand())
-        .subcommand(Growth::get_subcommand())
-        .get_matches();
+    // let matches = Command::new("")
+    //     .version(crate_version!())
+    //     .author("Luca Parmigiani <lparmig@cebitec.uni-bielefeld.de>, Daniel Doerr <daniel.doerr@hhu.de>")
+    //     .about("Calculate count statistics for pangenomic data")
+    //     .args(&[
+    //         Arg::new("output_format").global(true).help("Choose output format: table (tab-separated-values) or html report").short('o').long("output-format")
+    //         .default_value("table").value_parser(clap_enum_variants!(OutputFormat)).ignore_case(true),
+    //         Arg::new("threads").global(true).short('t').long("threads").help("").default_value("0").value_parser(value_parser!(usize)),
+    //     ])
+    //     .subcommand(Info::get_subcommand())
+    //     .subcommand(analyses::hist::Hist::get_subcommand())
+    //     .subcommand(Histgrowth::get_subcommand())
+    //     .subcommand(OrderedHistgrowth::get_subcommand())
+    //     .subcommand(Table::get_subcommand())
+    //     .subcommand(Growth::get_subcommand())
+    //     .get_matches();
 
-    set_number_of_threads(&matches);
-    if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
-        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let info = Info::build(&gb, &matches)?;
-        write_output(*info, &gb, out, &matches)?;
-    } else if let Some((req, view_params, gfa_file)) =
-        crate::analyses::hist::Hist::get_input_requirements(&matches)
-    {
-        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let hist = analyses::hist::Hist::build(&gb, &matches)?;
-        write_output(*hist, &gb, out, &matches)?;
-    } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches)
-    {
-        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let histgrowth = Histgrowth::build(&gb, &matches)?;
-        write_output(*histgrowth, &gb, out, &matches)?;
-    } else if let Some((req, view_params, gfa_file)) =
-        OrderedHistgrowth::get_input_requirements(&matches)
-    {
-        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let ordered_histgrowth = OrderedHistgrowth::build(&gb, &matches)?;
-        write_output(*ordered_histgrowth, &gb, out, &matches)?;
-    } else if let Some((req, view_params, gfa_file)) = Table::get_input_requirements(&matches) {
-        let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
-        let table = Table::build(&gb, &matches)?;
-        write_output(*table, &gb, out, &matches)?;
-    } else if matches.subcommand_matches("growth").is_some() {
-        let gb = GraphBroker::new();
-        let growth = Growth::build(&gb, &matches)?;
-        write_output(*growth, &gb, out, &matches)?;
-    }
+    // set_number_of_threads(&matches);
+    // if let Some((req, view_params, gfa_file)) = Info::get_input_requirements(&matches) {
+    //     let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+    //     let info = Info::build(&gb, &matches)?;
+    //     write_output(*info, &gb, out, &matches)?;
+    // } else if let Some((req, view_params, gfa_file)) =
+    //     crate::analyses::hist::Hist::get_input_requirements(&matches)
+    // {
+    //     let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+    //     let hist = analyses::hist::Hist::build(&gb, &matches)?;
+    //     write_output(*hist, &gb, out, &matches)?;
+    // } else if let Some((req, view_params, gfa_file)) = Histgrowth::get_input_requirements(&matches)
+    // {
+    //     let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+    //     let histgrowth = Histgrowth::build(&gb, &matches)?;
+    //     write_output(*histgrowth, &gb, out, &matches)?;
+    // } else if let Some((req, view_params, gfa_file)) =
+    //     OrderedHistgrowth::get_input_requirements(&matches)
+    // {
+    //     let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+    //     let ordered_histgrowth = OrderedHistgrowth::build(&gb, &matches)?;
+    //     write_output(*ordered_histgrowth, &gb, out, &matches)?;
+    // } else if let Some((req, view_params, gfa_file)) = Table::get_input_requirements(&matches) {
+    //     let gb = GraphBroker::from_gfa_with_view(&gfa_file, req, &view_params)?;
+    //     let table = Table::build(&gb, &matches)?;
+    //     write_output(*table, &gb, out, &matches)?;
+    // } else if matches.subcommand_matches("growth").is_some() {
+    //     let gb = GraphBroker::new();
+    //     let growth = Growth::build(&gb, &matches)?;
+    //     write_output(*growth, &gb, out, &matches)?;
+    // }
     Ok(())
 }
 

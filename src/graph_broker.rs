@@ -46,29 +46,31 @@ pub struct GraphBroker {
 }
 
 impl GraphBroker {
-    pub fn from_gfa_with_view(
-        gfa_file: &str,
-        input_requirements: HashSet<Req>,
-        view_params: &GraphMaskParameters,
-    ) -> Result<Self, Error> {
-        let mut gb = Self::from_gfa(gfa_file, input_requirements);
-        if view_params.groupby_sample {
-            gb = gb.with_sample_group();
-        } else if view_params.groupby_haplotype {
-            gb = gb.with_haplo_group();
-        } else if !view_params.groupby.is_empty() {
-            gb = gb.with_group(&view_params.groupby);
+    pub fn from_gfa_with_view(input_requirements: HashSet<Req>) -> Result<Self, Error> {
+        let mut gb = Self::from_gfa(&input_requirements);
+        if let Some(Req::Subset(subset)) = input_requirements
+            .iter()
+            .find(|v| matches!(v, Req::Subset(_)))
+        {
+            gb = gb.include_coords(subset);
         }
-        if !view_params.positive_list.is_empty() {
-            gb = gb.include_coords(&view_params.positive_list);
-        }
-        if !view_params.negative_list.is_empty() {
-            gb = gb.exclude_coords(&view_params.negative_list);
-        }
-        if view_params.order.is_some() {
-            log::debug!("Order given");
-            gb = gb.with_order(view_params.order.as_ref().unwrap());
-        }
+        // if view_params.groupby_sample {
+        //     gb = gb.with_sample_group();
+        // } else if view_params.groupby_haplotype {
+        //     gb = gb.with_haplo_group();
+        // } else if !view_params.groupby.is_empty() {
+        //     gb = gb.with_group(&view_params.groupby);
+        // }
+        // if !view_params.positive_list.is_empty() {
+        //     gb = gb.include_coords(&view_params.positive_list);
+        // }
+        // if !view_params.negative_list.is_empty() {
+        //     gb = gb.exclude_coords(&view_params.negative_list);
+        // }
+        // if view_params.order.is_some() {
+        //     log::debug!("Order given");
+        //     gb = gb.with_order(view_params.order.as_ref().unwrap());
+        // }
         gb.finish()
     }
 
@@ -87,7 +89,7 @@ impl GraphBroker {
         }
     }
 
-    pub fn from_gfa(gfa_file: &str, input_requirements: HashSet<Req>) -> Self {
+    pub fn from_gfa(input_requirements: &HashSet<Req>) -> Self {
         let count_type = if input_requirements.contains(&Req::Node)
             && input_requirements.contains(&Req::Edge)
             && input_requirements.contains(&Req::Bp)
@@ -102,6 +104,14 @@ impl GraphBroker {
         } else {
             CountType::Node
         };
+        let gfa_file = input_requirements
+            .iter()
+            .find(|v| matches!(v, Req::Graph(_)))
+            .expect("Requirements contain gfa file");
+        let gfa_file = match gfa_file {
+            Req::Graph(gfa_file) => gfa_file,
+            _ => panic!("Requirements really need to contain gfa file"),
+        };
         let graph_aux = Some(GraphStorage::from_gfa(gfa_file, count_type));
         GraphBroker {
             graph_aux,
@@ -112,7 +122,7 @@ impl GraphBroker {
             hists: None,
             path_lens: None,
             gfa_file: gfa_file.to_owned(),
-            input_requirements,
+            input_requirements: input_requirements.clone(),
             count_type,
         }
     }
