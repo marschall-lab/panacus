@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use panacus::run_cli;
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
     let timer = Instant::now();
 

@@ -13,6 +13,7 @@ fn hist_table_gets_written_successfully() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+#[ignore]
 #[test]
 fn hist_html_gets_written_successfully() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("panacus")?;

@@ -54,6 +54,18 @@ impl GraphBroker {
         {
             gb = gb.include_coords(subset);
         }
+        if let Some(Req::Grouping(grouping)) = input_requirements
+            .iter()
+            .find(|v| matches!(v, Req::Grouping(_)))
+        {
+            gb = gb.with_group(grouping);
+        }
+        if let Some(Req::Exclude(exclude)) = input_requirements
+            .iter()
+            .find(|v| matches!(v, Req::Exclude(_)))
+        {
+            gb = gb.exclude_coords(exclude);
+        }
         // if view_params.groupby_sample {
         //     gb = gb.with_sample_group();
         // } else if view_params.groupby_haplotype {

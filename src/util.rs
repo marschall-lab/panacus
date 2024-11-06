@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 /* external use */
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
@@ -27,13 +28,31 @@ unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
 // unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter, Hash, Eq)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    EnumString,
+    EnumVariantNames,
+    EnumIter,
+    Hash,
+    Eq,
+    Serialize,
+    Deserialize,
+)]
 #[strum(serialize_all = "lowercase")]
 pub enum CountType {
     Node,
     Bp,
     Edge,
     All,
+}
+
+impl Default for CountType {
+    fn default() -> Self {
+        CountType::Node
+    }
 }
 
 impl fmt::Display for CountType {

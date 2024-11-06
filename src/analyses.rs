@@ -37,4 +37,6 @@ pub enum InputRequirement {
     AbacusByGroup,
     Graph(String),
     Subset(String),
+    Grouping(String),
+    Exclude(String),
 }
