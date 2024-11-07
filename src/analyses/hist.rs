@@ -1,31 +1,31 @@
-use std::io::Write;
-use std::{
-    collections::HashSet,
-    io::{BufWriter, Error},
-};
+use core::panic;
+use std::collections::HashSet;
 
 use crate::analysis_parameter::AnalysisParameter;
 use crate::html_report::{AnalysisTab, ReportItem};
 use crate::{analyses::InputRequirement, io::write_table, util::CountType};
 
-use super::{Analysis, AnalysisSection};
+use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
 
 pub struct Hist {
     parameter: AnalysisParameter,
 }
 
 impl Analysis for Hist {
-    fn write_table<W: Write>(
+    fn generate_table(
         &mut self,
-        gb: &crate::graph_broker::GraphBroker,
-        out: &mut BufWriter<W>,
-    ) -> Result<(), Error> {
+        gb: Option<&crate::graph_broker::GraphBroker>,
+    ) -> anyhow::Result<String> {
         log::info!("reporting hist table");
-        writeln!(
-            out,
+        if gb.is_none() {
+            panic!("Hist analysis needs a graph")
+        }
+        let gb = gb.unwrap();
+        let mut res = String::new();
+        res.push_str(&format!(
             "# {}",
             std::env::args().collect::<Vec<String>>().join(" ")
-        )?;
+        ));
 
         let mut header_cols = vec![vec![
             "panacus".to_string(),
@@ -43,17 +43,19 @@ impl Analysis for Hist {
                 String::new(),
             ])
         }
-        write_table(&header_cols, &output_columns, out)
+        res.push_str(&write_table(&header_cols, &output_columns)?);
+        Ok(res)
     }
 
     fn generate_report_section(
         &mut self,
-        gb: &crate::graph_broker::GraphBroker,
-    ) -> Vec<AnalysisSection> {
-        let mut buf = BufWriter::new(Vec::new());
-        self.write_table(gb, &mut buf).expect("Can write to string");
-        let bytes = buf.into_inner().unwrap();
-        let table = String::from_utf8(bytes).unwrap();
+        gb: Option<&crate::graph_broker::GraphBroker>,
+    ) -> anyhow::Result<Vec<AnalysisSection>> {
+        if gb.is_none() {
+            panic!("Hist analysis needs a graph")
+        }
+        let gb = gb.unwrap();
+        let table = self.generate_table(Some(gb))?;
         let table = format!("`{}`", &table);
         let histogram_tabs = gb
             .get_hists()
@@ -73,18 +75,15 @@ impl Analysis for Hist {
                 }],
             })
             .collect::<Vec<_>>();
-        vec![AnalysisSection {
+        let report_sections = vec![AnalysisSection {
             name: "coverage histogram".to_string(),
             id: "coverage-histogram".to_string(),
             is_first: true,
             table: Some(table),
             tabs: histogram_tabs,
         }
-        .set_first()]
-    }
-
-    fn from_parameter(parameter: AnalysisParameter) -> Self {
-        Self { parameter }
+        .set_first()];
+        Ok(report_sections)
     }
 
     fn get_graph_requirements(&self) -> HashSet<super::InputRequirement> {
@@ -115,6 +114,12 @@ impl Analysis for Hist {
         } else {
             HashSet::new()
         }
+    }
+}
+
+impl ConstructibleAnalysis for Hist {
+    fn from_parameter(parameter: AnalysisParameter) -> Self {
+        Self { parameter }
     }
 }
 

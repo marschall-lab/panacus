@@ -456,32 +456,27 @@ pub fn parse_threshold_file<R: Read>(data: &mut BufReader<R>) -> Result<Vec<Thre
 //     item_table
 // }
 
-pub fn write_table<W: Write>(
-    headers: &Vec<Vec<String>>,
-    columns: &Vec<Vec<f64>>,
-    out: &mut BufWriter<W>,
-) -> Result<(), Error> {
+pub fn write_table(headers: &Vec<Vec<String>>, columns: &Vec<Vec<f64>>) -> Result<String, Error> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
-
+    let mut res = String::new();
     for i in 0..n {
         for j in 0..headers.len() {
             if j > 0 {
-                write!(out, "\t")?;
+                res.push_str("\t");
             }
-            write!(out, "{:0}", headers[j][i])?;
+            res.push_str(&format!("{:0}", headers[j][i]));
         }
-        writeln!(out)?;
+        res.push_str("\n");
     }
     let n = columns.first().unwrap_or(&Vec::new()).len();
     for i in 0..n {
-        write!(out, "{}", i)?;
+        res.push_str(&i.to_string());
         for j in 0..columns.len() {
-            write!(out, "\t{:0}", columns[j][i].floor())?;
+            res.push_str(&format!("\t{:0}", columns[j][i].floor()));
         }
-        writeln!(out)?;
+        res.push_str("\n");
     }
-
-    Ok(())
+    Ok(res)
 }
 
 pub fn write_ordered_table<W: Write>(

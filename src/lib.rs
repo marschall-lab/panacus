@@ -7,9 +7,9 @@ mod html_report;
 mod io;
 mod util;
 
-use std::io::Write;
+use std::{collections::HashSet, io::Write};
 
-use analyses::{hist::Hist, Analysis};
+use analyses::{growth::Growth, hist::Hist, Analysis, ConstructibleAnalysis, InputRequirement};
 use analysis_parameter::AnalysisParameter;
 use clap::Command;
 use graph_broker::GraphBroker;
@@ -54,6 +54,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     let args = Command::new("panacus")
         .subcommand(commands::report::get_subcommand())
         .subcommand(commands::hist::get_subcommand())
+        .subcommand(commands::growth::get_subcommand())
         .subcommand_required(true)
         .get_matches();
 
@@ -66,11 +67,14 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     if let Some(hist) = commands::hist::get_instructions(&args) {
         instructions.extend(hist?);
     }
+    if let Some(growth) = commands::growth::get_instructions(&args) {
+        instructions.extend(growth?);
+    }
 
     let instructions = preprocess_instructions(instructions);
 
     // ride on!
-    execute_pipeline(instructions, &mut out, shall_write_html);
+    execute_pipeline(instructions, &mut out, shall_write_html)?;
 
     // clean up & close down
     out.flush()?;
@@ -85,32 +89,45 @@ pub fn execute_pipeline<W: Write>(
     instructions: Vec<AnalysisParameter>,
     out: &mut std::io::BufWriter<W>,
     shall_write_html: bool,
-) {
+) -> anyhow::Result<()> {
     if instructions.is_empty() {
         log::warn!("No instructions supplied");
-        return;
+        return Ok(());
     }
     let mut report = Vec::new();
+    let mut tasks: Vec<Box<dyn Analysis>> = Vec::new();
+    let mut req: HashSet<InputRequirement> = HashSet::new();
     for task_param in instructions {
         match task_param {
             p @ AnalysisParameter::Hist { .. } => {
-                let mut h = Hist::from_parameter(p);
-                let req = h.get_graph_requirements();
-                let gb = GraphBroker::from_gfa_with_view(req).expect("Can create broker");
-                if shall_write_html {
-                    report.extend(h.generate_report_section(&gb));
-                } else {
-                    h.write_table(&gb, out).expect("Can write output");
-                }
+                let h = Hist::from_parameter(p);
+                req.extend(h.get_graph_requirements());
+                tasks.push(Box::new(h));
+            }
+            p @ AnalysisParameter::Growth { .. } => {
+                let h = Growth::from_parameter(p);
+                req.extend(h.get_graph_requirements());
+                tasks.push(Box::new(h));
             }
             _ => {}
+        }
+    }
+    let gb = match req.is_empty() {
+        true => None,
+        false => Some(GraphBroker::from_gfa_with_view(req).expect("Can create broker")),
+    };
+    for mut task in tasks {
+        if shall_write_html {
+            report.extend(task.generate_report_section(gb.as_ref())?);
+        } else {
+            writeln!(out, "{}", task.generate_table(gb.as_ref())?)?;
         }
     }
     if shall_write_html {
         let mut registry = handlebars::Handlebars::new();
         let report =
-            AnalysisSection::generate_report(report, &mut registry, "<Placeholder Filename>")
-                .expect("Can generate report");
+            AnalysisSection::generate_report(report, &mut registry, "<Placeholder Filename>")?;
         writeln!(out, "{report}").expect("Can write html");
     }
+    Ok(())
 }

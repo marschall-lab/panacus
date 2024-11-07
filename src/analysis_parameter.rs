@@ -18,6 +18,17 @@ pub enum AnalysisParameter {
         exclude: Option<String>,
         grouping: Option<String>,
     },
+    Growth {
+        name: Option<String>,
+
+        coverage: Option<String>,
+        quorum: Option<String>,
+
+        hist: String,
+
+        #[serde(default = "get_true")]
+        display: bool,
+    },
     Subset {
         name: String,
         file: String,
@@ -31,7 +42,6 @@ pub enum AnalysisParameter {
         file: String,
     },
     Info,
-    Growth,
     OrderedGrowth,
     Table,
 }

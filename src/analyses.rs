@@ -1,30 +1,27 @@
-// pub mod growth;
+pub mod growth;
 pub mod hist;
 // pub mod histgrowth;
 // pub mod info;
 // pub mod ordered_histgrowth;
 // pub mod table;
 
-use std::{
-    collections::HashSet,
-    io::{BufWriter, Error, Write},
-};
+use std::collections::HashSet;
 
 use crate::{
-    analysis_parameter::AnalysisParameter,
-    graph_broker::{GraphBroker, GraphMaskParameters},
-    html_report::AnalysisSection,
+    analysis_parameter::AnalysisParameter, graph_broker::GraphBroker, html_report::AnalysisSection,
 };
 
 pub trait Analysis {
-    fn write_table<W: Write>(
+    fn generate_table(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<String>;
+    fn generate_report_section(
         &mut self,
-        gb: &GraphBroker,
-        out: &mut BufWriter<W>,
-    ) -> Result<(), Error>;
-    fn generate_report_section(&mut self, gb: &GraphBroker) -> Vec<AnalysisSection>;
-    fn from_parameter(parameter: AnalysisParameter) -> Self;
+        gb: Option<&GraphBroker>,
+    ) -> anyhow::Result<Vec<AnalysisSection>>;
     fn get_graph_requirements(&self) -> HashSet<InputRequirement>;
+}
+
+pub trait ConstructibleAnalysis: Analysis {
+    fn from_parameter(parameter: AnalysisParameter) -> Self;
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
