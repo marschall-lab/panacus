@@ -55,6 +55,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::report::get_subcommand())
         .subcommand(commands::hist::get_subcommand())
         .subcommand(commands::growth::get_subcommand())
+        .subcommand(commands::histgrowth::get_subcommand())
         .subcommand_required(true)
         .get_matches();
 
@@ -69,6 +70,9 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
     if let Some(growth) = commands::growth::get_instructions(&args) {
         instructions.extend(growth?);
+    }
+    if let Some(histgrowth) = commands::histgrowth::get_instructions(&args) {
+        instructions.extend(histgrowth?);
     }
 
     let instructions = preprocess_instructions(instructions);
@@ -116,18 +120,17 @@ pub fn execute_pipeline<W: Write>(
         true => None,
         false => Some(GraphBroker::from_gfa_with_view(req).expect("Can create broker")),
     };
-    for mut task in tasks {
-        if shall_write_html {
-            report.extend(task.generate_report_section(gb.as_ref())?);
-        } else {
-            writeln!(out, "{}", task.generate_table(gb.as_ref())?)?;
-        }
-    }
     if shall_write_html {
+        for mut task in tasks {
+            report.extend(task.generate_report_section(gb.as_ref())?);
+        }
         let mut registry = handlebars::Handlebars::new();
         let report =
             AnalysisSection::generate_report(report, &mut registry, "<Placeholder Filename>")?;
-        writeln!(out, "{report}").expect("Can write html");
+        writeln!(out, "{report}")?;
+    } else {
+        let table = tasks.last_mut().unwrap().generate_table(gb.as_ref())?;
+        writeln!(out, "{table}")?;
     }
     Ok(())
 }
