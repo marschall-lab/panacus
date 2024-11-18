@@ -38,6 +38,8 @@ unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
     EnumIter,
     Hash,
     Eq,
+    PartialOrd,
+    Ord,
     Serialize,
     Deserialize,
 )]

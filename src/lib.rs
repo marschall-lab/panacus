@@ -7,7 +7,11 @@ mod html_report;
 mod io;
 mod util;
 
-use std::{collections::HashSet, io::Write};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+};
+use thiserror::Error;
 
 use analyses::{growth::Growth, hist::Hist, Analysis, ConstructibleAnalysis, InputRequirement};
 use analysis_parameter::AnalysisParameter;
@@ -75,7 +79,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         instructions.extend(histgrowth?);
     }
 
-    let instructions = preprocess_instructions(instructions);
+    let instructions = preprocess_instructions(instructions)?;
 
     // ride on!
     execute_pipeline(instructions, &mut out, shall_write_html)?;
@@ -85,8 +89,149 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn preprocess_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParameter> {
-    instructions
+#[derive(Error, Debug)]
+pub enum ConfigParseError {
+    #[error("no config block with name {name} was found")]
+    NameNotFound { name: String },
+}
+
+pub fn preprocess_instructions(
+    instructions: Vec<AnalysisParameter>,
+) -> anyhow::Result<Vec<AnalysisParameter>> {
+    let graphs: HashMap<String, String> = instructions
+        .iter()
+        .filter_map(|instruct| match instruct {
+            AnalysisParameter::Graph { name, file } => Some((name.to_string(), file.to_string())),
+            _ => None,
+        })
+        .collect();
+    let subsets: HashMap<String, String> = instructions
+        .iter()
+        .filter_map(|instruct| match instruct {
+            AnalysisParameter::Subset { name, file } => Some((name.to_string(), file.to_string())),
+            _ => None,
+        })
+        .collect();
+    let groupings: HashMap<String, String> = instructions
+        .iter()
+        .filter_map(|instruct| match instruct {
+            AnalysisParameter::Grouping { name, file } => {
+                Some((name.to_string(), file.to_string()))
+            }
+            _ => None,
+        })
+        .collect();
+    let instructions: Vec<AnalysisParameter> = instructions
+        .into_iter()
+        .filter(|instruct| !matches!(instruct, AnalysisParameter::Graph { .. }))
+        .filter(|instruct| !matches!(instruct, AnalysisParameter::Subset { .. }))
+        .filter(|instruct| !matches!(instruct, AnalysisParameter::Grouping { .. }))
+        .map(|instruct| match instruct {
+            AnalysisParameter::Hist {
+                name,
+                count_type,
+                graph,
+                display,
+                subset,
+                exclude,
+                grouping,
+            } => {
+                let graph = if graphs.contains_key(&graph) {
+                    graphs[&graph].to_string()
+                } else {
+                    graph
+                };
+                let subset = match subset {
+                    Some(subset) => {
+                        if subsets.contains_key(&subset) {
+                            Some(subsets[&subset].to_string())
+                        } else {
+                            Some(subset)
+                        }
+                    }
+                    None => None,
+                };
+                let grouping = match grouping {
+                    Some(grouping) => {
+                        if groupings.contains_key(&grouping) {
+                            Some(groupings[&grouping].to_string())
+                        } else {
+                            Some(grouping)
+                        }
+                    }
+                    None => None,
+                };
+                AnalysisParameter::Hist {
+                    name,
+                    count_type,
+                    graph,
+                    display,
+                    subset,
+                    exclude,
+                    grouping,
+                }
+            }
+            p @ _ => p,
+        })
+        .collect();
+    let mut instructions: Vec<AnalysisParameter> = instructions;
+    instructions.sort();
+    let instructions = group_growths_to_hists(instructions)?;
+    Ok(instructions)
+}
+
+fn group_growths_to_hists(
+    instructions: Vec<AnalysisParameter>,
+) -> anyhow::Result<Vec<AnalysisParameter>> {
+    let mut instructions = instructions;
+    while has_ungrouped_growth(&instructions) {
+        group_first_ungrouped_growth(&mut instructions)?;
+    }
+    Ok(instructions)
+}
+
+fn group_first_ungrouped_growth(instructions: &mut Vec<AnalysisParameter>) -> anyhow::Result<()> {
+    let index_growth = instructions
+        .iter()
+        .position(|i| matches!(i, AnalysisParameter::Growth { .. }))
+        .expect("Instructions need to have at least one growth");
+    let hist_name = match &instructions[index_growth] {
+        AnalysisParameter::Growth { hist, .. } => hist.to_string(),
+        _ => panic!("index_growth should point to growth"),
+    };
+    let growth_instruction = instructions.remove(index_growth);
+    let index_hist = instructions
+        .iter()
+        .position(
+            |i| matches!(i, AnalysisParameter::Hist { name: Some(name), .. } if name == &hist_name),
+        )
+        .ok_or(ConfigParseError::NameNotFound {
+            name: hist_name.clone(),
+        })?;
+    instructions.insert(index_hist + 1, growth_instruction);
+    Ok(())
+}
+
+fn has_ungrouped_growth(instructions: &Vec<AnalysisParameter>) -> bool {
+    for i in instructions {
+        match i {
+            AnalysisParameter::Growth { hist, .. } => {
+                // Growth can only be ungrouped if it does not use a .tsv hist
+                if !hist.ends_with(".tsv") {
+                    return true;
+                } else {
+                    continue;
+                }
+            }
+            AnalysisParameter::Hist { .. } => {
+                return false;
+            }
+            _ => {
+                continue;
+            }
+        }
+    }
+    false
 }
 
 pub fn execute_pipeline<W: Write>(
@@ -133,4 +278,261 @@ pub fn execute_pipeline<W: Write>(
         writeln!(out, "{table}")?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_hist_with_graph(graph: &str) -> AnalysisParameter {
+        AnalysisParameter::Hist {
+            name: None,
+            count_type: util::CountType::Node,
+            graph: graph.to_string(),
+            display: false,
+            subset: None,
+            exclude: None,
+            grouping: None,
+        }
+    }
+
+    fn get_hist_with_subset(graph: &str, subset: &str) -> AnalysisParameter {
+        AnalysisParameter::Hist {
+            name: None,
+            count_type: util::CountType::Node,
+            graph: graph.to_string(),
+            display: false,
+            subset: Some(subset.to_string()),
+            exclude: None,
+            grouping: None,
+        }
+    }
+
+    fn get_hist_with_exclude(graph: &str, exclude: &str) -> AnalysisParameter {
+        AnalysisParameter::Hist {
+            name: None,
+            count_type: util::CountType::Node,
+            graph: graph.to_string(),
+            display: false,
+            subset: None,
+            exclude: Some(exclude.to_string()),
+            grouping: None,
+        }
+    }
+
+    fn get_hist_with_grouping(graph: &str, grouping: &str) -> AnalysisParameter {
+        AnalysisParameter::Hist {
+            name: None,
+            count_type: util::CountType::Node,
+            graph: graph.to_string(),
+            display: false,
+            subset: None,
+            exclude: None,
+            grouping: Some(grouping.to_string()),
+        }
+    }
+
+    fn get_hist_with_name(name: &str) -> AnalysisParameter {
+        AnalysisParameter::Hist {
+            name: Some(name.to_string()),
+            count_type: util::CountType::Node,
+            graph: "test_graph".to_string(),
+            display: false,
+            subset: None,
+            exclude: None,
+            grouping: None,
+        }
+    }
+
+    fn get_growth_with_hist(hist: &str) -> AnalysisParameter {
+        AnalysisParameter::Growth {
+            name: None,
+            coverage: None,
+            quorum: None,
+            hist: hist.to_string(),
+            display: false,
+        }
+    }
+
+    #[test]
+    fn test_replace_graph_name() {
+        let instructions = vec![
+            get_hist_with_graph("test_graph_name"),
+            AnalysisParameter::Graph {
+                name: "test_graph_name".to_string(),
+                file: "test_graph_file".to_string(),
+            },
+        ];
+        let expected = vec![get_hist_with_graph("test_graph_file")];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_replace_subset_name() {
+        let instructions = vec![
+            AnalysisParameter::Hist {
+                name: None,
+                count_type: util::CountType::Node,
+                graph: "test".to_string(),
+                display: false,
+                subset: Some("test_subset".to_string()),
+                exclude: None,
+                grouping: None,
+            },
+            AnalysisParameter::Subset {
+                name: "test_subset".to_string(),
+                file: "subset_file.bed".to_string(),
+            },
+        ];
+        let expected = vec![AnalysisParameter::Hist {
+            name: None,
+            count_type: util::CountType::Node,
+            graph: "test".to_string(),
+            display: false,
+            subset: Some("subset_file.bed".to_string()),
+            exclude: None,
+            grouping: None,
+        }];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_replace_grouping_name() {
+        let instructions = vec![
+            AnalysisParameter::Hist {
+                name: None,
+                count_type: util::CountType::Node,
+                graph: "test".to_string(),
+                display: false,
+                subset: None,
+                exclude: None,
+                grouping: Some("test_grouping".to_string()),
+            },
+            AnalysisParameter::Grouping {
+                name: "test_grouping".to_string(),
+                file: "grouping_file.tsv".to_string(),
+            },
+        ];
+        let expected = vec![AnalysisParameter::Hist {
+            name: None,
+            count_type: util::CountType::Node,
+            graph: "test".to_string(),
+            display: false,
+            subset: None,
+            exclude: None,
+            grouping: Some("grouping_file.tsv".to_string()),
+        }];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_sort_hist_by_name() {
+        let instructions = vec![
+            get_hist_with_name("B"),
+            get_hist_with_name("Z"),
+            get_hist_with_name("A"),
+        ];
+        let expected = vec![
+            get_hist_with_name("A"),
+            get_hist_with_name("B"),
+            get_hist_with_name("Z"),
+        ];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_sort_by_graph() {
+        let instructions = vec![
+            get_hist_with_graph("A"),
+            get_hist_with_graph("B"),
+            get_hist_with_graph("A"),
+        ];
+        let expected = vec![
+            get_hist_with_graph("A"),
+            get_hist_with_graph("A"),
+            get_hist_with_graph("B"),
+        ];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_sort_by_subset() {
+        let instructions = vec![
+            get_hist_with_subset("graph_a", "subset_a"),
+            get_hist_with_subset("graph_b", "subset_a"),
+            get_hist_with_subset("graph_a", "subset_b"),
+            get_hist_with_subset("graph_a", "subset_a"),
+        ];
+        let expected = vec![
+            get_hist_with_subset("graph_a", "subset_a"),
+            get_hist_with_subset("graph_a", "subset_a"),
+            get_hist_with_subset("graph_a", "subset_b"),
+            get_hist_with_subset("graph_b", "subset_a"),
+        ];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_sort_by_exclude() {
+        let instructions = vec![
+            get_hist_with_exclude("graph_a", "exclude_a"),
+            get_hist_with_exclude("graph_b", "exclude_a"),
+            get_hist_with_exclude("graph_a", "exclude_b"),
+            get_hist_with_exclude("graph_a", "exclude_a"),
+        ];
+        let expected = vec![
+            get_hist_with_exclude("graph_a", "exclude_a"),
+            get_hist_with_exclude("graph_a", "exclude_a"),
+            get_hist_with_exclude("graph_a", "exclude_b"),
+            get_hist_with_exclude("graph_b", "exclude_a"),
+        ];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_sort_by_grouping() {
+        let instructions = vec![
+            get_hist_with_grouping("graph_a", "grouping_a"),
+            get_hist_with_grouping("graph_b", "grouping_a"),
+            get_hist_with_grouping("graph_a", "grouping_b"),
+            get_hist_with_grouping("graph_a", "grouping_a"),
+        ];
+        let expected = vec![
+            get_hist_with_grouping("graph_a", "grouping_a"),
+            get_hist_with_grouping("graph_a", "grouping_a"),
+            get_hist_with_grouping("graph_a", "grouping_b"),
+            get_hist_with_grouping("graph_b", "grouping_a"),
+        ];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
+
+    #[test]
+    fn test_group_growth_to_hist() {
+        let instructions = vec![
+            get_growth_with_hist("B"),
+            get_growth_with_hist("C"),
+            get_growth_with_hist("A"),
+            get_hist_with_name("C"),
+            get_hist_with_name("B"),
+            get_hist_with_name("A"),
+        ];
+        let expected = vec![
+            get_hist_with_name("A"),
+            get_growth_with_hist("A"),
+            get_hist_with_name("B"),
+            get_growth_with_hist("B"),
+            get_hist_with_name("C"),
+            get_growth_with_hist("C"),
+        ];
+        let calculated = preprocess_instructions(instructions).unwrap();
+        assert_eq!(calculated, expected);
+    }
 }
