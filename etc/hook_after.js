@@ -21,12 +21,11 @@ const pluginCanvasBackgroundColor = {
   }
 }
 
-
 for (let key in objects.datasets) {
     let element = objects.datasets[key];
-    console.log(key + element)
     if (element instanceof Bar) {
         let h = element;
+        console.log('test ' + h.id);
         var ctx = document.getElementById('chart-bar-' + h.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
@@ -80,6 +79,7 @@ for (let key in objects.datasets) {
         }
     } else if (element instanceof MultiBar) {
         let m = element;
+        console.log('multi-test ' + m.id);
         var ctx = document.getElementById('chart-bar-' + m.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
@@ -138,15 +138,17 @@ for (let key in objects.datasets) {
     }
 }
 
+console.log("tables");
 for (let key in objects.tables) {
     let table = objects.tables[key];
+    console.log(table);
     buildTableDownload(table, key, key + '_' + fname);
 }
 
-var tabs = document.querySelectorAll('button[data-bs-toggle="tab"]')
-tabs.forEach(function(tab) {
-    tab.addEventListener('show.bs.tab', function (event) {
-        document.querySelector(event.target.dataset.bsTarget).classList.remove('d-none');
-        document.querySelector(event.relatedTarget.dataset.bsTarget).classList.add('d-none');
-    });
-});
+// var tabs = document.querySelectorAll('button[data-bs-toggle="tab"]')
+// tabs.forEach(function(tab) {
+//     tab.addEventListener('show.bs.tab', function (event) {
+//         document.querySelector(event.target.dataset.bsTarget).classList.remove('d-none');
+//         document.querySelector(event.relatedTarget.dataset.bsTarget).classList.add('d-none');
+//     });
+// });

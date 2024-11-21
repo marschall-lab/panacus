@@ -2,7 +2,7 @@ use core::panic;
 use std::collections::HashSet;
 
 use crate::analysis_parameter::AnalysisParameter;
-use crate::html_report::{AnalysisTab, ReportItem};
+use crate::html_report::ReportItem;
 use crate::{analyses::InputRequirement, io::write_table, util::CountType};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
@@ -23,7 +23,7 @@ impl Analysis for Hist {
         let gb = gb.unwrap();
         let mut res = String::new();
         res.push_str(&format!(
-            "# {}",
+            "# {}\n",
             std::env::args().collect::<Vec<String>>().join(" ")
         ));
 
@@ -57,15 +57,23 @@ impl Analysis for Hist {
         let gb = gb.unwrap();
         let table = self.generate_table(Some(gb))?;
         let table = format!("`{}`", &table);
+        let id_prefix = format!(
+            "cov-hist-{}",
+            self.get_run_name()
+                .to_lowercase()
+                .replace(&[' ', '|', '\\'], "-")
+        );
         let histogram_tabs = gb
             .get_hists()
             .iter()
-            .map(|(k, v)| AnalysisTab {
-                id: format!("tab-cov-hist-{}", k),
-                name: k.to_string(),
-                is_first: false,
+            .map(|(k, v)| AnalysisSection {
+                id: format!("{id_prefix}-{k}"),
+                analysis: "Coverage Histogram".to_string(),
+                table: Some(table.clone()),
+                run_name: self.get_run_name(),
+                countable: k.to_string(),
                 items: vec![ReportItem::Bar {
-                    id: format!("cov-hist-{}", k),
+                    id: format!("{id_prefix}-{k}"),
                     name: gb.get_fname(),
                     x_label: "taxa".to_string(),
                     y_label: format!("#{}s", k),
@@ -75,15 +83,7 @@ impl Analysis for Hist {
                 }],
             })
             .collect::<Vec<_>>();
-        let report_sections = vec![AnalysisSection {
-            name: "coverage histogram".to_string(),
-            id: "coverage-histogram".to_string(),
-            is_first: true,
-            table: Some(table),
-            tabs: histogram_tabs,
-        }
-        .set_first()];
-        Ok(report_sections)
+        Ok(histogram_tabs)
     }
 
     fn get_graph_requirements(&self) -> HashSet<super::InputRequirement> {
@@ -134,6 +134,31 @@ impl Hist {
                 InputRequirement::Node,
                 InputRequirement::Edge,
             ]),
+        }
+    }
+
+    fn get_run_name(&self) -> String {
+        match &self.parameter {
+            AnalysisParameter::Hist {
+                name,
+                graph,
+                subset,
+                exclude,
+                grouping,
+                ..
+            } => {
+                if name.is_some() {
+                    return name.as_ref().unwrap().to_string();
+                }
+                format!(
+                    "{}-{}|{}\\{}",
+                    graph,
+                    grouping.clone().unwrap_or_default(),
+                    subset.clone().unwrap_or_default(),
+                    exclude.clone().unwrap_or_default()
+                )
+            }
+            _ => panic!("Hist analysis needs to contain hist parameter"),
         }
     }
 }

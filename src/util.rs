@@ -528,6 +528,12 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
     }
 }
 
+pub fn to_id(s: &str) -> String {
+    s.to_string()
+        .to_lowercase()
+        .replace(&[' ', '|', '/', '\\', '\'', '"'], "-")
+}
+
 //pub fn log2_add(a: f64, b: f64) -> f64 {
 //    // we assume both a and b are log2'd
 //    let (a, b) = if a < b { (a, b) } else { (b, a) };

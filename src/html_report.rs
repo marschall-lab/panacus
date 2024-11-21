@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use base64::{engine::general_purpose, Engine};
 use handlebars::{to_json, Handlebars, RenderError};
 
+use itertools::Itertools;
 use time::{macros::format_description, OffsetDateTime};
+
+use crate::util::to_id;
 
 type JsVars = HashMap<String, HashMap<String, String>>;
 type RenderedHTML = Result<(String, JsVars), RenderError>;
@@ -18,64 +21,48 @@ fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
 }
 
 pub struct AnalysisSection {
-    pub name: String,
+    pub analysis: String,
+    pub run_name: String,
+    pub countable: String,
+    pub items: Vec<ReportItem>,
     pub id: String,
-    pub is_first: bool,
-    pub tabs: Vec<AnalysisTab>,
     pub table: Option<String>,
 }
 
 impl AnalysisSection {
-    pub fn set_first(mut self) -> Self {
-        let mut is_first = true;
-        for tab in &mut self.tabs {
-            if is_first {
-                tab.is_first = true;
-                is_first = false;
-            } else {
-                tab.is_first = false;
+    fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
+        if !registry.has_template("analysis_tab") {
+            registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
+        }
+        let items = self
+            .items
+            .into_iter()
+            .map(|x| x.into_html(registry))
+            .collect::<Result<Vec<_>, _>>()?;
+        let (items, mut js_objects): (Vec<_>, Vec<_>) = items.into_iter().unzip();
+        if let Some(table) = &self.table {
+            if !js_objects.is_empty() {
+                js_objects[0].insert(
+                    "tables".to_string(),
+                    HashMap::from([(self.id.clone(), table.clone())]),
+                );
             }
         }
-        self
-    }
-    fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
-        if !registry.has_template("analysis_section") {
-            registry.register_template_file("analysis_section", "./hbs/analysis_section.hbs")?;
-        }
-        let mut tab_navigation: Vec<HashMap<&str, handlebars::JsonValue>> = Vec::new();
-        let mut tab_content: Vec<String> = Vec::new();
-        let mut js_objects = Vec::new();
-        for tab in self.tabs {
-            let id = tab.id.clone();
-            let name = tab.name.clone();
-            let is_first = tab.is_first;
-            let (cont, js_object) = tab.into_html(registry)?;
-            js_objects.push(js_object);
-            tab_navigation.push(HashMap::from([
-                ("id", to_json(id)),
-                ("name", to_json(name)),
-                ("is_first", to_json(is_first)),
-            ]));
-            tab_content.push(cont);
-        }
-        let vars = HashMap::from([
-            ("tab_navigation", to_json(tab_navigation)),
-            ("tab_content", to_json(tab_content)),
-            ("id", to_json(&self.id)),
-        ]);
-        let result = registry.render("analysis_section", &vars)?;
-        let mut js_objects = js_objects
+        eprintln!("{js_objects:?}");
+        let js_objects = js_objects
             .into_iter()
             .reduce(combine_vars)
-            .expect("Report needs to have at least one item");
-        js_objects.insert(
-            "tables".to_string(),
-            match self.table {
-                None => HashMap::new(),
-                Some(table_content) => HashMap::from([(self.id, table_content)]),
-            },
-        );
-        Ok((result, js_objects))
+            .expect("Tab has at least one item");
+        let vars = HashMap::from([
+            ("id", to_json(&self.id)),
+            ("analysis", to_json(&self.analysis)),
+            ("run_name", to_json(&self.run_name)),
+            ("countable", to_json(&self.countable)),
+            ("has_table", to_json(self.table.is_some())),
+            ("has_graph", to_json(true)), // TODO: real check for graph
+            ("items", to_json(items)),
+        ]);
+        Ok((registry.render("analysis_tab", &vars)?, js_objects))
     }
 }
 
@@ -117,12 +104,98 @@ impl AnalysisSection {
         if !registry.has_template("report") {
             registry.register_template_file("report", "./hbs/report.hbs")?;
         }
+
+        let tree = Self::get_tree(&sections, registry)?;
+
         let (content, js_objects) = Self::generate_report_content(sections, registry)?;
-        let mut vars = HashMap::from([
-            ("content", content),
-            ("data_hook", get_js_objects_string(js_objects)),
-            ("fname", filename.to_string()),
-        ]);
+        let mut vars = Self::get_variables();
+        vars.insert("content", content);
+        vars.insert("data_hook", get_js_objects_string(js_objects));
+        vars.insert("fname", filename.to_string());
+        vars.insert("tree", tree);
+        registry.render("report", &vars)
+    }
+
+    fn get_tree(sections: &Vec<Self>, registry: &mut Handlebars) -> Result<String, RenderError> {
+        let analysis_names = sections.iter().map(|x| x.analysis.clone()).unique();
+        let mut analyses = Vec::new();
+        for analysis_name in analysis_names {
+            let run_names = sections
+                .iter()
+                .filter(|x| x.analysis == analysis_name)
+                .map(|x| x.run_name.clone())
+                .unique();
+            let analysis_sections = sections
+                .iter()
+                .filter(|x| x.analysis == analysis_name)
+                .collect::<Vec<_>>();
+            let mut runs = Vec::new();
+            for run_name in run_names {
+                let run_sections = analysis_sections
+                    .iter()
+                    .filter(|x| x.run_name == run_name)
+                    .collect::<Vec<_>>();
+                if run_sections.is_empty() {
+                    continue;
+                }
+                let mut countables = Vec::new();
+                for section in &run_sections {
+                    let content = HashMap::from([
+                        ("title", to_json(&section.countable)),
+                        ("id", to_json(to_id(&section.countable))),
+                        ("href", to_json(&section.id)),
+                    ]);
+                    countables.push(to_json(content));
+                }
+                let run_name = run_sections
+                    .first()
+                    .expect("Run section has at least one run")
+                    .run_name
+                    .clone();
+                let content = HashMap::from([
+                    ("title", to_json(&run_name)),
+                    ("id", to_json(to_id(&run_name))),
+                    ("countables", to_json(countables)),
+                ]);
+                runs.push(to_json(content));
+            }
+            let content = HashMap::from([
+                ("title", to_json(&analysis_name)),
+                ("id", to_json(to_id(&analysis_name))),
+                ("icon", to_json("icon-id")),
+                ("runs", to_json(runs)),
+            ]);
+            analyses.push(to_json(content));
+        }
+
+        let mut vars = HashMap::from([("analyses", to_json(analyses))]);
+        vars.insert(
+            "version",
+            to_json(
+                option_env!("GIT_HASH")
+                    .unwrap_or(env!("CARGO_PKG_VERSION"))
+                    .to_string(),
+            ),
+        );
+        let now = OffsetDateTime::now_utc();
+        vars.insert(
+            "timestamp",
+            to_json(
+                now.format(&format_description!(
+                    "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
+                ))
+                .unwrap(),
+            ),
+        );
+        if !registry.has_template("tree") {
+            registry.register_template_file("tree", "./hbs/tree.hbs")?;
+        }
+        let tree = registry.render("tree", &vars)?;
+        Ok(tree)
+    }
+
+    fn get_variables() -> HashMap<&'static str, String> {
+        let mut vars = HashMap::new();
         vars.insert(
             "bootstrap_color_modes_js",
             String::from_utf8_lossy(BOOTSTRAP_COLOR_MODES_JS).into_owned(),
@@ -156,22 +229,7 @@ impl AnalysisSection {
             "symbols_svg",
             String::from_utf8_lossy(SYMBOLS_SVG).into_owned(),
         );
-        vars.insert(
-            "version",
-            option_env!("GIT_HASH")
-                .unwrap_or(env!("CARGO_PKG_VERSION"))
-                .to_string(),
-        );
-
-        let now = OffsetDateTime::now_utc();
-        vars.insert(
-            "timestamp",
-            now.format(&format_description!(
-                "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
-            ))
-            .unwrap(),
-        );
-        registry.render("report", &vars)
+        vars
     }
 
     fn generate_report_content(sections: Vec<Self>, registry: &mut Handlebars) -> RenderedHTML {
@@ -182,57 +240,17 @@ impl AnalysisSection {
         let sections = sections
             .into_iter()
             .map(|s| {
-                let is_first = to_json(s.is_first);
-                let name = to_json(&s.name);
-                let id = to_json(&s.id);
                 let (content, js_object) = s.into_html(registry).unwrap();
                 js_objects.push(js_object);
-                HashMap::from([
-                    ("is_first", is_first),
-                    ("name", name),
-                    ("id", id),
-                    ("content", to_json(content)),
-                ])
+                content
             })
-            .collect::<Vec<HashMap<_, _>>>();
+            .collect::<Vec<String>>();
         let text = registry.render("report_content", &sections)?;
         let js_objects = js_objects
             .into_iter()
             .reduce(combine_vars)
             .expect("Report needs to contain at least one item");
         Ok((text, js_objects))
-    }
-}
-
-pub struct AnalysisTab {
-    pub name: String,
-    pub id: String,
-    pub is_first: bool,
-    pub items: Vec<ReportItem>,
-}
-
-impl AnalysisTab {
-    fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
-        if !registry.has_template("analysis_tab") {
-            registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
-        }
-        let items = self
-            .items
-            .into_iter()
-            .map(|x| x.into_html(registry))
-            .collect::<Result<Vec<_>, _>>()?;
-        let (items, js_objects): (Vec<_>, Vec<_>) = items.into_iter().unzip();
-        let js_objects = js_objects
-            .into_iter()
-            .reduce(combine_vars)
-            .expect("Tab has at least one item");
-        let vars = HashMap::from([
-            ("id", to_json(&self.id)),
-            ("name", to_json(&self.name)),
-            ("items", to_json(items)),
-            ("is_first", to_json(self.is_first)),
-        ]);
-        Ok((registry.render("analysis_tab", &vars)?, js_objects))
     }
 }
 

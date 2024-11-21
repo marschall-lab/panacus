@@ -6,7 +6,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::{GraphBroker, Hist, ThresholdContainer};
-use crate::html_report::{AnalysisTab, ReportItem};
+use crate::html_report::ReportItem;
 use crate::{
     io::{parse_hists, write_table},
     util::CountType,
@@ -94,7 +94,6 @@ impl Analysis for Growth {
         dm: Option<&crate::graph_broker::GraphBroker>,
     ) -> anyhow::Result<Vec<AnalysisSection>> {
         self.set_inner(dm)?;
-        let growths = &self.inner.as_ref().unwrap().growths;
         let hist_aux = &self.inner.as_ref().unwrap().hist_aux;
         let growth_labels = (0..hist_aux.coverage.len())
             .map(|i| {
@@ -105,14 +104,25 @@ impl Analysis for Growth {
                 )
             })
             .collect::<Vec<_>>();
+        let table = self.generate_table(dm)?;
+        let table = format!("`{}`", &table);
+        let growths = &self.inner.as_ref().unwrap().growths;
+        let id_prefix = format!(
+            "pan-growth-{}",
+            self.get_run_name()
+                .to_lowercase()
+                .replace(&[' ', '|', '\\'], "-")
+        );
         let growth_tabs = growths
             .iter()
-            .map(|(k, v)| AnalysisTab {
-                id: format!("tab-pan-growth-{}", k),
-                name: k.to_string(),
-                is_first: false,
+            .map(|(k, v)| AnalysisSection {
+                id: format!("{id_prefix}-{k}"),
+                analysis: "Pangenome Growth".to_string(),
+                run_name: self.get_run_name(),
+                countable: k.to_string(),
+                table: Some(table.clone()),
                 items: vec![ReportItem::MultiBar {
-                    id: format!("pan-growth-{}", k),
+                    id: format!("{id_prefix}-{k}"),
                     names: growth_labels.clone(),
                     x_label: "taxa".to_string(),
                     y_label: format!("#{}s", k),
@@ -122,17 +132,7 @@ impl Analysis for Growth {
                 }],
             })
             .collect();
-        let table = self.generate_table(dm)?;
-        let table = format!("`{}`", &table);
-        let report_sections = vec![AnalysisSection {
-            name: "pangenome growth".to_string(),
-            id: "pangenome-growth".to_string(),
-            is_first: false,
-            tabs: growth_tabs,
-            table: Some(table),
-        }
-        .set_first()];
-        Ok(report_sections)
+        Ok(growth_tabs)
     }
 
     // fn get_subcommand() -> Command {
@@ -171,6 +171,18 @@ impl ConstructibleAnalysis for Growth {
 }
 
 impl Growth {
+    fn get_run_name(&self) -> String {
+        match &self.parameter {
+            AnalysisParameter::Growth { name, hist, .. } => {
+                if name.is_some() {
+                    return name.as_ref().unwrap().to_string();
+                }
+                format!("for hist {}", hist)
+            }
+            _ => panic!("Hist analysis needs to contain hist parameter"),
+        }
+    }
+
     fn set_inner(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<()> {
         if self.inner.is_some() {
             return Ok(());

@@ -1,14 +1,5 @@
-<div class="d-flex align-items-start">
-	<div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
-        {{#each this}}
-        <button class="nav-link text-nowrap{{#if this.is_first}} active{{/if}}" id="v-pills-{{this.id}}-tab" data-bs-toggle="pill" data-bs-target="#v-pills-{{this.id}}" type="button" role="tab" aria-controls="v-pills-{{this.id}}" aria-selected="{{#if this.is_first}}true{{else}}false{{/if}}">{{this.name}}</button>
-        {{/each}}
- 	</div>
-  	<div class="tab-content w-100" id="v-pills-tabContent">
-        {{#each this}}
-		<div class="tab-pane fade{{#if this.is_first}} show active{{/if}}" id="v-pills-{{this.id}}" role="tabpanel" aria-labelledby="v-pills-{{this.id}}-tab">
-{{{this.content}}}
-		</div>
-        {{/each}}
-  </div>
+<div class="container p-5 tab-content">
+{{#each this}}
+{{{this}}}
+{{/each}}
 </div>
