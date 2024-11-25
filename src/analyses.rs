@@ -33,7 +33,7 @@ pub enum InputRequirement {
     Hist,
     AbacusByGroup,
     Graph(String),
-    Subset(String),
-    Grouping(String),
-    Exclude(String),
+    // Subset(String),
+    // Grouping(String),
+    // Exclude(String),
 }

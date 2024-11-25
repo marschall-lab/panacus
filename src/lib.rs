@@ -9,11 +9,12 @@ mod util;
 
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Debug,
     io::Write,
 };
 use thiserror::Error;
 
-use analyses::{growth::Growth, hist::Hist, Analysis, ConstructibleAnalysis, InputRequirement};
+use analyses::{Analysis, ConstructibleAnalysis, InputRequirement};
 use analysis_parameter::AnalysisParameter;
 use clap::Command;
 use graph_broker::GraphBroker;
@@ -79,7 +80,8 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         instructions.extend(histgrowth?);
     }
 
-    let instructions = preprocess_instructions(instructions)?;
+    let instructions = get_tasks(instructions)?;
+    eprintln!("Tasks: {:?}", instructions);
 
     // ride on!
     execute_pipeline(instructions, &mut out, shall_write_html)?;
@@ -95,7 +97,72 @@ pub enum ConfigParseError {
     NameNotFound { name: String },
 }
 
-pub fn preprocess_instructions(
+fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> {
+    let instructions = preprocess_instructions(instructions)?;
+    let mut tasks = Vec::new();
+    let mut current_graph = "".to_string();
+    let mut reqs = HashSet::new();
+    let mut last_graph_change = 0usize;
+    let mut current_subset = None;
+    let mut current_exclude = String::new();
+    let mut current_grouping = String::new();
+    eprintln!("AnalysisParameters: {:?}", instructions);
+    for instruction in instructions {
+        match instruction {
+            h @ AnalysisParameter::Hist { .. } => {
+                if let AnalysisParameter::Hist {
+                    graph,
+                    subset,
+                    exclude,
+                    grouping,
+                    ..
+                } = &h
+                {
+                    let graph = graph.to_owned();
+                    let subset = subset.to_owned();
+                    let exclude = exclude.clone().unwrap_or_default();
+                    let grouping = grouping.clone().unwrap_or_default();
+                    if graph != current_graph {
+                        tasks.push(Task::GraphChange(HashSet::new()));
+                        tasks[last_graph_change] = Task::GraphChange(std::mem::take(&mut reqs));
+                        last_graph_change = tasks.len() - 1;
+                        current_graph = graph;
+                    }
+                    if subset != current_subset {
+                        tasks.push(Task::SubsetChange(subset.clone()));
+                        current_subset = subset;
+                    }
+                    if exclude != current_exclude {
+                        tasks.push(Task::ExcludeChange(exclude.clone()));
+                        current_exclude = exclude;
+                    }
+                    if grouping != current_grouping {
+                        tasks.push(Task::GroupingChange(grouping.clone()));
+                        current_grouping = grouping;
+                    }
+                }
+                let hist = analyses::hist::Hist::from_parameter(h);
+                reqs.extend(hist.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(hist)));
+            }
+            g @ AnalysisParameter::Growth { .. } => {
+                tasks.push(Task::Analysis(Box::new(
+                    analyses::growth::Growth::from_parameter(g),
+                )));
+            }
+            section @ _ => panic!(
+                "YAML section {:?} should not exist after preprocessing",
+                section
+            ),
+        }
+    }
+    if matches!(tasks[last_graph_change], Task::GraphChange(..)) {
+        tasks[last_graph_change] = Task::GraphChange(reqs);
+    }
+    Ok(tasks)
+}
+
+fn preprocess_instructions(
     instructions: Vec<AnalysisParameter>,
 ) -> anyhow::Result<Vec<AnalysisParameter>> {
     let graphs: HashMap<String, String> = instructions
@@ -234,8 +301,30 @@ fn has_ungrouped_growth(instructions: &Vec<AnalysisParameter>) -> bool {
     false
 }
 
+pub enum Task {
+    Analysis(Box<dyn Analysis>),
+    GraphChange(HashSet<InputRequirement>),
+    SubsetChange(Option<String>),
+    ExcludeChange(String),
+    GroupingChange(String),
+}
+
+impl Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Analysis(_) => f.debug_struct("Analysis").finish(),
+            Self::GraphChange(reqs) => f.debug_tuple("GraphChange").field(&reqs).finish(),
+            Self::SubsetChange(subset) => f.debug_tuple("SubsetChange").field(&subset).finish(),
+            Self::ExcludeChange(exclude) => f.debug_tuple("ExcludeChange").field(&exclude).finish(),
+            Self::GroupingChange(grouping) => {
+                f.debug_tuple("GroupingChange").field(&grouping).finish()
+            }
+        }
+    }
+}
+
 pub fn execute_pipeline<W: Write>(
-    instructions: Vec<AnalysisParameter>,
+    mut instructions: Vec<Task>,
     out: &mut std::io::BufWriter<W>,
     shall_write_html: bool,
 ) -> anyhow::Result<()> {
@@ -244,40 +333,69 @@ pub fn execute_pipeline<W: Write>(
         return Ok(());
     }
     let mut report = Vec::new();
-    let mut tasks: Vec<Box<dyn Analysis>> = Vec::new();
-    let mut req: HashSet<InputRequirement> = HashSet::new();
-    for task_param in instructions {
-        match task_param {
-            p @ AnalysisParameter::Hist { .. } => {
-                let h = Hist::from_parameter(p);
-                req.extend(h.get_graph_requirements());
-                tasks.push(Box::new(h));
+    let mut gb = match instructions[0] {
+        _ => None,
+    };
+    for index in 0..instructions.len() {
+        let is_next_analysis =
+            instructions.len() > index + 1 && matches!(instructions[index + 1], Task::Analysis(..));
+        match &mut instructions[index] {
+            Task::Analysis(analysis) => {
+                log::info!("Executing Analysis: {:?}", get_type_of(analysis));
+                report.extend(analysis.generate_report_section(gb.as_ref())?);
             }
-            p @ AnalysisParameter::Growth { .. } => {
-                let h = Growth::from_parameter(p);
-                req.extend(h.get_graph_requirements());
-                tasks.push(Box::new(h));
+            Task::GraphChange(input_reqs) => {
+                log::info!("Executing graph change: {:?}", input_reqs);
+                gb = Some(GraphBroker::from_gfa(&input_reqs));
+                if is_next_analysis {
+                    gb = Some(gb.expect("GraphBroker is some").finish()?);
+                }
             }
-            _ => {}
+            Task::SubsetChange(subset) => {
+                log::info!("Executing subset change: {:?}", subset);
+                gb = Some(
+                    gb.expect("SubsetChange after Graph")
+                        .include_coords(subset.as_ref().expect("Subset exists")),
+                );
+                if is_next_analysis {
+                    gb = Some(gb.expect("GraphBroker is some").finish()?);
+                }
+            }
+            Task::ExcludeChange(exclude) => {
+                log::info!("Executing exclude change: {}", exclude);
+                gb = Some(
+                    gb.expect("ExcludeChange after Graph")
+                        .exclude_coords(exclude),
+                );
+                if is_next_analysis {
+                    gb = Some(gb.expect("GraphBroker is some").finish()?);
+                }
+            }
+            Task::GroupingChange(grouping) => {
+                log::info!("Executing grouping change: {}", grouping);
+                gb = Some(gb.expect("GroupingChange after Graph").with_group(grouping));
+                if is_next_analysis {
+                    gb = Some(gb.expect("GraphBroker is some").finish()?);
+                }
+            }
         }
     }
-    let gb = match req.is_empty() {
-        true => None,
-        false => Some(GraphBroker::from_gfa_with_view(req).expect("Can create broker")),
-    };
     if shall_write_html {
-        for mut task in tasks {
-            report.extend(task.generate_report_section(gb.as_ref())?);
-        }
         let mut registry = handlebars::Handlebars::new();
         let report =
             AnalysisSection::generate_report(report, &mut registry, "<Placeholder Filename>")?;
         writeln!(out, "{report}")?;
     } else {
-        let table = tasks.last_mut().unwrap().generate_table(gb.as_ref())?;
-        writeln!(out, "{table}")?;
+        if let Task::Analysis(analysis) = instructions.last_mut().unwrap() {
+            let table = analysis.generate_table(gb.as_ref())?;
+            writeln!(out, "{table}")?;
+        }
     }
     Ok(())
+}
+
+fn get_type_of<T>(_: &T) -> String {
+    format!("{}", std::any::type_name::<T>())
 }
 
 #[cfg(test)]

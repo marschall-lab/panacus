@@ -88,27 +88,21 @@ impl Analysis for Hist {
 
     fn get_graph_requirements(&self) -> HashSet<super::InputRequirement> {
         if let AnalysisParameter::Hist {
-            count_type,
-            graph,
-            subset,
-            name: _,
-            display: _,
-            grouping,
-            exclude,
+            count_type, graph, ..
         } = &self.parameter
         {
             let file_name = graph.to_string();
             let mut req = HashSet::from([InputRequirement::Hist]);
             req.extend(Self::count_to_input_req(*count_type));
-            if let Some(subset) = subset {
-                req.insert(InputRequirement::Subset(subset.to_owned()));
-            }
-            if let Some(grouping) = grouping {
-                req.insert(InputRequirement::Grouping(grouping.to_owned()));
-            }
-            if let Some(exclude) = exclude {
-                req.insert(InputRequirement::Exclude(exclude.to_owned()));
-            }
+            // if let Some(subset) = subset {
+            //     req.insert(InputRequirement::Subset(subset.to_owned()));
+            // }
+            // if let Some(grouping) = grouping {
+            //     req.insert(InputRequirement::Grouping(grouping.to_owned()));
+            // }
+            // if let Some(exclude) = exclude {
+            //     req.insert(InputRequirement::Exclude(exclude.to_owned()));
+            // }
             req.insert(InputRequirement::Graph(file_name));
             req
         } else {
