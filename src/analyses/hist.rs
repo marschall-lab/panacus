@@ -12,6 +12,10 @@ pub struct Hist {
 }
 
 impl Analysis for Hist {
+    fn get_type(&self) -> String {
+        "Hist".to_string()
+    }
+
     fn generate_table(
         &mut self,
         gb: Option<&crate::graph_broker::GraphBroker>,

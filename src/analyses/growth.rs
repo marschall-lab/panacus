@@ -24,6 +24,9 @@ pub struct Growth {
 }
 
 impl Analysis for Growth {
+    fn get_type(&self) -> String {
+        "Growth".to_string()
+    }
     fn generate_table(
         &mut self,
         dm: Option<&crate::graph_broker::GraphBroker>,

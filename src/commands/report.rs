@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
 
-use clap::{Arg, ArgMatches, Command};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
 use crate::analysis_parameter::AnalysisParameter;
 
@@ -11,6 +11,14 @@ pub fn get_subcommand() -> Command {
         .args(&[Arg::new("yaml_file")
             .required(false)
             .help("Specifies yaml config")])
+        .args(&[Arg::new("dry_run")
+            .required(false)
+            .long("dry-run")
+            .short('d')
+            .action(ArgAction::SetTrue)
+            .help(
+                "If set, no actual computation is done, only the planned computation will be shown",
+            )])
 }
 
 pub fn get_instructions(

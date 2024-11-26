@@ -66,9 +66,13 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
 
     let mut instructions = Vec::new();
     let mut shall_write_html = false;
+    let mut dry_run = false;
     if let Some(report) = commands::report::get_instructions(&args) {
         shall_write_html = true;
         instructions.extend(report?);
+        if let Some(report_matches) = args.subcommand_matches("report") {
+            dry_run = report_matches.get_flag("dry_run");
+        }
     }
     if let Some(hist) = commands::hist::get_instructions(&args) {
         instructions.extend(hist?);
@@ -81,10 +85,13 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
 
     let instructions = get_tasks(instructions)?;
-    eprintln!("Tasks: {:?}", instructions);
 
     // ride on!
-    execute_pipeline(instructions, &mut out, shall_write_html)?;
+    if !dry_run {
+        execute_pipeline(instructions, &mut out, shall_write_html)?;
+    } else {
+        println!("{:#?}", instructions);
+    }
 
     // clean up & close down
     out.flush()?;
@@ -106,7 +113,7 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
     let mut current_subset = None;
     let mut current_exclude = String::new();
     let mut current_grouping = String::new();
-    eprintln!("AnalysisParameters: {:?}", instructions);
+    eprintln!("AnalysisParameters: {:#?}", instructions);
     for instruction in instructions {
         match instruction {
             h @ AnalysisParameter::Hist { .. } => {
@@ -312,7 +319,7 @@ pub enum Task {
 impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Analysis(_) => f.debug_struct("Analysis").finish(),
+            Self::Analysis(analysis) => write!(f, "Analysis {}", analysis.get_type()),
             Self::GraphChange(reqs) => f.debug_tuple("GraphChange").field(&reqs).finish(),
             Self::SubsetChange(subset) => f.debug_tuple("SubsetChange").field(&subset).finish(),
             Self::ExcludeChange(exclude) => f.debug_tuple("ExcludeChange").field(&exclude).finish(),
@@ -341,7 +348,7 @@ pub fn execute_pipeline<W: Write>(
             instructions.len() > index + 1 && matches!(instructions[index + 1], Task::Analysis(..));
         match &mut instructions[index] {
             Task::Analysis(analysis) => {
-                log::info!("Executing Analysis: {:?}", get_type_of(analysis));
+                log::info!("Executing Analysis: {}", analysis.get_type());
                 report.extend(analysis.generate_report_section(gb.as_ref())?);
             }
             Task::GraphChange(input_reqs) => {
@@ -392,10 +399,6 @@ pub fn execute_pipeline<W: Write>(
         }
     }
     Ok(())
-}
-
-fn get_type_of<T>(_: &T) -> String {
-    format!("{}", std::any::type_name::<T>())
 }
 
 #[cfg(test)]

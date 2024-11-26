@@ -18,6 +18,7 @@ pub trait Analysis {
         gb: Option<&GraphBroker>,
     ) -> anyhow::Result<Vec<AnalysisSection>>;
     fn get_graph_requirements(&self) -> HashSet<InputRequirement>;
+    fn get_type(&self) -> String;
 }
 
 pub trait ConstructibleAnalysis: Analysis {
