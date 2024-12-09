@@ -692,36 +692,34 @@ pub fn parse_path_seq_update_tables(
         .map(|x| Arc::new(Mutex::new(x)))
         .collect();
 
-    let bp_len = Arc::new(AtomicU32::new(0));
     //let mut plus_strands: Vec<u32> = vec![0; rayon::current_num_threads()];
-    data[..end].par_split(|&x| x == b',').for_each(|node| {
-        let segment_id = *graph_storage
-            .node2id
-            .get(&node[0..node.len() - 1])
-            .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
-        // TODO: Is orientation really necessary?
-        let orientation = node[node.len() - 1];
-        assert!(
-            orientation == b'-' || orientation == b'+',
-            "unknown orientation of segment {}",
-            str::from_utf8(node).unwrap()
-        );
-        //plus_strands[rayon::current_thread_index().unwrap()] += (orientation == b'+') as u32;
+    let bp_len = data[..end]
+        .par_split(|&x| x == b',')
+        .map(|node| {
+            let segment_id = *graph_storage
+                .node2id
+                .get(&node[0..node.len() - 1])
+                .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
+            // TODO: Is orientation really necessary?
+            let orientation = node[node.len() - 1];
+            assert!(
+                orientation == b'-' || orientation == b'+',
+                "unknown orientation of segment {}",
+                str::from_utf8(node).unwrap()
+            );
+            //plus_strands[rayon::current_thread_index().unwrap()] += (orientation == b'+') as u32;
 
-        let idx = (segment_id.0 as usize) % SIZE_T;
+            let idx = (segment_id.0 as usize) % SIZE_T;
 
-        if let Ok(_) = mutex_vec[idx].lock() {
-            unsafe {
-                (*items_ptr.0)[idx].push(segment_id.0);
-                (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
+            if let Ok(_) = mutex_vec[idx].lock() {
+                unsafe {
+                    (*items_ptr.0)[idx].push(segment_id.0);
+                    (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
+                }
             }
-        }
-        bp_len.fetch_add(
-            graph_storage.node_len(&segment_id),
-            std::sync::atomic::Ordering::SeqCst,
-        );
-    });
-    let bp_len = bp_len.load(std::sync::atomic::Ordering::SeqCst);
+            graph_storage.node_len(&segment_id)
+        })
+        .sum();
 
     // compute prefix sum
     let mut num_nodes_path = 0;

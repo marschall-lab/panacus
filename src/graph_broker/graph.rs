@@ -184,6 +184,7 @@ impl GraphStorage {
             (None, 0, None)
         };
         let node_count = node2id.len();
+        log::debug!("Done creating GraphStorage");
 
         Self {
             node2id,

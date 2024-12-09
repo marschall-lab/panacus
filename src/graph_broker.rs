@@ -46,46 +46,6 @@ pub struct GraphBroker {
 }
 
 impl GraphBroker {
-    pub fn from_gfa_with_view(input_requirements: HashSet<Req>) -> Result<Self, Error> {
-        let gb = Self::from_gfa(&input_requirements);
-        // if let Some(Req::Subset(subset)) = input_requirements
-        //     .iter()
-        //     .find(|v| matches!(v, Req::Subset(_)))
-        // {
-        //     gb = gb.include_coords(subset);
-        // }
-        // if let Some(Req::Grouping(grouping)) = input_requirements
-        //     .iter()
-        //     .find(|v| matches!(v, Req::Grouping(_)))
-        // {
-        //     gb = gb.with_group(grouping);
-        // }
-        // if let Some(Req::Exclude(exclude)) = input_requirements
-        //     .iter()
-        //     .find(|v| matches!(v, Req::Exclude(_)))
-        // {
-        //     gb = gb.exclude_coords(exclude);
-        // }
-        // if view_params.groupby_sample {
-        //     gb = gb.with_sample_group();
-        // } else if view_params.groupby_haplotype {
-        //     gb = gb.with_haplo_group();
-        // } else if !view_params.groupby.is_empty() {
-        //     gb = gb.with_group(&view_params.groupby);
-        // }
-        // if !view_params.positive_list.is_empty() {
-        //     gb = gb.include_coords(&view_params.positive_list);
-        // }
-        // if !view_params.negative_list.is_empty() {
-        //     gb = gb.exclude_coords(&view_params.negative_list);
-        // }
-        // if view_params.order.is_some() {
-        //     log::debug!("Order given");
-        //     gb = gb.with_order(view_params.order.as_ref().unwrap());
-        // }
-        gb.finish()
-    }
-
     pub fn new() -> Self {
         GraphBroker {
             graph_aux: None,
@@ -101,11 +61,21 @@ impl GraphBroker {
         }
     }
 
+    // TODO: fix situation instead of calculating the third value unnecessary
+    fn contains_at_least_two(input_requirements: &HashSet<Req>) -> bool {
+        if input_requirements.contains(&Req::Node) && input_requirements.contains(&Req::Edge) {
+            return true;
+        } else if input_requirements.contains(&Req::Edge) && input_requirements.contains(&Req::Bp) {
+            return true;
+        } else if input_requirements.contains(&Req::Bp) && input_requirements.contains(&Req::Node) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     pub fn from_gfa(input_requirements: &HashSet<Req>) -> Self {
-        let count_type = if input_requirements.contains(&Req::Node)
-            && input_requirements.contains(&Req::Edge)
-            && input_requirements.contains(&Req::Bp)
-        {
+        let count_type = if Self::contains_at_least_two(input_requirements) {
             CountType::All
         } else if input_requirements.contains(&Req::Node) {
             CountType::Node

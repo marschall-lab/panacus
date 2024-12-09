@@ -13,4 +13,7 @@ etc/node_modules/
 etc/package-lock.json
 etc/package.json
 .pre-commit-config.yaml
-*.yaml
+**.old
+/*.yaml
+/*.svg
+/*.data
