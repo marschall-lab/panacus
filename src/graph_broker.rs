@@ -26,7 +26,7 @@ pub use graph::PathSegment;
 pub use hist::Hist;
 pub use hist::ThresholdContainer;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GraphBroker {
     // GraphStorage
     graph_aux: Option<GraphStorage>,

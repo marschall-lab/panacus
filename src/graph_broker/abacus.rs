@@ -18,7 +18,7 @@ use crate::util::*;
 use super::graph::{GraphStorage, PathSegment};
 use super::util::parse_gfa_paths_walks;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct GraphMaskParameters {
     pub positive_list: String,
     pub negative_list: String,
@@ -41,7 +41,7 @@ impl GraphMaskParameters {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GraphMask {
     pub groups: HashMap<PathSegment, String>,
     pub include_coords: Option<Vec<PathSegment>>,
