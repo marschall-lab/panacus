@@ -43,7 +43,9 @@ pub enum AnalysisParameter {
         name: String,
         file: String,
     },
-    Info,
+    Info {
+        graph: String,
+    },
     OrderedGrowth,
     Table,
 }
@@ -127,8 +129,8 @@ impl Ord for AnalysisParameter {
                 }
                 _ => std::cmp::Ordering::Less,
             },
-            AnalysisParameter::Info => match other {
-                AnalysisParameter::Info => std::cmp::Ordering::Equal,
+            AnalysisParameter::Info { graph } => match other {
+                AnalysisParameter::Info { graph: o_graph } => graph.cmp(o_graph),
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 | AnalysisParameter::Grouping { .. } => std::cmp::Ordering::Greater,
@@ -139,7 +141,7 @@ impl Ord for AnalysisParameter {
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 | AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info => std::cmp::Ordering::Greater,
+                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
             AnalysisParameter::OrderedGrowth => match other {
@@ -147,7 +149,7 @@ impl Ord for AnalysisParameter {
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 | AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info
+                | AnalysisParameter::Info { .. }
                 | AnalysisParameter::Table => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },

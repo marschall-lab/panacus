@@ -29,7 +29,7 @@ class MultiBar {
 }
 
 function buildPlotDownload(chart, obj, prefix) {
-    //console.log('btn-download-plot-' + obj);
+    console.log('btn-download-plot-' + obj);
     document.getElementById('btn-download-plot-' + obj).onclick = function() {
         var a = document.createElement('a');
         a.href = chart.toBase64Image();

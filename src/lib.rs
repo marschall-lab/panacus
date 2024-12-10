@@ -157,6 +157,20 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                     analyses::growth::Growth::from_parameter(g),
                 )));
             }
+            i @ AnalysisParameter::Info { .. } => {
+                if let AnalysisParameter::Info { graph, .. } = &i {
+                    let graph = graph.to_owned();
+                    if graph != current_graph {
+                        tasks.push(Task::GraphChange(HashSet::new()));
+                        tasks[last_graph_change] = Task::GraphChange(std::mem::take(&mut reqs));
+                        last_graph_change = tasks.len() - 1;
+                        current_graph = graph;
+                    }
+                }
+                let info = analyses::info::Info::from_parameter(i);
+                reqs.extend(info.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(info)));
+            }
             section @ _ => panic!(
                 "YAML section {:?} should not exist after preprocessing",
                 section

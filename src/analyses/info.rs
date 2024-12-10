@@ -1,42 +1,42 @@
-use core::fmt;
-use std::{
-    collections::{HashMap, HashSet},
-    io::{BufWriter, Error, Write},
-};
-
-use clap::{arg, ArgMatches, Command};
+use core::{fmt, panic};
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     analyses::{Analysis, AnalysisSection, InputRequirement},
-    graph_broker::{Edge, GraphBroker, GraphMaskParameters, ItemId},
-    html_report::{AnalysisTab, ReportItem},
+    analysis_parameter::AnalysisParameter,
+    graph_broker::{Edge, GraphBroker, ItemId},
+    html_report::ReportItem,
     util::{averageu32, median_already_sorted, n50_already_sorted},
 };
 
+use super::ConstructibleAnalysis;
+
 pub struct Info {
-    pub graph_info: GraphInfo,
-    pub path_info: PathInfo,
-    pub group_info: Option<GroupInfo>,
+    graph: String,
+    graph_info: Option<GraphInfo>,
+    path_info: Option<PathInfo>,
+    group_info: Option<GroupInfo>,
 }
 
 impl Analysis for Info {
-    fn build(gb: &GraphBroker, _matches: &ArgMatches) -> Result<Box<Self>, Error> {
-        Ok(Box::new(Info {
-            graph_info: GraphInfo::from(gb),
-            path_info: PathInfo::from(gb),
-            group_info: Some(GroupInfo::from(gb)),
-        }))
+    fn generate_table(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<String> {
+        if self.group_info.is_none() || self.path_info.is_none() {
+            self.set_info(gb.expect("Cannot set info without a GraphBroker"));
+        }
+        Ok(self.to_string())
     }
 
-    fn write_table<W: Write>(
+    fn get_type(&self) -> String {
+        "Info".to_string()
+    }
+
+    fn generate_report_section(
         &mut self,
-        _dm: &GraphBroker,
-        out: &mut BufWriter<W>,
-    ) -> Result<(), Error> {
-        writeln!(out, "{}", self)
-    }
-
-    fn generate_report_section(&mut self, _dm: &GraphBroker) -> Vec<AnalysisSection> {
+        gb: Option<&GraphBroker>,
+    ) -> anyhow::Result<Vec<AnalysisSection>> {
+        if self.group_info.is_none() || self.path_info.is_none() {
+            self.set_info(gb.expect("Cannot set info without a GraphBroker"));
+        }
         let (graph_header, graph_values) = self.get_graph_table();
         let graph_values = Self::remove_duplication(graph_values);
         let (node_header, node_values) = self.get_node_table();
@@ -44,168 +44,146 @@ impl Analysis for Info {
         let (path_header, path_values) = self.get_path_table();
         let path_values = Self::remove_duplication(path_values);
 
-        let mut buf = BufWriter::new(Vec::new());
-        self.write_table(_dm, &mut buf)
-            .expect("Can write to string");
-        let bytes = buf.into_inner().unwrap();
-        let table = String::from_utf8(bytes).unwrap();
+        let table = self.generate_table(gb)?;
         let table = format!("`{}`", &table);
-        vec![AnalysisSection {
-            name: "pangenome info".to_string(),
-            id: "info".to_string(),
-            is_first: true,
-            table: Some(table),
-            tabs: vec![
-                AnalysisTab {
-                    id: "info-1".to_string(),
-                    is_first: true,
-                    name: "graph".to_string(),
-                    items: vec![ReportItem::Table {
-                        id: "info-1-table".to_string(),
-                        header: graph_header,
-                        values: graph_values,
-                    }],
-                },
-                AnalysisTab {
-                    id: "info-2".to_string(),
-                    is_first: false,
-                    name: "node".to_string(),
-                    items: vec![ReportItem::Table {
-                        id: "info-2-table".to_string(),
-                        header: node_header,
-                        values: node_values,
-                    }],
-                },
-                AnalysisTab {
-                    id: "info-3".to_string(),
-                    is_first: false,
-                    name: "path".to_string(),
-                    items: vec![ReportItem::Table {
-                        id: "info-3-table".to_string(),
-                        header: path_header,
-                        values: path_values,
-                    }],
-                },
-                AnalysisTab {
-                    id: "info-4".to_string(),
-                    is_first: false,
-                    name: "group".to_string(),
-                    items: vec![self.get_group_bar("node"), self.get_group_bar("bp")],
-                },
-            ],
-        }]
+        let graph = self.graph.clone();
+        Ok(vec![
+            AnalysisSection {
+                id: format!("info-{graph}-graph"),
+                analysis: "Pangenome Info".to_string(),
+                run_name: graph.clone(),
+                countable: "Graph Info".to_string(),
+                table: Some(table.clone()),
+                items: vec![ReportItem::Table {
+                    id: "info-1-table".to_string(),
+                    header: graph_header,
+                    values: graph_values,
+                }],
+            },
+            AnalysisSection {
+                id: format!("info-{graph}-node"),
+                analysis: "Pangenome Info".to_string(),
+                run_name: graph.clone(),
+                countable: "Node Info".to_string(),
+                table: Some(table.clone()),
+                items: vec![ReportItem::Table {
+                    id: "info-2-table".to_string(),
+                    header: node_header,
+                    values: node_values,
+                }],
+            },
+            AnalysisSection {
+                id: format!("info-{graph}-path"),
+                analysis: "Pangenome Info".to_string(),
+                run_name: graph.clone(),
+                countable: "Path Info".to_string(),
+                table: Some(table.clone()),
+                items: vec![ReportItem::Table {
+                    id: "info-3-table".to_string(),
+                    header: path_header,
+                    values: path_values,
+                }],
+            },
+            AnalysisSection {
+                id: format!("info-{graph}-group"),
+                analysis: "Pangenome Info".to_string(),
+                run_name: graph.clone(),
+                countable: "Group Info".to_string(),
+                table: Some(table.clone()),
+                items: vec![
+                    self.get_group_bar(&graph, "node"),
+                    self.get_group_bar(&graph, "bp"),
+                ],
+            },
+        ])
     }
 
-    fn get_subcommand() -> Command {
-        Command::new("info")
-            .about("Return general graph and paths info")
-            .args(&[
-                arg!(gfa_file: <GFA_FILE> "graph in GFA1 format, accepts also compressed (.gz) file"),
-                arg!(-s --subset <FILE> "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)"),
-                arg!(-e --exclude <FILE> "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list"),
-                arg!(-g --groupby <FILE> "Merge counts from paths by path-group mapping from given tab-separated two-column file"),
-                arg!(-H --"groupby-haplotype" "Merge counts from paths belonging to same haplotype"),
-                arg!(-S --"groupby-sample" "Merge counts from paths belonging to same sample"),
-            ])
-    }
-
-    fn get_input_requirements(
-        matches: &ArgMatches,
-    ) -> Option<(HashSet<InputRequirement>, GraphMaskParameters, String)> {
-        let matches = matches.subcommand_matches("info")?;
+    fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
         let req = HashSet::from([
             InputRequirement::Node,
+            InputRequirement::Graph(self.graph.clone()),
             InputRequirement::Edge,
             InputRequirement::Bp,
             InputRequirement::PathLens,
         ]);
-        // TODO: validate_single_groupby_option(groupby, groupby_haplotype, groupby_sample)
-        let view = GraphMaskParameters {
-            groupby: matches
-                .get_one::<String>("groupby")
-                .cloned()
-                .unwrap_or_default(),
-            groupby_haplotype: matches.get_flag("groupby-haplotype"),
-            groupby_sample: matches.get_flag("groupby-sample"),
-            positive_list: matches
-                .get_one::<String>("subset")
-                .cloned()
-                .unwrap_or_default(),
-            negative_list: matches
-                .get_one::<String>("exclude")
-                .cloned()
-                .unwrap_or_default(),
-            order: None,
-        };
-        let file_name = matches.get_one::<String>("gfa_file")?.to_owned();
-        log::debug!("input params: {:?}, {:?}, {:?}", req, view, file_name);
-        Some((req, view, file_name))
+        req
+    }
+}
+
+impl ConstructibleAnalysis for Info {
+    fn from_parameter(parameter: AnalysisParameter) -> Self {
+        Self {
+            graph: match parameter {
+                AnalysisParameter::Info { graph } => graph,
+                _ => panic!("Cannot construct Info Analysis from another parameter"),
+            },
+            graph_info: None,
+            path_info: None,
+            group_info: None,
+        }
     }
 }
 
 impl Info {
+    fn set_info(&mut self, gb: &GraphBroker) {
+        self.graph_info = Some(GraphInfo::from(gb));
+        self.path_info = Some(PathInfo::from(gb));
+        self.group_info = Some(GroupInfo::from(gb));
+    }
+
     fn get_graph_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
         let header = Self::get_header();
+        if self.graph_info.is_none() {
+            panic!("Cannot get graph table before calculating it");
+        }
+        let graph_info = self
+            .graph_info
+            .as_ref()
+            .expect("Graph info should have been calculated");
+        let path_info = self
+            .path_info
+            .as_ref()
+            .expect("Graph info should have been calculated");
         let values = vec![
-            Self::get_row(
-                "graph",
-                "total",
-                "node",
-                self.graph_info.node_count.to_string(),
-            ),
-            Self::get_row(
-                "graph",
-                "total",
-                "bp",
-                self.graph_info.basepairs.to_string(),
-            ),
-            Self::get_row(
-                "graph",
-                "total",
-                "edge",
-                self.graph_info.edge_count.to_string(),
-            ),
-            Self::get_row(
-                "graph",
-                "total",
-                "path",
-                self.path_info.no_paths.to_string(),
-            ),
+            Self::get_row("graph", "total", "node", graph_info.node_count.to_string()),
+            Self::get_row("graph", "total", "bp", graph_info.basepairs.to_string()),
+            Self::get_row("graph", "total", "edge", graph_info.edge_count.to_string()),
+            Self::get_row("graph", "total", "path", path_info.no_paths.to_string()),
             Self::get_row(
                 "graph",
                 "total",
                 "group",
-                self.graph_info.group_count.to_string(),
+                graph_info.group_count.to_string(),
             ),
             Self::get_row(
                 "graph",
                 "total",
                 "0-degree node",
-                self.graph_info.number_0_degree.to_string(),
+                graph_info.number_0_degree.to_string(),
             ),
             Self::get_row(
                 "graph",
                 "total",
                 "component",
-                self.graph_info.connected_components.to_string(),
+                graph_info.connected_components.to_string(),
             ),
             Self::get_row(
                 "graph",
                 "largest",
                 "component",
-                self.graph_info.largest_component.to_string(),
+                graph_info.largest_component.to_string(),
             ),
             Self::get_row(
                 "graph",
                 "smallest",
                 "component",
-                self.graph_info.smallest_component.to_string(),
+                graph_info.smallest_component.to_string(),
             ),
             Self::get_row(
                 "graph",
                 "median",
                 "component",
-                self.graph_info.median_component.to_string(),
+                graph_info.median_component.to_string(),
             ),
         ];
         (header, values)
@@ -213,60 +191,37 @@ impl Info {
 
     fn get_node_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
         let header = Self::get_header();
+        if self.graph_info.is_none() {
+            panic!("Cannot get graph table before calculating it");
+        }
+        let graph_info = self
+            .graph_info
+            .as_ref()
+            .expect("Graph info should have been calculated");
         let values = vec![
-            Self::get_row(
-                "node",
-                "average",
-                "bp",
-                self.graph_info.average_node.to_string(),
-            ),
+            Self::get_row("node", "average", "bp", graph_info.average_node.to_string()),
             Self::get_row(
                 "node",
                 "average",
                 "degree",
-                self.graph_info.average_degree.to_string(),
+                graph_info.average_degree.to_string(),
             ),
-            Self::get_row(
-                "node",
-                "longest",
-                "bp",
-                self.graph_info.largest_node.to_string(),
-            ),
+            Self::get_row("node", "longest", "bp", graph_info.largest_node.to_string()),
             Self::get_row(
                 "node",
                 "shortest",
                 "bp",
-                self.graph_info.shortest_node.to_string(),
+                graph_info.shortest_node.to_string(),
             ),
-            Self::get_row(
-                "node",
-                "median",
-                "bp",
-                self.graph_info.median_node.to_string(),
-            ),
-            Self::get_row(
-                "node",
-                "N50 node",
-                "bp",
-                self.graph_info.n50_node.to_string(),
-            ),
-            Self::get_row(
-                "node",
-                "max",
-                "degree",
-                self.graph_info.max_degree.to_string(),
-            ),
-            Self::get_row(
-                "node",
-                "min",
-                "degree",
-                self.graph_info.min_degree.to_string(),
-            ),
+            Self::get_row("node", "median", "bp", graph_info.median_node.to_string()),
+            Self::get_row("node", "N50 node", "bp", graph_info.n50_node.to_string()),
+            Self::get_row("node", "max", "degree", graph_info.max_degree.to_string()),
+            Self::get_row("node", "min", "degree", graph_info.min_degree.to_string()),
         ];
         (header, values)
     }
 
-    fn get_group_bar(&self, countable: &str) -> ReportItem {
+    fn get_group_bar(&self, graph: &str, countable: &str) -> ReportItem {
         let groups = &self.group_info.as_ref().unwrap().groups;
         let (labels, values): (Vec<_>, Vec<_>) = if countable == "node" {
             groups.iter().map(|(k, v)| (k.to_string(), v.0)).unzip()
@@ -275,7 +230,7 @@ impl Info {
         };
         if labels.len() <= 100 {
             ReportItem::Bar {
-                id: format!("info-group-{}", countable),
+                id: format!("info-{}-group", graph),
                 name: countable.to_string(),
                 x_label: "groups".to_string(),
                 y_label: format!("#{}s", countable),
@@ -286,7 +241,7 @@ impl Info {
         } else {
             let (labels, values) = Self::bin_values(values);
             ReportItem::Bar {
-                id: format!("info-group-{}", countable),
+                id: format!("info-{}-group", graph),
                 name: countable.to_string(),
                 x_label: "groups".to_string(),
                 y_label: format!("#{}s", countable),
@@ -322,42 +277,49 @@ impl Info {
 
     fn get_path_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
         let header = Self::get_header();
+        if self.path_info.is_none() {
+            panic!("Cannot get path table before calculating it");
+        }
+        let path_info = self
+            .path_info
+            .as_ref()
+            .expect("Path info should have been calculated");
         let values = vec![
             Self::get_row(
                 "path",
                 "average",
                 "bp",
-                self.path_info.bp_len.average.to_string(),
+                path_info.bp_len.average.to_string(),
             ),
             Self::get_row(
                 "path",
                 "average",
                 "node",
-                self.path_info.node_len.average.to_string(),
+                path_info.node_len.average.to_string(),
             ),
             Self::get_row(
                 "path",
                 "longest",
                 "bp",
-                self.path_info.bp_len.longest.to_string(),
+                path_info.bp_len.longest.to_string(),
             ),
             Self::get_row(
                 "path",
                 "longest",
                 "node",
-                self.path_info.node_len.longest.to_string(),
+                path_info.node_len.longest.to_string(),
             ),
             Self::get_row(
                 "path",
                 "shortest",
                 "bp",
-                self.path_info.bp_len.shortest.to_string(),
+                path_info.bp_len.shortest.to_string(),
             ),
             Self::get_row(
                 "path",
                 "shortest",
                 "node",
-                self.path_info.node_len.shortest.to_string(),
+                path_info.node_len.shortest.to_string(),
             ),
         ];
         (header, values)
@@ -400,67 +362,62 @@ impl Info {
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.graph_info.is_none() || self.path_info.is_none() {
+            panic!("Cannot get info table before calculating its values");
+        }
+        let graph_info = self
+            .graph_info
+            .as_ref()
+            .expect("Graph info should have been calculated");
+        let path_info = self
+            .path_info
+            .as_ref()
+            .expect("Path info should have been calculated");
         writeln!(f, "feature\tcategory\tcountable\tvalue")?;
-        writeln!(f, "graph\ttotal\tnode\t{}", self.graph_info.node_count)?;
-        writeln!(f, "graph\ttotal\tbp\t{}", self.graph_info.basepairs)?;
-        writeln!(f, "graph\ttotal\tedge\t{}", self.graph_info.edge_count)?;
-        writeln!(f, "graph\ttotal\tpath\t{}", self.path_info.no_paths)?;
-        writeln!(f, "graph\ttotal\tgroup\t{}", self.graph_info.group_count)?;
+        writeln!(f, "graph\ttotal\tnode\t{}", graph_info.node_count)?;
+        writeln!(f, "graph\ttotal\tbp\t{}", graph_info.basepairs)?;
+        writeln!(f, "graph\ttotal\tedge\t{}", graph_info.edge_count)?;
+        writeln!(f, "graph\ttotal\tpath\t{}", path_info.no_paths)?;
+        writeln!(f, "graph\ttotal\tgroup\t{}", graph_info.group_count)?;
         writeln!(
             f,
             "graph\ttotal\t0-degree node\t{}",
-            self.graph_info.number_0_degree
+            graph_info.number_0_degree
         )?;
         writeln!(
             f,
             "graph\ttotal\tcomponent\t{}",
-            self.graph_info.connected_components
+            graph_info.connected_components
         )?;
         writeln!(
             f,
             "graph\tlargest\tcomponent\t{}",
-            self.graph_info.largest_component
+            graph_info.largest_component
         )?;
         writeln!(
             f,
             "graph\tsmallest\tcomponent\t{}",
-            self.graph_info.smallest_component
+            graph_info.smallest_component
         )?;
         writeln!(
             f,
             "graph\tmedian\tcomponent\t{}",
-            self.graph_info.median_component
+            graph_info.median_component
         )?;
-        writeln!(f, "node\taverage\tbp\t{}", self.graph_info.average_node)?;
-        writeln!(
-            f,
-            "node\taverage\tdegree\t{}",
-            self.graph_info.average_degree
-        )?;
-        writeln!(f, "node\tlongest\tbp\t{}", self.graph_info.largest_node)?;
-        writeln!(f, "node\tshortest\tbp\t{}", self.graph_info.shortest_node)?;
-        writeln!(f, "node\tmedian\tbp\t{}", self.graph_info.median_node)?;
-        writeln!(f, "node\tN50 node\tbp\t{}", self.graph_info.n50_node)?;
-        writeln!(f, "node\tmax\tdegree\t{}", self.graph_info.max_degree)?;
-        writeln!(f, "node\tmin\tdegree\t{}", self.graph_info.min_degree)?;
-        writeln!(f, "path\taverage\tbp\t{}", self.path_info.bp_len.average)?;
-        writeln!(
-            f,
-            "path\taverage\tnode\t{}",
-            self.path_info.node_len.average
-        )?;
-        writeln!(f, "path\tlongest\tbp\t{}", self.path_info.bp_len.longest)?;
-        writeln!(
-            f,
-            "path\tlongest\tnode\t{}",
-            self.path_info.node_len.longest
-        )?;
-        writeln!(f, "path\tshortest\tbp\t{}", self.path_info.bp_len.shortest)?;
-        write!(
-            f,
-            "path\tshortest\tnode\t{}",
-            self.path_info.node_len.shortest
-        )?;
+        writeln!(f, "node\taverage\tbp\t{}", graph_info.average_node)?;
+        writeln!(f, "node\taverage\tdegree\t{}", graph_info.average_degree)?;
+        writeln!(f, "node\tlongest\tbp\t{}", graph_info.largest_node)?;
+        writeln!(f, "node\tshortest\tbp\t{}", graph_info.shortest_node)?;
+        writeln!(f, "node\tmedian\tbp\t{}", graph_info.median_node)?;
+        writeln!(f, "node\tN50 node\tbp\t{}", graph_info.n50_node)?;
+        writeln!(f, "node\tmax\tdegree\t{}", graph_info.max_degree)?;
+        writeln!(f, "node\tmin\tdegree\t{}", graph_info.min_degree)?;
+        writeln!(f, "path\taverage\tbp\t{}", path_info.bp_len.average)?;
+        writeln!(f, "path\taverage\tnode\t{}", path_info.node_len.average)?;
+        writeln!(f, "path\tlongest\tbp\t{}", path_info.bp_len.longest)?;
+        writeln!(f, "path\tlongest\tnode\t{}", path_info.node_len.longest)?;
+        writeln!(f, "path\tshortest\tbp\t{}", path_info.bp_len.shortest)?;
+        write!(f, "path\tshortest\tnode\t{}", path_info.node_len.shortest)?;
         if let Some(group_info) = &self.group_info {
             let mut sorted: Vec<_> = group_info.groups.clone().into_iter().collect();
             sorted.sort_by(|(k0, _v0), (k1, _v1)| k0.cmp(k1));
