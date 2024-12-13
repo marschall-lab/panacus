@@ -41,6 +41,7 @@ pub struct GraphBroker {
 
     path_lens: Option<HashMap<PathSegment, (u32, u32)>>,
     gfa_file: String,
+    nice: bool,
     input_requirements: HashSet<Req>,
     count_type: CountType,
 }
@@ -54,6 +55,7 @@ impl GraphBroker {
             total_abaci: None,
             group_abacus: None,
             hists: None,
+            nice: false,
             path_lens: None,
             gfa_file: String::new(),
             input_requirements: HashSet::new(),
@@ -74,7 +76,7 @@ impl GraphBroker {
         }
     }
 
-    pub fn from_gfa(input_requirements: &HashSet<Req>) -> Self {
+    pub fn from_gfa(input_requirements: &HashSet<Req>, nice: bool) -> Self {
         let count_type = if Self::contains_at_least_two(input_requirements) {
             CountType::All
         } else if input_requirements.contains(&Req::Node) {
@@ -94,7 +96,7 @@ impl GraphBroker {
             Req::Graph(gfa_file) => gfa_file,
             _ => panic!("Requirements really need to contain gfa file"),
         };
-        let graph_aux = Some(GraphStorage::from_gfa(gfa_file, count_type));
+        let graph_aux = Some(GraphStorage::from_gfa(gfa_file, nice, count_type));
         GraphBroker {
             graph_aux,
             abacus_aux_params: GraphMaskParameters::default(),
@@ -104,6 +106,7 @@ impl GraphBroker {
             hists: None,
             path_lens: None,
             gfa_file: gfa_file.to_owned(),
+            nice,
             input_requirements: input_requirements.clone(),
             count_type,
         }
@@ -164,8 +167,8 @@ impl GraphBroker {
         self.graph_aux.as_ref().unwrap().edge2id.as_ref().unwrap()
     }
 
-    pub fn get_nodes(&self) -> &HashMap<Vec<u8>, ItemId> {
-        &self.graph_aux.as_ref().unwrap().node2id
+    pub fn get_nodes(&self) -> Vec<ItemId> {
+        self.graph_aux.as_ref().unwrap().get_nodes()
     }
 
     pub fn get_node_count(&self) -> usize {

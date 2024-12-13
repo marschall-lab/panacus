@@ -72,6 +72,7 @@ impl fmt::Display for CountType {
     }
 }
 
+#[derive(Debug)]
 pub struct ItemTable {
     pub items: [Vec<ItemIdSize>; SIZE_T],
     pub id_prefsum: [Vec<ItemIdSize>; SIZE_T],

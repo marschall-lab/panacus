@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::str::{self, FromStr};
+use std::time::Instant;
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Read},
@@ -39,6 +40,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
     let mut paths_len: HashMap<PathSegment, (u32, u32)> = HashMap::new();
 
     let mut buf = vec![];
+    let timer = Instant::now();
     while data.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
         if buf[0] == b'P' || buf[0] == b'W' {
             let (path_seg, buf_path_seg) = match buf[0] {
@@ -169,6 +171,12 @@ pub fn parse_gfa_paths_walks<R: Read>(
         }
         buf.clear();
     }
+    let duration = timer.elapsed();
+    log::info!(
+        "func done; count: {:?}; time elapsed: {:?}",
+        count,
+        duration
+    );
     (item_table, exclude_table, subset_covered_bps, paths_len)
 }
 
@@ -515,7 +523,7 @@ pub fn parse_walk_seq_to_item_vec(
             } else {
                 let i = x.iter().position(|z| &s2 == z).unwrap_or(x.len());
                 let sid = (
-                    *graph_storage.node2id.get(&x[..i]).unwrap_or_else(|| {
+                    graph_storage.get_node_id(&x[..i]).unwrap_or_else(|| {
                         panic!(
                             "walk contains unknown node {{{}}}'",
                             str::from_utf8(&x[..i]).unwrap()
@@ -538,7 +546,7 @@ pub fn parse_walk_seq_to_item_vec(
                                         vec![]
                                     } else {
                                         vec![(
-                                            *graph_storage.node2id.get(y).unwrap_or_else(|| {
+                                            graph_storage.get_node_id(y).unwrap_or_else(|| {
                                                 panic!(
                                                     "walk contains unknown node {{{}}}",
                                                     str::from_utf8(y).unwrap()
@@ -595,9 +603,8 @@ pub fn parse_walk_seq_update_tables(
     data[1..end]
         .par_split(|&x| x == b'>' || x == b'<')
         .for_each(|node| {
-            let sid = *graph_storage
-                .node2id
-                .get(node)
+            let sid = graph_storage
+                .get_node_id(node)
                 .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
             let idx = (sid.0 as usize) % SIZE_T;
             if let Ok(_) = mutex_vec[idx].lock() {
@@ -651,9 +658,8 @@ pub fn parse_path_seq_to_item_vec(
         .par_split(|&x| x == b',')
         .map(|node| {
             // Parallel
-            let sid = *graph_storage
-                .node2id
-                .get(&node[..node.len() - 1])
+            let sid = graph_storage
+                .get_node_id(&node[..node.len() - 1])
                 .unwrap_or_else(|| {
                     panic!(
                         "unknown node {}",
@@ -676,6 +682,7 @@ pub fn parse_path_seq_update_tables(
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
 ) -> (u32, u32) {
+    let timer = Instant::now();
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -696,9 +703,8 @@ pub fn parse_path_seq_update_tables(
     let bp_len = data[..end]
         .par_split(|&x| x == b',')
         .map(|node| {
-            let segment_id = *graph_storage
-                .node2id
-                .get(&node[0..node.len() - 1])
+            let segment_id = graph_storage
+                .get_node_id(&node[0..node.len() - 1])
                 .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
             // TODO: Is orientation really necessary?
             let orientation = node[node.len() - 1];
@@ -740,6 +746,7 @@ pub fn parse_path_seq_update_tables(
         }
     }
 
+    let duration = timer.elapsed();
     log::debug!("..done");
     (num_nodes_path as u32, bp_len)
 }

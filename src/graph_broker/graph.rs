@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 use std::io::BufRead;
 use std::str::{self, FromStr};
 
@@ -162,7 +163,8 @@ pub fn get_extremities(node_dna: &[u8], k: usize) -> (u64, u64) {
 
 #[derive(Debug, Clone)]
 pub struct GraphStorage {
-    pub node2id: HashMap<Vec<u8>, ItemId>,
+    node2id: HashMap<Vec<u8>, ItemId>,
+    is_nice: bool,
     pub node_lens: Vec<u32>,
     pub edge2id: Option<HashMap<Edge, ItemId>>,
     pub path_segments: Vec<PathSegment>,
@@ -173,7 +175,21 @@ pub struct GraphStorage {
 }
 
 impl GraphStorage {
-    pub fn from_gfa(gfa_file: &str, count_type: CountType) -> Self {
+    #[cfg(test)]
+    pub fn from_path_segments(path_segments: Vec<PathSegment>) -> Self {
+        Self {
+            node2id: HashMap::new(),
+            node_lens: Vec::new(),
+            edge2id: None,
+            path_segments,
+            node_count: 0,
+            edge_count: 0,
+            degree: None,
+            is_nice: false,
+        }
+    }
+
+    pub fn from_gfa(gfa_file: &str, is_nice: bool, count_type: CountType) -> Self {
         let (node2id, path_segments, node_lens, _extremities) =
             Self::parse_nodes_gfa(gfa_file, None);
         let index_edges: bool = (count_type == CountType::Edge) | (count_type == CountType::All);
@@ -188,6 +204,7 @@ impl GraphStorage {
 
         Self {
             node2id,
+            is_nice,
             node_lens,
             edge2id,
             path_segments,
@@ -196,6 +213,24 @@ impl GraphStorage {
             degree,
             // extremities,
         }
+    }
+
+    #[inline]
+    pub fn get_node_id(&self, node_name: &[u8]) -> Option<ItemId> {
+        // self.node2id.get(node_name).cloned()
+        if self.is_nice {
+            unsafe {
+                let node_string = str::from_utf8_unchecked(node_name);
+                let node_number: ItemIdSize = node_string.parse().expect("Node id is fine");
+                Some(ItemId(node_number))
+            }
+        } else {
+            self.node2id.get(node_name).cloned()
+        }
+    }
+
+    pub fn get_nodes(&self) -> Vec<ItemId> {
+        self.node2id.values().cloned().collect()
     }
 
     // pub fn from_cdbg_gfa(gfa_file: &str, k: usize) -> Self {

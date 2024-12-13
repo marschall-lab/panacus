@@ -101,7 +101,6 @@ impl Analysis for Info {
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
         let req = HashSet::from([
             InputRequirement::Node,
-            InputRequirement::Graph(self.graph.clone()),
             InputRequirement::Edge,
             InputRequirement::Bp,
             InputRequirement::PathLens,
@@ -455,7 +454,7 @@ impl GraphInfo {
         let degree = gb.get_degree();
         let mut node_lens_sorted = gb.get_node_lens()[1..].to_vec();
         node_lens_sorted.sort_by(|a, b| b.cmp(a)); // decreasing, for N50
-        let mut components = connected_components(gb.get_edges(), gb.get_nodes());
+        let mut components = connected_components(gb.get_edges(), &gb.get_nodes());
         components.sort();
 
         Self {
@@ -535,10 +534,7 @@ impl GroupInfo {
     }
 }
 
-fn connected_components(
-    edge2id: &HashMap<Edge, ItemId>,
-    node2id: &HashMap<Vec<u8>, ItemId>,
-) -> Vec<u32> {
+fn connected_components(edge2id: &HashMap<Edge, ItemId>, nodes: &Vec<ItemId>) -> Vec<u32> {
     let mut component_lengths = Vec::new();
     let mut visited: HashSet<ItemId> = HashSet::new();
     let edges: HashMap<ItemId, Vec<ItemId>> = edge2id
@@ -549,8 +545,7 @@ fn connected_components(
             acc.entry(k).and_modify(|x| x.push(v)).or_insert(vec![v]);
             acc
         });
-    let nodes: Vec<ItemId> = node2id.values().copied().collect();
-    for node in &nodes {
+    for node in nodes {
         if !visited.contains(node) {
             component_lengths.push(dfs(&edges, *node, &mut visited));
         }

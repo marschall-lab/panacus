@@ -48,7 +48,6 @@ impl AnalysisSection {
                 );
             }
         }
-        eprintln!("{js_objects:?}");
         let js_objects = js_objects
             .into_iter()
             .reduce(combine_vars)

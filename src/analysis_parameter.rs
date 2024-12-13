@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::util::CountType;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AnalysisParameter {
     Hist {
         name: Option<String>,
@@ -38,6 +38,8 @@ pub enum AnalysisParameter {
     Graph {
         name: String,
         file: String,
+        #[serde(default)]
+        nice: bool,
     },
     Grouping {
         name: String,

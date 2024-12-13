@@ -957,10 +957,11 @@ impl AbacusByGroup {
         // create mapping from numerical node ids to original node identifiers
         log::info!("reporting coverage table");
         let dummy = Vec::new();
-        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; graph_storage.node_count + 1];
-        for (node, id) in graph_storage.node2id.iter() {
-            id2node[id.0 as usize] = node;
-        }
+        let id2node: Vec<&Vec<u8>> = vec![&dummy; graph_storage.node_count + 1];
+        // TODO: fix issue
+        //for (node, id) in graph_storage.node2id.iter() {
+        //    id2node[id.0 as usize] = node;
+        //}
 
         match self.count {
             CountType::Node | CountType::Bp => {
@@ -1143,20 +1144,12 @@ mod tests {
     }
 
     fn get_graph_storage_path_segments() -> GraphStorage {
-        GraphStorage {
-            degree: None,
-            edge2id: None,
-            edge_count: 0,
-            node2id: HashMap::new(),
-            node_lens: Vec::new(),
-            node_count: 0,
-            path_segments: vec![
-                PathSegment::from_str("s1#2#2"),
-                PathSegment::from_str("s1#1#2"),
-                PathSegment::from_str("s1#1#1"),
-                PathSegment::from_str("s2#1#2"),
-            ],
-        }
+        GraphStorage::from_path_segments(vec![
+            PathSegment::from_str("s1#2#2"),
+            PathSegment::from_str("s1#1#2"),
+            PathSegment::from_str("s1#1#1"),
+            PathSegment::from_str("s2#1#2"),
+        ])
     }
 
     fn get_load_groups_expected_hashmap(groups: [&str; 4]) -> HashMap<PathSegment, String> {
