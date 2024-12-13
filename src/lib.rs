@@ -15,7 +15,7 @@ use std::{
 use thiserror::Error;
 
 use analyses::{Analysis, ConstructibleAnalysis, InputRequirement};
-use analysis_parameter::AnalysisParameter;
+use analysis_parameter::{AnalysisParameter, Grouping};
 use clap::Command;
 use graph_broker::GraphBroker;
 use html_report::AnalysisSection;
@@ -111,7 +111,7 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
     let mut last_graph_change = 0usize;
     let mut current_subset = None;
     let mut current_exclude = String::new();
-    let mut current_grouping = String::new();
+    let mut current_grouping = None;
     for instruction in instructions {
         match instruction {
             AnalysisParameter::Graph { nice, file, .. } => {
@@ -133,7 +133,7 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 {
                     let subset = subset.to_owned();
                     let exclude = exclude.clone().unwrap_or_default();
-                    let grouping = grouping.clone().unwrap_or_default();
+                    let grouping = grouping.to_owned();
                     if subset != current_subset {
                         tasks.push(Task::SubsetChange(subset.clone()));
                         current_subset = subset;
@@ -192,19 +192,21 @@ fn preprocess_instructions(
             _ => None,
         })
         .collect();
-    let groupings: HashMap<String, String> = instructions
-        .iter()
-        .filter_map(|instruct| match instruct {
-            AnalysisParameter::Grouping { name, file } => {
-                Some((name.to_string(), file.to_string()))
-            }
-            _ => None,
-        })
-        .collect();
+    //let groupings: HashMap<String, String> = instructions
+    //    .iter()
+    //    .filter_map(|instruct| match instruct {
+    //        AnalysisParameter::Grouping { name, file } => {
+    //            Some((name.to_string(), file.to_string()))
+    //        }
+    //        _ => None,
+    //    })
+    //    .collect();
     let mut new_instructions: HashSet<AnalysisParameter> = HashSet::new();
     let mut counter = 0;
     let instructions = instructions
         .into_iter()
+        .filter(|instruct| !matches!(instruct, AnalysisParameter::Subset { .. }))
+        //.filter(|instruct| !matches!(instruct, AnalysisParameter::Grouping { .. }))
         .map(|instruct| match instruct {
             AnalysisParameter::Hist {
                 graph,
@@ -215,6 +217,26 @@ fn preprocess_instructions(
                 exclude,
                 grouping,
             } => {
+                let subset = match subset {
+                    Some(subset) => {
+                        if subsets.contains_key(&subset) {
+                            Some(subsets[&subset].to_string())
+                        } else {
+                            Some(subset)
+                        }
+                    }
+                    None => None,
+                };
+                //let grouping = match grouping {
+                //    Some(grouping) => {
+                //        if groupings.contains_key(&grouping) {
+                //            Some(groupings[&grouping].to_string())
+                //        } else {
+                //            Some(grouping)
+                //        }
+                //    }
+                //    None => None,
+                //};
                 if !graphs.contains_key(&graph[..]) {
                     if !new_instructions
                         .iter()
@@ -382,7 +404,7 @@ pub enum Task {
     GraphChange(HashSet<InputRequirement>, bool),
     SubsetChange(Option<String>),
     ExcludeChange(String),
-    GroupingChange(String),
+    GroupingChange(Option<Grouping>),
 }
 
 impl Debug for Task {
@@ -452,7 +474,7 @@ pub fn execute_pipeline<W: Write>(
                 }
             }
             Task::GroupingChange(grouping) => {
-                log::info!("Executing grouping change: {}", grouping);
+                log::info!("Executing grouping change: {:?}", grouping);
                 gb = Some(gb.expect("GroupingChange after Graph").with_group(grouping));
                 if is_next_analysis {
                     gb = Some(gb.expect("GraphBroker is some").finish()?);
@@ -476,6 +498,8 @@ pub fn execute_pipeline<W: Write>(
 
 #[cfg(test)]
 mod tests {
+    use analysis_parameter::Grouping;
+
     use super::*;
 
     fn get_graph_section(graph_name: &str) -> AnalysisParameter {
@@ -530,7 +554,7 @@ mod tests {
             display: false,
             subset: None,
             exclude: None,
-            grouping: Some(grouping.to_string()),
+            grouping: Some(Grouping::Custom(grouping.to_string())),
         }
     }
 
@@ -567,10 +591,10 @@ mod tests {
         assert_eq!(calculated, expected);
     }
 
-    #[ignore]
     #[test]
     fn test_replace_subset_name() {
         let instructions = vec![
+            get_graph_section("test"),
             AnalysisParameter::Hist {
                 name: None,
                 count_type: util::CountType::Node,
@@ -585,46 +609,18 @@ mod tests {
                 file: "subset_file.bed".to_string(),
             },
         ];
-        let expected = vec![AnalysisParameter::Hist {
-            name: None,
-            count_type: util::CountType::Node,
-            graph: "test".to_string(),
-            display: false,
-            subset: Some("subset_file.bed".to_string()),
-            exclude: None,
-            grouping: None,
-        }];
-        let calculated = preprocess_instructions(instructions).unwrap();
-        assert_eq!(calculated, expected);
-    }
-
-    #[ignore]
-    #[test]
-    fn test_replace_grouping_name() {
-        let instructions = vec![
+        let expected = vec![
+            get_graph_section("test"),
             AnalysisParameter::Hist {
                 name: None,
                 count_type: util::CountType::Node,
                 graph: "test".to_string(),
                 display: false,
-                subset: None,
+                subset: Some("subset_file.bed".to_string()),
                 exclude: None,
-                grouping: Some("test_grouping".to_string()),
-            },
-            AnalysisParameter::Grouping {
-                name: "test_grouping".to_string(),
-                file: "grouping_file.tsv".to_string(),
+                grouping: None,
             },
         ];
-        let expected = vec![AnalysisParameter::Hist {
-            name: None,
-            count_type: util::CountType::Node,
-            graph: "test".to_string(),
-            display: false,
-            subset: None,
-            exclude: None,
-            grouping: Some("grouping_file.tsv".to_string()),
-        }];
         let calculated = preprocess_instructions(instructions).unwrap();
         assert_eq!(calculated, expected);
     }
@@ -667,57 +663,66 @@ mod tests {
         assert_eq!(calculated, expected);
     }
 
-    #[ignore]
     #[test]
     fn test_sort_by_subset() {
         let instructions = vec![
+            get_graph_section("graph_a"),
+            get_graph_section("graph_b"),
             get_hist_with_subset("graph_a", "subset_a"),
             get_hist_with_subset("graph_b", "subset_a"),
             get_hist_with_subset("graph_a", "subset_b"),
             get_hist_with_subset("graph_a", "subset_a"),
         ];
         let expected = vec![
+            get_graph_section("graph_a"),
             get_hist_with_subset("graph_a", "subset_a"),
             get_hist_with_subset("graph_a", "subset_a"),
             get_hist_with_subset("graph_a", "subset_b"),
+            get_graph_section("graph_b"),
             get_hist_with_subset("graph_b", "subset_a"),
         ];
         let calculated = preprocess_instructions(instructions).unwrap();
         assert_eq!(calculated, expected);
     }
 
-    #[ignore]
     #[test]
     fn test_sort_by_exclude() {
         let instructions = vec![
+            get_graph_section("graph_a"),
+            get_graph_section("graph_b"),
             get_hist_with_exclude("graph_a", "exclude_a"),
             get_hist_with_exclude("graph_b", "exclude_a"),
             get_hist_with_exclude("graph_a", "exclude_b"),
             get_hist_with_exclude("graph_a", "exclude_a"),
         ];
         let expected = vec![
+            get_graph_section("graph_a"),
             get_hist_with_exclude("graph_a", "exclude_a"),
             get_hist_with_exclude("graph_a", "exclude_a"),
             get_hist_with_exclude("graph_a", "exclude_b"),
+            get_graph_section("graph_b"),
             get_hist_with_exclude("graph_b", "exclude_a"),
         ];
         let calculated = preprocess_instructions(instructions).unwrap();
         assert_eq!(calculated, expected);
     }
 
-    #[ignore]
     #[test]
     fn test_sort_by_grouping() {
         let instructions = vec![
+            get_graph_section("graph_a"),
+            get_graph_section("graph_b"),
             get_hist_with_grouping("graph_a", "grouping_a"),
             get_hist_with_grouping("graph_b", "grouping_a"),
             get_hist_with_grouping("graph_a", "grouping_b"),
             get_hist_with_grouping("graph_a", "grouping_a"),
         ];
         let expected = vec![
+            get_graph_section("graph_a"),
             get_hist_with_grouping("graph_a", "grouping_a"),
             get_hist_with_grouping("graph_a", "grouping_a"),
             get_hist_with_grouping("graph_a", "grouping_b"),
+            get_graph_section("graph_b"),
             get_hist_with_grouping("graph_b", "grouping_a"),
         ];
         let calculated = preprocess_instructions(instructions).unwrap();

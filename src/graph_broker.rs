@@ -9,7 +9,8 @@ use graph::GraphStorage;
 use strum::IntoEnumIterator;
 
 use crate::{
-    analyses::InputRequirement as Req, io::bufreader_from_compressed_gfa, util::CountType,
+    analyses::InputRequirement as Req, analysis_parameter::Grouping,
+    io::bufreader_from_compressed_gfa, util::CountType,
 };
 
 mod abacus;
@@ -112,7 +113,19 @@ impl GraphBroker {
         }
     }
 
-    pub fn with_group(mut self, file_name: &str) -> Self {
+    pub fn with_group(self, grouping: &Option<Grouping>) -> Self {
+        if let Some(grouping) = grouping {
+            match grouping {
+                Grouping::Sample => self.with_sample_group(),
+                Grouping::Haplotype => self.with_haplo_group(),
+                Grouping::Custom(file_name) => self.with_custom_group(file_name),
+            }
+        } else {
+            self
+        }
+    }
+
+    pub fn with_custom_group(mut self, file_name: &str) -> Self {
         self.abacus_aux_params.groupby = file_name.to_owned();
         self
     }

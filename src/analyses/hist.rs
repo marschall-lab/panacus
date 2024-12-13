@@ -146,7 +146,10 @@ impl Hist {
                 format!(
                     "{}-{}|{}\\{}",
                     graph,
-                    grouping.clone().unwrap_or_default(),
+                    match grouping.clone() {
+                        Some(g) => g.to_string(),
+                        None => "Ungrouped".to_string(),
+                    },
                     subset.clone().unwrap_or_default(),
                     exclude.clone().unwrap_or_default()
                 )

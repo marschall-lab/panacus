@@ -1,7 +1,7 @@
 use crate::clap_enum_variants;
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analysis_parameter::AnalysisParameter;
+use crate::analysis_parameter::{AnalysisParameter, Grouping};
 use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
@@ -37,6 +37,13 @@ pub fn get_instructions(
         let subset = args.get_one::<String>("subset").cloned();
         let exclude = args.get_one::<String>("exclude").cloned();
         let grouping = args.get_one::<String>("groupby").cloned();
+        let grouping = if args.get_flag("groupby-sample") {
+            Some(Grouping::Sample)
+        } else if args.get_flag("groupby-haplotype") {
+            Some(Grouping::Haplotype)
+        } else {
+            grouping.map(|g| Grouping::Custom(g))
+        };
         let coverage = args.get_one::<String>("coverage").cloned();
         let quorum = args.get_one::<String>("quorum").cloned();
         let parameters = vec![

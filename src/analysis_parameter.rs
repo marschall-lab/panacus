@@ -1,4 +1,5 @@
 use core::panic;
+use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +19,7 @@ pub enum AnalysisParameter {
 
         subset: Option<String>,
         exclude: Option<String>,
-        grouping: Option<String>,
+        grouping: Option<Grouping>,
     },
     Growth {
         name: Option<String>,
@@ -41,15 +42,28 @@ pub enum AnalysisParameter {
         #[serde(default)]
         nice: bool,
     },
-    Grouping {
-        name: String,
-        file: String,
-    },
     Info {
         graph: String,
     },
     OrderedGrowth,
     Table,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
+pub enum Grouping {
+    Sample,
+    Haplotype,
+    Custom(String),
+}
+
+impl Display for Grouping {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sample => write!(f, "Group By Sample"),
+            Self::Haplotype => write!(f, "Group By Haplotype"),
+            Self::Custom(file) => write!(f, "Group By {}", file),
+        }
+    }
 }
 
 fn get_true() -> bool {
@@ -124,25 +138,25 @@ impl Ord for AnalysisParameter {
                 AnalysisParameter::Graph { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
-            AnalysisParameter::Grouping { name, .. } => match other {
-                AnalysisParameter::Grouping { name: o_name, .. } => name.cmp(o_name),
-                AnalysisParameter::Graph { .. } | AnalysisParameter::Subset { .. } => {
-                    std::cmp::Ordering::Greater
-                }
-                _ => std::cmp::Ordering::Less,
-            },
+            //AnalysisParameter::Grouping { name, .. } => match other {
+            //    AnalysisParameter::Grouping { name: o_name, .. } => name.cmp(o_name),
+            //    AnalysisParameter::Graph { .. } | AnalysisParameter::Subset { .. } => {
+            //        std::cmp::Ordering::Greater
+            //    }
+            //    _ => std::cmp::Ordering::Less,
+            //},
             AnalysisParameter::Info { graph } => match other {
                 AnalysisParameter::Info { graph: o_graph } => graph.cmp(o_graph),
                 AnalysisParameter::Graph { .. }
-                | AnalysisParameter::Subset { .. }
-                | AnalysisParameter::Grouping { .. } => std::cmp::Ordering::Greater,
+                //| AnalysisParameter::Grouping { .. }
+                | AnalysisParameter::Subset { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
             AnalysisParameter::Table => match other {
                 AnalysisParameter::Table => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
-                | AnalysisParameter::Grouping { .. }
+                //| AnalysisParameter::Grouping { .. }
                 | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
@@ -150,7 +164,7 @@ impl Ord for AnalysisParameter {
                 AnalysisParameter::OrderedGrowth => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
-                | AnalysisParameter::Grouping { .. }
+                //| AnalysisParameter::Grouping { .. }
                 | AnalysisParameter::Info { .. }
                 | AnalysisParameter::Table => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
