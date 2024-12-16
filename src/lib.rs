@@ -61,6 +61,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::hist::get_subcommand())
         .subcommand(commands::growth::get_subcommand())
         .subcommand(commands::histgrowth::get_subcommand())
+        .subcommand(commands::info::get_subcommand())
         .subcommand_required(true)
         .get_matches();
 
@@ -82,6 +83,9 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
     if let Some(histgrowth) = commands::histgrowth::get_instructions(&args) {
         instructions.extend(histgrowth?);
+    }
+    if let Some(info) = commands::info::get_instructions(&args) {
+        instructions.extend(info?);
     }
 
     let instructions = get_tasks(instructions)?;
@@ -105,7 +109,9 @@ pub enum ConfigParseError {
 }
 
 fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> {
+    eprintln!("bef: {:#?}", instructions);
     let instructions = preprocess_instructions(instructions)?;
+    eprintln!("aft: {:#?}", instructions);
     let mut tasks = Vec::new();
     let mut reqs = HashSet::new();
     let mut last_graph_change = 0usize;
@@ -157,6 +163,30 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 )));
             }
             i @ AnalysisParameter::Info { .. } => {
+                eprintln!("Adding Info");
+                if let AnalysisParameter::Info {
+                    subset,
+                    exclude,
+                    grouping,
+                    ..
+                } = &i
+                {
+                    let subset = subset.to_owned();
+                    let exclude = exclude.clone().unwrap_or_default();
+                    let grouping = grouping.to_owned();
+                    if subset != current_subset {
+                        tasks.push(Task::SubsetChange(subset.clone()));
+                        current_subset = subset;
+                    }
+                    if exclude != current_exclude {
+                        tasks.push(Task::ExcludeChange(exclude.clone()));
+                        current_exclude = exclude;
+                    }
+                    if grouping != current_grouping {
+                        tasks.push(Task::GroupingChange(grouping.clone()));
+                        current_grouping = grouping;
+                    }
+                }
                 let info = analyses::info::Info::from_parameter(i);
                 reqs.extend(info.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(info)));
@@ -227,16 +257,6 @@ fn preprocess_instructions(
                     }
                     None => None,
                 };
-                //let grouping = match grouping {
-                //    Some(grouping) => {
-                //        if groupings.contains_key(&grouping) {
-                //            Some(groupings[&grouping].to_string())
-                //        } else {
-                //            Some(grouping)
-                //        }
-                //    }
-                //    None => None,
-                //};
                 if !graphs.contains_key(&graph[..]) {
                     if !new_instructions
                         .iter()
@@ -278,19 +298,56 @@ fn preprocess_instructions(
                     grouping,
                 }
             }
-            AnalysisParameter::Info { graph } => {
-                if !graphs.contains_key(&graph[..]) {
-                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
-                    if new_instructions.insert(AnalysisParameter::Graph {
-                        name: new_name.clone(),
-                        file: graph.clone(),
-                        nice: false,
-                    }) {
-                        counter += 1
+            AnalysisParameter::Info {
+                graph,
+                subset,
+                exclude,
+                grouping,
+            } => {
+                let subset = match subset {
+                    Some(subset) => {
+                        if subsets.contains_key(&subset) {
+                            Some(subsets[&subset].to_string())
+                        } else {
+                            Some(subset)
+                        }
                     }
-                    return AnalysisParameter::Info { graph: new_name };
+                    None => None,
+                };
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::Info {
+                        graph: new_name,
+                        subset,
+                        exclude,
+                        grouping,
+                    };
                 }
-                AnalysisParameter::Info { graph }
+                AnalysisParameter::Info {
+                    graph,
+                    subset,
+                    exclude,
+                    grouping,
+                }
             }
             p => p,
         })
@@ -314,7 +371,7 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
     let mut current_instructions = graph_statements;
     for instruction in others {
         match instruction {
-            ref i @ AnalysisParameter::Info { ref graph } => {
+            ref i @ AnalysisParameter::Info { ref graph, .. } => {
                 insert_after_graph(i.clone(), graph, &mut current_instructions)
             }
             ref h @ AnalysisParameter::Hist { ref graph, .. } => {

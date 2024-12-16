@@ -113,7 +113,7 @@ impl ConstructibleAnalysis for Info {
     fn from_parameter(parameter: AnalysisParameter) -> Self {
         Self {
             graph: match parameter {
-                AnalysisParameter::Info { graph } => graph,
+                AnalysisParameter::Info { graph, .. } => graph,
                 _ => panic!("Cannot construct Info Analysis from another parameter"),
             },
             graph_info: None,

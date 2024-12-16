@@ -44,6 +44,9 @@ pub enum AnalysisParameter {
     },
     Info {
         graph: String,
+        subset: Option<String>,
+        exclude: Option<String>,
+        grouping: Option<Grouping>,
     },
     OrderedGrowth,
     Table,
@@ -145,8 +148,15 @@ impl Ord for AnalysisParameter {
             //    }
             //    _ => std::cmp::Ordering::Less,
             //},
-            AnalysisParameter::Info { graph } => match other {
-                AnalysisParameter::Info { graph: o_graph } => graph.cmp(o_graph),
+            AnalysisParameter::Info {
+                graph,
+                subset,
+                exclude,
+                grouping,
+            } => match other {
+                AnalysisParameter::Info { graph: o_graph, subset: o_subset, exclude: o_exclude, grouping: o_grouping } => {
+                    graph.cmp(o_graph).then(subset.cmp(o_subset)).then(exclude.cmp(o_exclude)).then(grouping.cmp(o_grouping))
+                },
                 AnalysisParameter::Graph { .. }
                 //| AnalysisParameter::Grouping { .. }
                 | AnalysisParameter::Subset { .. } => std::cmp::Ordering::Greater,
