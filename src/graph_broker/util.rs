@@ -114,7 +114,6 @@ pub fn parse_gfa_paths_walks<R: Read>(
                 } else {
                     exclude_table.as_mut()
                 };
-
                 let (num_added_nodes, bp_len) = match buf[0] {
                     b'P' => parse_path_seq_update_tables(
                         buf_path_seg,
@@ -140,20 +139,21 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     _ => unreachable!(),
                 };
 
-                paths_len.insert(path_seg, (sids.len() as u32, 0));
-
                 match count {
-                    CountType::Node | CountType::Bp => update_tables(
-                        &mut item_table,
-                        &mut subset_covered_bps.as_mut(),
-                        &mut exclude_table.as_mut(),
-                        num_path,
-                        graph_storage,
-                        sids,
-                        include_coords,
-                        exclude_coords,
-                        start,
-                    ),
+                    CountType::Node | CountType::Bp => {
+                        let (node_len, bp_len) = update_tables(
+                            &mut item_table,
+                            &mut subset_covered_bps.as_mut(),
+                            &mut exclude_table.as_mut(),
+                            num_path,
+                            graph_storage,
+                            sids,
+                            include_coords,
+                            exclude_coords,
+                            start,
+                        );
+                        paths_len.insert(path_seg, (node_len as u32, bp_len as u32));
+                    }
                     CountType::Edge => update_tables_edgecount(
                         &mut item_table,
                         &mut exclude_table.as_mut(),
@@ -234,7 +234,7 @@ pub fn update_tables(
     include_coords: &[(usize, usize)],
     exclude_coords: &[(usize, usize)],
     offset: usize,
-) {
+) -> (usize, usize) {
     let mut i = 0;
     let mut j = 0;
     let mut p = offset;
@@ -247,56 +247,12 @@ pub fn update_tables(
         "checking inclusion/exclusion criteria on {} nodes..",
         path.len()
     );
+    if path.len() == 0 {
+        return (included, included_bp);
+    }
 
-    for (sid, o) in path {
+    for (sid, o) in &path {
         let l = graph_storage.node_len(&sid) as usize;
-
-        // update current pointer in include_coords list
-        // end is not inclusive, so if end <= p (=offset) then advance to the next interval
-        while i < include_coords.len() && include_coords[i].1 <= p {
-            i += 1;
-        }
-        let include_start = if i < include_coords.len() && include_coords[i].0 < p + l {
-            Some(include_coords[i].0)
-        } else {
-            None
-        };
-        // if next intervals also overlap with node, then advance already to that interval
-        while i + 1 < include_coords.len() && include_coords[i + 1].0 < p + l {
-            log::debug!(
-                "node {} has multiple overlapping inclusion intervals, combining them...",
-                sid
-            );
-            i += 1;
-        }
-        let include_end = if include_start.is_some() {
-            Some(include_coords[i].1)
-        } else {
-            None
-        };
-
-        // update current pointer in exclude_coords list
-        while j < exclude_coords.len() && exclude_coords[j].1 <= p {
-            j += 1;
-        }
-        let exclude_start = if j < exclude_coords.len() && exclude_coords[j].0 < p + l {
-            Some(exclude_coords[j].0)
-        } else {
-            None
-        };
-        // if next intervals also overlap with node, then advance already to that interval
-        while j + 1 < exclude_coords.len() && exclude_coords[j + 1].0 <= p + l {
-            log::debug!(
-                "node {} has multiple overlapping exclusion intervals, combining them...",
-                sid
-            );
-            j += 1;
-        }
-        let exclude_end = if exclude_start.is_some() {
-            Some(exclude_coords[j].1)
-        } else {
-            None
-        };
 
         // this implementation of include coords for bps is *not exact* as illustrated by the
         // following scenario:
@@ -317,81 +273,92 @@ pub fn update_tables(
         //  ---|                some node                  |---|
         //      -------------------------------------------     ----
         //
-        // it also simplifies the following scenario:
-        //
-        //   subset intervals:
-        //  _______                                      ____________
-        //         |                                    |
-        //      ___________________________________________     ____
-        //  ---|                some node                  |---|
-        //      -------------------------------------------     ----
-        //
-        //
-        //   what the following code does:
-        //  _________________________________________________________
-        //                     coverage count
-        //      ___________________________________________     ____
-        //  ---|                some node                  |---|
-        //      -------------------------------------------     ----
-        //
-        //
-        // in other words, the calculated bps coverage is an upper bound on the actual coverage,
-        // for the sake of speed (and implementation effort)
-        //
-        //
         //
         // node count handling: node is only counted if *completely* covered by subset
         //
         //
-        // check if the current position fits within active segment
-        if let (Some(start), Some(end)) = (include_start, include_end) {
-            let mut a = if start > p { start - p } else { 0 };
-            let mut b = if end < p + l { end - p } else { l };
+        // update current pointer in include_coords list
 
-            // reverse coverage interval in case of backward orientation
-            if o == Orientation::Backward {
-                (a, b) = (l - b, l - a);
-            }
+        // end is not inclusive, so if end <= p (=offset) then advance to the next interval
+        let mut stop_here = false;
+        while i < include_coords.len() && include_coords[i].0 < p + l && !stop_here {
+            if include_coords[i].1 > p {
+                let mut a = if include_coords[i].0 > p {
+                    include_coords[i].0 - p
+                } else {
+                    0
+                };
+                let mut b = if include_coords[i].1 < p + l {
+                    // advance to the next interval
+                    i += 1;
+                    include_coords[i - 1].1 - p
+                } else {
+                    stop_here = true;
+                    l
+                };
 
-            // only count nodes that are completely contained in "include" coords
-            if subset_covered_bps.is_some() || b - a == l {
+                // reverse coverage interval in case of backward orientation
+                if o == &Orientation::Backward {
+                    (a, b) = (l - b, l - a);
+                }
+
                 let idx = (sid.0 as usize) % SIZE_T;
                 item_table.items[idx].push(sid.0);
                 item_table.id_prefsum[idx][num_path + 1] += 1;
                 if let Some(int) = subset_covered_bps.as_mut() {
                     // if fully covered, we do not need to store anything in the map
                     if b - a == l {
-                        if int.contains(&sid) {
-                            int.remove(&sid);
+                        if int.contains(sid) {
+                            int.remove(sid);
                         }
                     } else {
-                        int.add(sid, a, b);
+                        int.add(*sid, a, b);
                     }
                 }
                 included += 1;
+                included_bp += b - a;
+            } else {
+                // advance to the next interval
+                i += 1;
             }
-            included_bp += b - a;
         }
 
-        if let (Some(start), Some(end)) = (exclude_start, exclude_end) {
-            let mut a = if start > p { start - p } else { 0 };
-            let mut b = if end < p + l { end - p } else { l };
+        let mut stop_here = false;
+        while j < exclude_coords.len() && exclude_coords[j].0 < p + l && !stop_here {
+            if exclude_coords[j].1 > p {
+                let mut a = if exclude_coords[j].0 > p {
+                    exclude_coords[j].0 - p
+                } else {
+                    0
+                };
+                let mut b = if exclude_coords[j].1 < p + l {
+                    // advance to the next interval for the next iteration
+                    j += 1;
+                    exclude_coords[j - 1].1 - p
+                } else {
+                    stop_here = true;
+                    l
+                };
 
-            // reverse coverage interval in case of backward orientation
-            if o == Orientation::Backward {
-                (a, b) = (l - b, l - a);
-            }
-
-            if let Some(map) = exclude_table {
-                if map.with_annotation() {
-                    map.activate_n_annotate(sid, l, a, b)
-                        .expect("this error should never occur");
-                } else if b - a == l {
-                    map.activate(&sid);
+                // reverse coverage interval in case of backward orientation
+                if o == &Orientation::Backward {
+                    (a, b) = (l - b, l - a);
                 }
-                excluded += 1;
+
+                if let Some(map) = exclude_table {
+                    if map.with_annotation() {
+                        map.activate_n_annotate(*sid, l, a, b)
+                            .expect("this error should never occur");
+                    } else {
+                        map.activate(&sid);
+                    }
+                    excluded += 1;
+                }
+            } else {
+                j += 1;
             }
         }
+
         if i >= include_coords.len() && j >= exclude_coords.len() {
             // terminate parse if all "include" and "exclude" coords are processed
             break;
@@ -403,7 +370,7 @@ pub fn update_tables(
         "found {} included nodes ({} included bps) and {} excluded nodes, and discarded the rest",
         included,
         included_bp,
-        excluded
+        excluded,
     );
 
     // Compute prefix sum
@@ -411,6 +378,7 @@ pub fn update_tables(
         item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
     }
     log::debug!("..done");
+    (included, included_bp)
 }
 
 pub fn update_tables_edgecount(
@@ -682,7 +650,6 @@ pub fn parse_path_seq_update_tables(
     exclude_table: Option<&mut ActiveTable>,
     num_path: usize,
 ) -> (u32, u32) {
-    let timer = Instant::now();
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
@@ -746,7 +713,6 @@ pub fn parse_path_seq_update_tables(
         }
     }
 
-    let duration = timer.elapsed();
     log::debug!("..done");
     (num_nodes_path as u32, bp_len)
 }

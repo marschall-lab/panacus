@@ -109,9 +109,7 @@ pub enum ConfigParseError {
 }
 
 fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> {
-    eprintln!("bef: {:#?}", instructions);
     let instructions = preprocess_instructions(instructions)?;
-    eprintln!("aft: {:#?}", instructions);
     let mut tasks = Vec::new();
     let mut reqs = HashSet::new();
     let mut last_graph_change = 0usize;
@@ -163,7 +161,6 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 )));
             }
             i @ AnalysisParameter::Info { .. } => {
-                eprintln!("Adding Info");
                 if let AnalysisParameter::Info {
                     subset,
                     exclude,
