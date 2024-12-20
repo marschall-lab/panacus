@@ -3,12 +3,13 @@ use std::fs;
 use std::io::{BufReader, BufWriter, Write};
 use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
+use std::mem::take;
 //use std::sync::{Arc, Mutex};
 
 /* external crate*/
 use itertools::Itertools;
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::graph_broker::graph::{Edge, ItemId, Orientation};
 /* private use */
@@ -16,7 +17,7 @@ use crate::io::*;
 use crate::util::*;
 
 use super::graph::{GraphStorage, PathSegment};
-use super::util::parse_gfa_paths_walks;
+use super::util::{parse_gfa_paths_walks, parse_gfa_paths_walks_multiple};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct GraphMaskParameters {
@@ -393,6 +394,54 @@ impl GraphMask {
 
         (subset_covered_bps, exclude_table, include_map, exclude_map)
     }
+
+    pub fn load_optional_subsetting_multiple(
+        &self,
+        graph_storage: &GraphStorage,
+        count_types: &Vec<CountType>,
+    ) -> (
+        Option<IntervalContainer>,
+        Vec<Option<ActiveTable>>,
+        HashMap<String, Vec<(usize, usize)>>,
+        HashMap<String, Vec<(usize, usize)>>,
+    ) {
+        // *only relevant for bps count in combination with subset option*
+        // this table stores the number of bps of nodes that are *partially* uncovered by subset
+        // coordinates
+        let subset_covered_bps: Option<IntervalContainer> =
+            if count_types.contains(&CountType::Bp) && self.include_coords.is_some() {
+                Some(IntervalContainer::new())
+            } else {
+                None
+            };
+
+        // this table stores information about excluded nodes *if* the exclude setting is used
+        let exclude_tables: Vec<_> = count_types
+            .iter()
+            .map(|count| {
+                self.exclude_coords.as_ref().map(|_| {
+                    ActiveTable::new(
+                        graph_storage.number_of_items(count) + 1,
+                        count == &CountType::Bp,
+                    )
+                })
+            })
+            .collect();
+
+        // build "include" lookup table
+        let include_map = match &self.include_coords {
+            None => HashMap::default(),
+            Some(coords) => Self::build_subpath_map(coords),
+        };
+
+        // build "exclude" lookup table
+        let exclude_map = match &self.exclude_coords {
+            None => HashMap::default(),
+            Some(coords) => Self::build_subpath_map(coords),
+        };
+
+        (subset_covered_bps, exclude_tables, include_map, exclude_map)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -423,6 +472,39 @@ impl AbacusByTotal {
             ),
             paths_len,
         )
+    }
+
+    pub fn from_gfa_multiple<R: std::io::Read>(
+        data: &mut BufReader<R>,
+        graph_mask: &GraphMask,
+        graph_storage: &GraphStorage,
+        count_types: &Vec<CountType>,
+    ) -> (Vec<Self>, HashMap<PathSegment, (u32, u32)>) {
+        let (item_tables, exclude_tables, mut subset_covered_bps, path_lens) =
+            parse_gfa_paths_walks_multiple(data, graph_mask, graph_storage, count_types);
+        let mut item_tables = VecDeque::from(item_tables);
+        let mut exclude_tables = VecDeque::from(exclude_tables);
+        let mut subset_covered_bps: VecDeque<_> = count_types
+            .iter()
+            .map(|count| match count {
+                &CountType::Bp if subset_covered_bps.is_some() => take(&mut subset_covered_bps),
+                _ => None,
+            })
+            .collect();
+        let abaci = count_types
+            .iter()
+            .map(|count| {
+                Self::item_table_to_abacus(
+                    graph_mask,
+                    graph_storage,
+                    *count,
+                    item_tables.pop_front().unwrap(),
+                    exclude_tables.pop_front().unwrap(),
+                    subset_covered_bps.pop_front().unwrap(),
+                )
+            })
+            .collect();
+        (abaci, path_lens)
     }
 
     pub fn item_table_to_abacus(

@@ -1,3 +1,4 @@
+use std::iter::zip;
 use std::{
     collections::{HashMap, HashSet},
     io::{BufWriter, Error, Write},
@@ -6,7 +7,6 @@ use std::{
 
 use abacus::{AbacusByTotal, GraphMask};
 use graph::GraphStorage;
-use strum::IntoEnumIterator;
 
 use crate::{
     analyses::InputRequirement as Req, analysis_parameter::Grouping,
@@ -279,39 +279,55 @@ impl GraphBroker {
     }
 
     fn set_abaci_by_total(mut self) -> Self {
-        let mut abaci = HashMap::new();
-        if let CountType::All = self.count_type {
-            for count_type in CountType::iter() {
-                if let CountType::All = count_type {
-                } else {
-                    let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-                    let (abacus, path_lens) = AbacusByTotal::from_gfa(
-                        &mut data,
-                        self.abacus_aux.as_ref().unwrap(),
-                        self.graph_aux.as_ref().unwrap(),
-                        count_type,
-                    );
-                    if count_type == CountType::Node
-                        && self.input_requirements.contains(&Req::PathLens)
-                    {
-                        self.path_lens = Some(path_lens);
-                    }
-                    abaci.insert(count_type, abacus);
-                }
-            }
+        let count_types = if self.count_type == CountType::All {
+            vec![CountType::Node, CountType::Bp, CountType::Edge]
         } else {
-            let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-            let (abacus, path_lens) = AbacusByTotal::from_gfa(
-                &mut data,
-                self.abacus_aux.as_ref().unwrap(),
-                self.graph_aux.as_ref().unwrap(),
-                self.count_type,
-            );
-            if self.input_requirements.contains(&Req::PathLens) {
-                self.path_lens = Some(path_lens);
-            }
-            abaci.insert(self.count_type, abacus);
+            vec![self.count_type.clone()]
+        };
+        log::info!("calculating abaci for count_types: {:?}", count_types);
+        let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
+        let (abaci, path_lens) = AbacusByTotal::from_gfa_multiple(
+            &mut data,
+            self.abacus_aux.as_ref().unwrap(),
+            self.graph_aux.as_ref().unwrap(),
+            &count_types,
+        );
+        let abaci: HashMap<CountType, AbacusByTotal> = zip(count_types, abaci).collect();
+        if self.input_requirements.contains(&Req::PathLens) {
+            self.path_lens = Some(path_lens);
         }
+        //if let CountType::All = self.count_type {
+        //    for count_type in CountType::iter() {
+        //        if let CountType::All = count_type {
+        //        } else {
+        //            let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
+        //            let (abacus, path_lens) = AbacusByTotal::from_gfa(
+        //                &mut data,
+        //                self.abacus_aux.as_ref().unwrap(),
+        //                self.graph_aux.as_ref().unwrap(),
+        //                count_type,
+        //            );
+        //            if count_type == CountType::Node
+        //                && self.input_requirements.contains(&Req::PathLens)
+        //            {
+        //                self.path_lens = Some(path_lens);
+        //            }
+        //            abaci.insert(count_type, abacus);
+        //        }
+        //    }
+        //} else {
+        //    let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
+        //    let (abacus, path_lens) = AbacusByTotal::from_gfa(
+        //        &mut data,
+        //        self.abacus_aux.as_ref().unwrap(),
+        //        self.graph_aux.as_ref().unwrap(),
+        //        self.count_type,
+        //    );
+        //    if self.input_requirements.contains(&Req::PathLens) {
+        //        self.path_lens = Some(path_lens);
+        //    }
+        //    abaci.insert(self.count_type, abacus);
+        //}
         self.total_abaci = Some(abaci);
         self
     }
