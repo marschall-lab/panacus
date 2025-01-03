@@ -391,7 +391,7 @@ fn parse_walk_seq_to_item_vec(
     let mut it = data.iter();
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
-        .unwrap();
+        .unwrap_or_else(|| it.len());
 
     log::debug!("parsing walk sequences of size {}..", end);
 
