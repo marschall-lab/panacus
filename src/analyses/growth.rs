@@ -43,7 +43,7 @@ impl Analysis for Growth {
             res.push_str("\n");
         }
         res.push_str(&format!(
-            "# {}",
+            "# {}\n",
             std::env::args().collect::<Vec<String>>().join(" ")
         ));
 

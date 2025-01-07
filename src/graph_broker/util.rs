@@ -108,8 +108,22 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
             }
 
             // TODO: separate this step and do it twice (?)
-            (0..count_types.len()).for_each(|i| {
-                let count = count_types[i];
+            let mut indices: HashMap<CountType, Vec<usize>> = HashMap::new();
+            for (i, count_type) in count_types
+                .iter()
+                .map(|c| match c {
+                    CountType::Node => &CountType::Bp,
+                    count => count,
+                })
+                .enumerate()
+            {
+                if let Some(entry) = indices.get_mut(count_type) {
+                    (*entry).push(i);
+                } else {
+                    indices.insert(*count_type, vec![i]);
+                }
+            }
+            indices.into_iter().for_each(|(count, is)| {
                 if count != CountType::Edge
                     && (graph_mask.include_coords.is_none()
                         || is_contained(include_coords, &(start, end)))
@@ -117,24 +131,25 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
                             || is_contained(exclude_coords, &(start, end)))
                 {
                     log::debug!("path {} is fully contained within subset coordinates {:?} and is eligible for full parallel processing", path_seg, include_coords);
-                    let ex = if exclude_coords.is_empty() {
-                        None
+                    let mut none = None;
+                    let mut ex: Vec<&mut Option<ActiveTable>> = if exclude_coords.is_empty() {
+                        vec![&mut none]
                     } else {
-                        exclude_tables[i].as_mut()
+                        exclude_tables.iter_mut().enumerate().filter(|(i, _)| is.contains(i)).map(|(_, e)| e).collect()
                     };
                     let (num_added_nodes, bp_len) = match buf[0] {
-                        b'P' => parse_path_seq_update_tables(
+                        b'P' => parse_path_seq_update_tables_multiple(
                             buf_path_seg,
                             graph_storage,
-                            &mut item_tables[i],
+                            &mut item_tables[is[0]],
                             ex,
                             num_path,
                         ),
                         b'W' => parse_walk_seq_update_tables(
                             buf_path_seg,
                             graph_storage,
-                            &mut item_tables[i],
-                            ex,
+                            &mut item_tables[is[0]],
+                            ex[0].as_mut(),
                             num_path,
                         ),
                         _ => unreachable!(),
@@ -146,13 +161,14 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
                         b'W' => parse_walk_seq_to_item_vec(buf_path_seg, graph_storage),
                         _ => unreachable!(),
                     };
-
+                    let mut exclude_tables_red = exclude_tables.iter_mut().enumerate().filter(|(i, _)| is.contains(i)).map(|(_, e)| e).collect();
                     match count {
                         CountType::Node | CountType::Bp => {
-                            let (node_len, bp_len) = update_tables(
-                                &mut item_tables[i],
+                            //eprintln!("{:?}, {:?}", count, exclude_tables[i]);
+                            let (node_len, bp_len) = update_tables_multiple(
+                                &mut item_tables[is[0]],
                                 &mut subset_covered_bps.as_mut(),
-                                &mut exclude_tables[i].as_mut(),
+                                exclude_tables_red,
                                 num_path,
                                 graph_storage,
                                 sids,
@@ -163,8 +179,8 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
                             paths_len.insert(path_seg.clone(), (node_len as u32, bp_len as u32));
                         }
                         CountType::Edge => update_tables_edgecount(
-                            &mut item_tables[i],
-                            &mut exclude_tables[i].as_mut(),
+                            &mut item_tables[is[0]],
+                            &mut exclude_tables_red[0].as_mut(),
                             num_path,
                             graph_storage,
                             sids,
@@ -186,6 +202,12 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
         count_types,
         duration
     );
+    for i in 0..count_types.len() {
+        eprintln!(
+            "{}: {:?}\n{:?}\n{:?}\n",
+            i, count_types[i], item_tables[i], exclude_tables[i]
+        );
+    }
     (item_tables, exclude_tables, subset_covered_bps, paths_len)
 }
 
@@ -397,6 +419,166 @@ pub fn parse_path_identifier(data: &[u8]) -> (PathSegment, &[u8]) {
         PathSegment::from_str(path_name),
         &data[start + offset + 1..],
     )
+}
+
+pub fn update_tables_multiple(
+    item_table: &mut ItemTable,
+    subset_covered_bps: &mut Option<&mut IntervalContainer>,
+    mut exclude_tables: Vec<&mut Option<ActiveTable>>,
+    num_path: usize,
+    graph_storage: &GraphStorage,
+    path: Vec<(ItemId, Orientation)>,
+    include_coords: &[(usize, usize)],
+    exclude_coords: &[(usize, usize)],
+    offset: usize,
+) -> (usize, usize) {
+    let mut i = 0;
+    let mut j = 0;
+    let mut p = offset;
+
+    let mut included = 0;
+    let mut included_bp = 0;
+    let mut excluded = 0;
+
+    log::debug!(
+        "checking inclusion/exclusion criteria on {} nodes..",
+        path.len()
+    );
+    if path.len() == 0 {
+        return (included, included_bp);
+    }
+
+    let rexclude_tables = &mut exclude_tables;
+    for (sid, o) in &path {
+        let l = graph_storage.node_len(&sid) as usize;
+
+        // this implementation of include coords for bps is *not exact* as illustrated by the
+        // following scenario:
+        //
+        //   subset intervals:           ____________________________
+        //                ______________|_____________________________
+        //               |
+        //      ___________________________________________     ____
+        //  ---|                some node                  |---|
+        //      -------------------------------------------     ----
+        //
+        //
+        //   what the following code does:
+        //                ___________________________________________
+        //               |
+        //               |             coverage count
+        //      ___________________________________________     ____
+        //  ---|                some node                  |---|
+        //      -------------------------------------------     ----
+        //
+        //
+        // node count handling: node is only counted if *completely* covered by subset
+        //
+        //
+        // update current pointer in include_coords list
+
+        // end is not inclusive, so if end <= p (=offset) then advance to the next interval
+        let mut stop_here = false;
+        while i < include_coords.len() && include_coords[i].0 < p + l && !stop_here {
+            if include_coords[i].1 > p {
+                let mut a = if include_coords[i].0 > p {
+                    include_coords[i].0 - p
+                } else {
+                    0
+                };
+                let mut b = if include_coords[i].1 < p + l {
+                    // advance to the next interval
+                    i += 1;
+                    include_coords[i - 1].1 - p
+                } else {
+                    stop_here = true;
+                    l
+                };
+
+                // reverse coverage interval in case of backward orientation
+                if o == &Orientation::Backward {
+                    (a, b) = (l - b, l - a);
+                }
+
+                let idx = (sid.0 as usize) % SIZE_T;
+                item_table.items[idx].push(sid.0);
+                item_table.id_prefsum[idx][num_path + 1] += 1;
+                if let Some(int) = subset_covered_bps.as_mut() {
+                    // if fully covered, we do not need to store anything in the map
+                    if b - a == l {
+                        if int.contains(sid) {
+                            int.remove(sid);
+                        }
+                    } else {
+                        int.add(*sid, a, b);
+                    }
+                }
+                included += 1;
+                included_bp += b - a;
+            } else {
+                // advance to the next interval
+                i += 1;
+            }
+        }
+
+        let mut stop_here = false;
+        while j < exclude_coords.len() && exclude_coords[j].0 < p + l && !stop_here {
+            if exclude_coords[j].1 > p {
+                let mut a = if exclude_coords[j].0 > p {
+                    exclude_coords[j].0 - p
+                } else {
+                    0
+                };
+                let mut b = if exclude_coords[j].1 < p + l {
+                    // advance to the next interval for the next iteration
+                    j += 1;
+                    exclude_coords[j - 1].1 - p
+                } else {
+                    stop_here = true;
+                    l
+                };
+
+                // reverse coverage interval in case of backward orientation
+                if o == &Orientation::Backward {
+                    (a, b) = (l - b, l - a);
+                }
+
+                for exclude_table in rexclude_tables.iter_mut() {
+                    if let Some(map) = exclude_table {
+                        if map.with_annotation() {
+                            map.activate_n_annotate(*sid, l, a, b)
+                                .expect("this error should never occur");
+                        } else {
+                            map.activate(&sid);
+                        }
+                        excluded += 1;
+                    }
+                }
+            } else {
+                j += 1;
+            }
+        }
+
+        if i >= include_coords.len() && j >= exclude_coords.len() {
+            // terminate parse if all "include" and "exclude" coords are processed
+            break;
+        }
+        p += l;
+    }
+
+    log::debug!(
+        "found {} included nodes ({} included bps) and {} excluded nodes, and discarded the rest",
+        included,
+        included_bp,
+        excluded,
+    );
+
+    // Compute prefix sum
+    for i in 0..SIZE_T {
+        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+    }
+    log::debug!("..done");
+    (included, included_bp)
 }
 
 pub fn update_tables(
@@ -816,6 +998,82 @@ pub fn parse_path_seq_to_item_vec(
     log::debug!("..done");
 
     sids
+}
+
+pub fn parse_path_seq_update_tables_multiple(
+    data: &[u8],
+    graph_storage: &GraphStorage,
+    item_table: &mut ItemTable,
+    exclude_tables: Vec<&mut Option<ActiveTable>>,
+    num_path: usize,
+) -> (u32, u32) {
+    let mut it = data.iter();
+    let end = it
+        .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
+        .unwrap();
+
+    log::debug!("parsing path sequences of size {} bytes..", end);
+
+    let items_ptr = Wrap(&mut item_table.items);
+    let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
+
+    let mutex_vec: Vec<_> = item_table
+        .items
+        .iter()
+        .map(|x| Arc::new(Mutex::new(x)))
+        .collect();
+
+    //let mut plus_strands: Vec<u32> = vec![0; rayon::current_num_threads()];
+    let bp_len = data[..end]
+        .par_split(|&x| x == b',')
+        .map(|node| {
+            let segment_id = graph_storage
+                .get_node_id(&node[0..node.len() - 1])
+                .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
+            // TODO: Is orientation really necessary?
+            let orientation = node[node.len() - 1];
+            assert!(
+                orientation == b'-' || orientation == b'+',
+                "unknown orientation of segment {}",
+                str::from_utf8(node).unwrap()
+            );
+            //plus_strands[rayon::current_thread_index().unwrap()] += (orientation == b'+') as u32;
+
+            let idx = (segment_id.0 as usize) % SIZE_T;
+
+            if let Ok(_) = mutex_vec[idx].lock() {
+                unsafe {
+                    (*items_ptr.0)[idx].push(segment_id.0);
+                    (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
+                }
+            }
+            graph_storage.node_len(&segment_id)
+        })
+        .sum();
+
+    // compute prefix sum
+    let mut num_nodes_path = 0;
+    for i in 0..SIZE_T {
+        num_nodes_path += item_table.id_prefsum[i][num_path + 1];
+        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
+    }
+
+    // is exclude table is given, we assume that all nodes of the path are excluded
+    for exclude_table in exclude_tables {
+        if let Some(ex) = exclude_table {
+            log::debug!("flagging nodes of path as excluded");
+            for i in 0..SIZE_T {
+                for j in (item_table.id_prefsum[i][num_path] as usize)
+                    ..(item_table.id_prefsum[i][num_path + 1] as usize)
+                {
+                    ex.items[item_table.items[i][j] as usize] |= true;
+                }
+            }
+        }
+    }
+
+    log::debug!("..done");
+    (num_nodes_path as u32, bp_len)
 }
 
 pub fn parse_path_seq_update_tables(

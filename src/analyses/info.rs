@@ -23,7 +23,12 @@ impl Analysis for Info {
         if self.group_info.is_none() || self.path_info.is_none() {
             self.set_info(gb.expect("Cannot set info without a GraphBroker"));
         }
-        Ok(self.to_string())
+        let mut res = format!(
+            "# {}\n",
+            std::env::args().collect::<Vec<String>>().join(" ")
+        );
+        res.push_str(&self.to_string());
+        Ok(res)
     }
 
     fn get_type(&self) -> String {
