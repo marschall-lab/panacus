@@ -74,15 +74,15 @@ impl fmt::Display for CountType {
 
 #[derive(Debug, Clone)]
 pub struct ItemTable {
-    pub items: [Vec<ItemIdSize>; SIZE_T],
-    pub id_prefsum: [Vec<ItemIdSize>; SIZE_T],
+    pub items: Vec<ItemIdSize>,
+    pub id_prefsum: Vec<ItemIdSize>,
 }
 
 impl ItemTable {
     pub fn new(num_walks_paths: usize) -> Self {
         Self {
-            items: [(); SIZE_T].map(|_| vec![]),
-            id_prefsum: [(); SIZE_T].map(|_| vec![0; num_walks_paths + 1]),
+            items: vec![],
+            id_prefsum: vec![0; num_walks_paths + 1],
         }
     }
 }

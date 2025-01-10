@@ -20,6 +20,8 @@ use crate::{
 
 use super::{abacus::GraphMask, graph::GraphStorage, ItemId, Orientation, PathSegment};
 
+const CHUNK_SIZE: usize = 4096;
+
 pub fn parse_gfa_paths_walks_multiple<R: Read>(
     data: &mut BufReader<R>,
     graph_mask: &GraphMask,
@@ -97,10 +99,7 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
 
                 // update prefix sum
                 for item_table in &mut item_tables {
-                    for i in 0..SIZE_T {
-                        item_table.id_prefsum[i][num_path + 1] +=
-                            item_table.id_prefsum[i][num_path];
-                    }
+                    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
                 }
 
                 num_path += 1;
@@ -290,9 +289,7 @@ pub fn parse_gfa_paths_walks<R: Read>(
 
                 // update prefix sum
                 // TODO: do this for all 3 tables
-                for i in 0..SIZE_T {
-                    item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-                }
+                item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
 
                 num_path += 1;
                 buf.clear();
@@ -501,9 +498,8 @@ pub fn update_tables_multiple(
                     (a, b) = (l - b, l - a);
                 }
 
-                let idx = (sid.0 as usize) % SIZE_T;
-                item_table.items[idx].push(sid.0);
-                item_table.id_prefsum[idx][num_path + 1] += 1;
+                item_table.items.push(sid.0);
+                item_table.id_prefsum[num_path + 1] += 1;
                 if let Some(int) = subset_covered_bps.as_mut() {
                     // if fully covered, we do not need to store anything in the map
                     if b - a == l {
@@ -575,9 +571,7 @@ pub fn update_tables_multiple(
     );
 
     // Compute prefix sum
-    for i in 0..SIZE_T {
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
+    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
     log::debug!("..done");
     (included, included_bp)
 }
@@ -661,8 +655,8 @@ pub fn update_tables(
                 }
 
                 let idx = (sid.0 as usize) % SIZE_T;
-                item_table.items[idx].push(sid.0);
-                item_table.id_prefsum[idx][num_path + 1] += 1;
+                item_table.items.push(sid.0);
+                item_table.id_prefsum[num_path + 1] += 1;
                 if let Some(int) = subset_covered_bps.as_mut() {
                     // if fully covered, we do not need to store anything in the map
                     if b - a == l {
@@ -732,9 +726,7 @@ pub fn update_tables(
     );
 
     // Compute prefix sum
-    for i in 0..SIZE_T {
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
+    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
     log::debug!("..done");
     (included, included_bp)
 }
@@ -797,9 +789,8 @@ pub fn update_tables_edgecount(
             });
         // check if the current position fits within active segment
         if i < include_coords.len() && include_coords[i].0 < p + l {
-            let idx = (eid.0 as usize) % SIZE_T;
-            item_table.items[idx].push(eid.0);
-            item_table.id_prefsum[idx][num_path + 1] += 1;
+            item_table.items.push(eid.0);
+            item_table.id_prefsum[num_path + 1] += 1;
         }
         if exclude_table.is_some() && j < exclude_coords.len() && exclude_coords[j].0 < p + l {
             exclude_table.as_mut().unwrap().activate(eid);
@@ -810,9 +801,7 @@ pub fn update_tables_edgecount(
         p += l;
     }
     // Compute prefix sum
-    for i in 0..SIZE_T {
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
+    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
     log::debug!("..done");
 }
 
@@ -911,11 +900,7 @@ pub fn parse_walk_seq_update_tables(
     let items_ptr = Wrap(&mut item_table.items);
     let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
 
-    let mutex_vec: Vec<_> = item_table
-        .items
-        .iter()
-        .map(|x| Arc::new(Mutex::new(x)))
-        .collect();
+    let mutex_item_table = Arc::new(Mutex::new(&mut item_table.items));
 
     let mut it = data.iter();
     let end = it
@@ -932,11 +917,10 @@ pub fn parse_walk_seq_update_tables(
             let sid = graph_storage
                 .get_node_id(node)
                 .unwrap_or_else(|| panic!("unknown node {}", str::from_utf8(node).unwrap()));
-            let idx = (sid.0 as usize) % SIZE_T;
-            if let Ok(_) = mutex_vec[idx].lock() {
+            if let Ok(_) = mutex_item_table.lock() {
                 unsafe {
-                    (*items_ptr.0)[idx].push(sid.0);
-                    (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
+                    (*items_ptr.0).push(sid.0);
+                    (*id_prefsum_ptr.0)[num_path + 1] += 1;
                 }
             }
             bp_len.fetch_add(
@@ -948,20 +932,16 @@ pub fn parse_walk_seq_update_tables(
 
     // compute prefix sum
     let mut num_nodes_path = 0;
-    for i in 0..SIZE_T {
-        num_nodes_path += item_table.id_prefsum[i][num_path + 1];
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
+    num_nodes_path += item_table.id_prefsum[num_path + 1];
+    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
 
     // is exclude table is given, we assume that all nodes of the path are excluded
     if let Some(ex) = exclude_table {
         log::error!("flagging nodes of path as excluded");
-        for i in 0..SIZE_T {
-            for j in (item_table.id_prefsum[i][num_path] as usize)
-                ..(item_table.id_prefsum[i][num_path + 1] as usize)
-            {
-                ex.items[item_table.items[i][j] as usize] |= true;
-            }
+        for j in (item_table.id_prefsum[num_path] as usize)
+            ..(item_table.id_prefsum[num_path + 1] as usize)
+        {
+            ex.items[item_table.items[j] as usize] |= true;
         }
     }
 
@@ -977,28 +957,51 @@ pub fn parse_path_seq_to_item_vec(
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
         .unwrap();
+    let chunk_size = 4096;
 
     log::debug!("parsing path sequences of size {}..", end);
 
-    let sids: Vec<(ItemId, Orientation)> = data[..end]
-        .par_split(|&x| x == b',')
-        .map(|node| {
-            // Parallel
-            let sid = graph_storage
-                .get_node_id(&node[..node.len() - 1])
-                .unwrap_or_else(|| {
-                    panic!(
-                        "unknown node {}",
-                        str::from_utf8(&node[..node.len() - 1]).unwrap()
-                    )
-                });
-            (sid, Orientation::from_pm(node[node.len() - 1]))
+    let segment_ids: Vec<_> = (0..end)
+        .step_by(chunk_size)
+        .map(|chunk_start| {
+            let chunk_end = *[end, chunk_start + chunk_size].iter().min().unwrap();
+
+            // sits after first comma in chunk
+            let mut curr_pos = match chunk_start {
+                0 => 0,
+                x => {
+                    memchr(b',', &data[chunk_start..chunk_end])
+                    .map(|v| v + 1)                     // move *after* comma
+                    .unwrap_or(chunk_size + 3)          // add enough to chunk_size, so that while
+                                                        // loop does not run, if no comma in chunk
+                    + x
+                } // add offset back
+            };
+            let mut segment_ids = Vec::new();
+            while curr_pos - chunk_start < chunk_size + 1 {
+                // sits on comma at the end of the current segment
+                let segment_end = match memchr(b',', &data[curr_pos..]) {
+                    None => end,
+                    Some(idx) => curr_pos + idx,
+                };
+                let segment_end = if segment_end < end { segment_end } else { end };
+                if curr_pos >= segment_end {
+                    break;
+                }
+                let segment_id = get_segment_id(&data[curr_pos..segment_end], graph_storage);
+                let orientation = Orientation::from_pm(data[segment_end - 1]);
+                segment_ids.push((segment_id, orientation));
+                // move curr_pos forward (after next comma)
+                curr_pos = segment_end + 1;
+            }
+            segment_ids
         })
         .collect();
 
     log::debug!("..done");
 
-    sids
+    let segment_ids = segment_ids.into_iter().concat();
+    segment_ids
 }
 
 fn get_segment_id(node: &[u8], graph_storage: &GraphStorage) -> ItemId {
@@ -1080,31 +1083,26 @@ pub fn parse_path_seq_update_tables_multiple(
 
     log::debug!("parsing path sequences of size {} bytes..", end);
 
-    let (segment_ids, bp_len) = get_path_segment_ids(data, graph_storage, end, 1024);
+    let (segment_ids, bp_len) = get_path_segment_ids(data, graph_storage, end, CHUNK_SIZE);
 
     segment_ids.into_iter().for_each(|segment_id| {
-        let idx = (segment_id.0 as usize) % SIZE_T;
-        item_table.items[idx].push(segment_id.0);
-        item_table.id_prefsum[idx][num_path + 1] += 1;
+        item_table.items.push(segment_id.0);
+        item_table.id_prefsum[num_path + 1] += 1;
     });
 
     // compute prefix sum
     let mut num_nodes_path = 0;
-    for i in 0..SIZE_T {
-        num_nodes_path += item_table.id_prefsum[i][num_path + 1];
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
+    num_nodes_path += item_table.id_prefsum[num_path + 1];
+    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
 
     // is exclude table is given, we assume that all nodes of the path are excluded
     for exclude_table in exclude_tables {
         if let Some(ex) = exclude_table {
             log::debug!("flagging nodes of path as excluded");
-            for i in 0..SIZE_T {
-                for j in (item_table.id_prefsum[i][num_path] as usize)
-                    ..(item_table.id_prefsum[i][num_path + 1] as usize)
-                {
-                    ex.items[item_table.items[i][j] as usize] |= true;
-                }
+            for j in (item_table.id_prefsum[num_path] as usize)
+                ..(item_table.id_prefsum[num_path + 1] as usize)
+            {
+                ex.items[item_table.items[j] as usize] |= true;
             }
         }
     }
@@ -1130,11 +1128,7 @@ pub fn parse_path_seq_update_tables(
     let items_ptr = Wrap(&mut item_table.items);
     let id_prefsum_ptr = Wrap(&mut item_table.id_prefsum);
 
-    let mutex_vec: Vec<_> = item_table
-        .items
-        .iter()
-        .map(|x| Arc::new(Mutex::new(x)))
-        .collect();
+    let mutex_item_table = Arc::new(Mutex::new(&mut item_table.items));
 
     //let mut plus_strands: Vec<u32> = vec![0; rayon::current_num_threads()];
     let bp_len = data[..end]
@@ -1152,12 +1146,10 @@ pub fn parse_path_seq_update_tables(
             );
             //plus_strands[rayon::current_thread_index().unwrap()] += (orientation == b'+') as u32;
 
-            let idx = (segment_id.0 as usize) % SIZE_T;
-
-            if let Ok(_) = mutex_vec[idx].lock() {
+            if let Ok(_) = mutex_item_table.lock() {
                 unsafe {
-                    (*items_ptr.0)[idx].push(segment_id.0);
-                    (*id_prefsum_ptr.0)[idx][num_path + 1] += 1;
+                    (*items_ptr.0).push(segment_id.0);
+                    (*id_prefsum_ptr.0)[num_path + 1] += 1;
                 }
             }
             graph_storage.node_len(&segment_id)
@@ -1166,20 +1158,16 @@ pub fn parse_path_seq_update_tables(
 
     // compute prefix sum
     let mut num_nodes_path = 0;
-    for i in 0..SIZE_T {
-        num_nodes_path += item_table.id_prefsum[i][num_path + 1];
-        item_table.id_prefsum[i][num_path + 1] += item_table.id_prefsum[i][num_path];
-    }
+    num_nodes_path += item_table.id_prefsum[num_path + 1];
+    item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
 
     // is exclude table is given, we assume that all nodes of the path are excluded
     if let Some(ex) = exclude_table {
         log::debug!("flagging nodes of path as excluded");
-        for i in 0..SIZE_T {
-            for j in (item_table.id_prefsum[i][num_path] as usize)
-                ..(item_table.id_prefsum[i][num_path + 1] as usize)
-            {
-                ex.items[item_table.items[i][j] as usize] |= true;
-            }
+        for j in (item_table.id_prefsum[num_path] as usize)
+            ..(item_table.id_prefsum[num_path + 1] as usize)
+        {
+            ex.items[item_table.items[j] as usize] |= true;
         }
     }
 

@@ -39,6 +39,9 @@ assert_cmd = "2.0.8"
 predicates = "2.1.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 
+[profile.release]
+debug = 1
+
 [[bench]]
 name = "panacus_benchmark"
 harness = false

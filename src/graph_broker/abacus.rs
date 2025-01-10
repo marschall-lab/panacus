@@ -699,21 +699,19 @@ impl AbacusByTotal {
         let last_ptr = Wrap(last);
 
         // Parallel node counting
-        (0..SIZE_T).into_par_iter().for_each(|i| {
-            let start = item_table.id_prefsum[i][path_id as usize] as usize;
-            let end = item_table.id_prefsum[i][path_id as usize + 1] as usize;
-            for j in start..end {
-                let sid = item_table.items[i][j] as usize;
-                unsafe {
-                    if last[sid] != group_id
-                        && (exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid])
-                    {
-                        (*countable_ptr.0)[sid] += 1;
-                        (*last_ptr.0)[sid] = group_id;
-                    }
+        let start = item_table.id_prefsum[path_id as usize] as usize;
+        let end = item_table.id_prefsum[path_id as usize + 1] as usize;
+        for j in start..end {
+            let sid = item_table.items[j] as usize;
+            unsafe {
+                if last[sid] != group_id
+                    && (exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid])
+                {
+                    (*countable_ptr.0)[sid] += 1;
+                    (*last_ptr.0)[sid] = group_id;
                 }
             }
-        });
+        }
     }
 
     pub fn construct_hist(&self) -> Vec<usize> {
@@ -842,21 +840,19 @@ impl AbacusByGroup {
         let mut r: Vec<usize> = vec![0; n_items + 2];
         let r_ptr = Wrap(&mut r);
         for (path_id, group_id) in path_order {
-            (0..SIZE_T).into_par_iter().for_each(|i| {
-                let start = item_table.id_prefsum[i][*path_id as usize] as usize;
-                let end = item_table.id_prefsum[i][*path_id as usize + 1] as usize;
-                for j in start..end {
-                    let sid = item_table.items[i][j] as usize;
-                    if &last[sid] != group_id
-                        && (exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid])
-                    {
-                        unsafe {
-                            (*r_ptr.0)[sid] += 1;
-                            (*last_ptr.0)[sid] = *group_id;
-                        }
+            let start = item_table.id_prefsum[*path_id as usize] as usize;
+            let end = item_table.id_prefsum[*path_id as usize + 1] as usize;
+            for j in start..end {
+                let sid = item_table.items[j] as usize;
+                if &last[sid] != group_id
+                    && (exclude_table.is_none() || !exclude_table.as_ref().unwrap().items[sid])
+                {
+                    unsafe {
+                        (*r_ptr.0)[sid] += 1;
+                        (*last_ptr.0)[sid] = *group_id;
                     }
                 }
-            });
+            }
         }
         log::info!(" ++ assigning storage locations");
         let mut c = 0;
@@ -897,66 +893,64 @@ impl AbacusByGroup {
         // group id is monotone increasing from 0 to #groups
         for (path_id, group_id) in path_order {
             let path_id_u = *path_id as usize;
-            (0..SIZE_T).into_par_iter().for_each(|i| {
-                let start = item_table.id_prefsum[i][path_id_u] as usize;
-                let end = item_table.id_prefsum[i][path_id_u + 1] as usize;
-                for j in start..end {
-                    let sid = item_table.items[i][j] as usize;
-                    let cv_start = r[sid];
-                    let mut cv_end = r[sid + 1];
-                    if cv_end != cv_start {
-                        // look up storage location for node cur_sid: we use the last position
-                        // of interval cv_start..cv_end, which is associated to coverage counts
-                        // of the current node (sid), in the "c" array as pointer to the
-                        // current column (group) / value (coverage) position. If the current group
-                        // id does not match the one associated with the current position, we move
-                        // on to the next. If cv_start + p == cv_end - 1, this means that we are
-                        // currently writing the last element in that interval, and we need to make
-                        // sure that we are no longer using it as pointer.
-                        if cv_end - 1 > c.len() {
-                            log::error!(
-                                "oops, cv_end-1 is larger than the length of c for sid={}",
-                                sid
-                            );
-                            cv_end = c.len() - 1;
-                        }
+            let start = item_table.id_prefsum[path_id_u] as usize;
+            let end = item_table.id_prefsum[path_id_u + 1] as usize;
+            for j in start..end {
+                let sid = item_table.items[j] as usize;
+                let cv_start = r[sid];
+                let mut cv_end = r[sid + 1];
+                if cv_end != cv_start {
+                    // look up storage location for node cur_sid: we use the last position
+                    // of interval cv_start..cv_end, which is associated to coverage counts
+                    // of the current node (sid), in the "c" array as pointer to the
+                    // current column (group) / value (coverage) position. If the current group
+                    // id does not match the one associated with the current position, we move
+                    // on to the next. If cv_start + p == cv_end - 1, this means that we are
+                    // currently writing the last element in that interval, and we need to make
+                    // sure that we are no longer using it as pointer.
+                    if cv_end - 1 > c.len() {
+                        log::error!(
+                            "oops, cv_end-1 is larger than the length of c for sid={}",
+                            sid
+                        );
+                        cv_end = c.len() - 1;
+                    }
 
-                        let mut p = c[cv_end - 1] as usize;
-                        unsafe {
-                            // we  look at an untouched interval, so let's get the pointer game
-                            // started...
-                            if c[cv_end - 1] == GroupSize::MAX {
-                                (*c_ptr.0)[cv_start] = *group_id;
-                                // if it's just a single value in this interval, the pointer game
-                                // ends before it started
-                                if cv_start < cv_end - 1 {
-                                    (*c_ptr.0)[cv_end - 1] = 0;
-                                }
-                                if report_values {
-                                    (*v_ptr.0)[cv_start] += 1;
-                                }
-                            } else if cv_start + p < cv_end - 1 {
-                                // if group id of current slot does not match current group id
-                                // (remember group id's are strictly monotically increasing), then
-                                // move on to the next slot
-                                if c[cv_start + p] < *group_id {
-                                    // move on to the next slot
-                                    (*c_ptr.0)[cv_end - 1] += 1;
-                                    // update local pointer
-                                    p += 1;
-                                    (*c_ptr.0)[cv_start + p] = *group_id
-                                }
-                                if report_values {
-                                    (*v_ptr.0)[cv_start + p] += 1;
-                                }
-                            } else if report_values {
-                                // make sure it points to the last element and not beyond
-                                (*v_ptr.0)[cv_end - 1] += 1;
+                    let mut p = c[cv_end - 1] as usize;
+                    unsafe {
+                        // we  look at an untouched interval, so let's get the pointer game
+                        // started...
+                        if c[cv_end - 1] == GroupSize::MAX {
+                            (*c_ptr.0)[cv_start] = *group_id;
+                            // if it's just a single value in this interval, the pointer game
+                            // ends before it started
+                            if cv_start < cv_end - 1 {
+                                (*c_ptr.0)[cv_end - 1] = 0;
                             }
+                            if report_values {
+                                (*v_ptr.0)[cv_start] += 1;
+                            }
+                        } else if cv_start + p < cv_end - 1 {
+                            // if group id of current slot does not match current group id
+                            // (remember group id's are strictly monotically increasing), then
+                            // move on to the next slot
+                            if c[cv_start + p] < *group_id {
+                                // move on to the next slot
+                                (*c_ptr.0)[cv_end - 1] += 1;
+                                // update local pointer
+                                p += 1;
+                                (*c_ptr.0)[cv_start + p] = *group_id
+                            }
+                            if report_values {
+                                (*v_ptr.0)[cv_start + p] += 1;
+                            }
+                        } else if report_values {
+                            // make sure it points to the last element and not beyond
+                            (*v_ptr.0)[cv_end - 1] += 1;
                         }
                     }
                 }
-            });
+            }
         }
         log::info!("done");
         (if report_values { Some(v) } else { None }, c)
