@@ -20,7 +20,7 @@ use crate::{
 
 use super::{abacus::GraphMask, graph::GraphStorage, ItemId, Orientation, PathSegment};
 
-const CHUNK_SIZE: usize = 4096;
+const CHUNK_SIZE: usize = 8192;
 
 pub fn parse_gfa_paths_walks_multiple<R: Read>(
     data: &mut BufReader<R>,
@@ -957,14 +957,14 @@ pub fn parse_path_seq_to_item_vec(
     let end = it
         .position(|x| x == &b'\t' || x == &b'\n' || x == &b'\r')
         .unwrap();
-    let chunk_size = 4096;
 
     log::debug!("parsing path sequences of size {}..", end);
 
     let segment_ids: Vec<_> = (0..end)
-        .step_by(chunk_size)
+        .into_par_iter()
+        .step_by(CHUNK_SIZE)
         .map(|chunk_start| {
-            let chunk_end = *[end, chunk_start + chunk_size].iter().min().unwrap();
+            let chunk_end = *[end, chunk_start + CHUNK_SIZE].iter().min().unwrap();
 
             // sits after first comma in chunk
             let mut curr_pos = match chunk_start {
@@ -972,13 +972,13 @@ pub fn parse_path_seq_to_item_vec(
                 x => {
                     memchr(b',', &data[chunk_start..chunk_end])
                     .map(|v| v + 1)                     // move *after* comma
-                    .unwrap_or(chunk_size + 3)          // add enough to chunk_size, so that while
+                    .unwrap_or(CHUNK_SIZE + 3)          // add enough to chunk_size, so that while
                                                         // loop does not run, if no comma in chunk
                     + x
                 } // add offset back
             };
             let mut segment_ids = Vec::new();
-            while curr_pos - chunk_start < chunk_size + 1 {
+            while curr_pos - chunk_start < CHUNK_SIZE + 1 {
                 // sits on comma at the end of the current segment
                 let segment_end = match memchr(b',', &data[curr_pos..]) {
                     None => end,
@@ -1026,6 +1026,7 @@ fn get_path_segment_ids(
     chunk_size: usize,
 ) -> (Vec<ItemId>, u32) {
     let (segment_ids, bp_lens): (Vec<_>, Vec<_>) = (0..end)
+        .into_par_iter()
         .step_by(chunk_size)
         .map(|chunk_start| {
             let chunk_end = *[end, chunk_start + chunk_size].iter().min().unwrap();
