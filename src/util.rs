@@ -2,6 +2,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
+use std::path::Path;
 
 /* external use */
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
@@ -10,7 +11,7 @@ use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 use crate::graph::ItemId;
 
 // storage space for item IDs
-pub type ItemIdSize = u64;
+//pub type ItemIdSize = u64;
 pub type CountSize = u32;
 pub type GroupSize = u16;
 
@@ -24,7 +25,11 @@ unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
 unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
-// unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
+unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
+
+pub fn path_basename(string: &str) -> &str {
+    Path::new(string).file_name().expect(&format!("Error basename in {}", string)).to_str().unwrap()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
 #[strum(serialize_all = "lowercase")]
@@ -50,9 +55,10 @@ impl fmt::Display for CountType {
     }
 }
 
+#[derive(Debug)]
 pub struct ItemTable {
-    pub items: [Vec<ItemIdSize>; SIZE_T],
-    pub id_prefsum: [Vec<ItemIdSize>; SIZE_T],
+    pub items: [Vec<ItemId>; SIZE_T],
+    pub id_prefsum: [Vec<ItemId>; SIZE_T],
 }
 
 impl ItemTable {
@@ -64,27 +70,27 @@ impl ItemTable {
     }
 }
 
-// pub struct InfixEqStorage {
-//     pub edges: [u32; 16],
-//     pub last_edge: u8,
-//     pub last_group: u32,
-//     pub sigma: u32, //#edges + psi
-// }
+pub struct InfixEqStorage {
+    pub edges: [u32; 16],
+    pub last_edge: u8,
+    pub last_group: u32,
+    pub sigma: u32, //#edges + psi
+}
 
-// impl InfixEqStorage {
-//     pub fn new() -> Self {
-//         let edges = [0; 16];
-//         let last_edge = 0;
-//         let last_group = 0;
-//         let sigma = 0;
-//         Self {
-//             edges,
-//             last_edge,
-//             last_group,
-//             sigma,
-//         }
-//     }
-// }
+impl InfixEqStorage {
+    pub fn new() -> Self {
+        let edges = [0; 16];
+        let last_edge = 0;
+        let last_group = 0;
+        let sigma = 0;
+        Self {
+            edges,
+            last_edge,
+            last_group,
+            sigma,
+        }
+    }
+}
 
 pub struct ActiveTable {
     pub items: Vec<bool>,
@@ -105,13 +111,13 @@ impl ActiveTable {
         }
     }
 
-    pub fn activate(&mut self, id: &ItemId) {
-        self.items[id.0 as usize] |= true;
+    pub fn activate(&mut self, id: ItemId) {
+        self.items[id as usize] |= true;
     }
 
     #[allow(dead_code)]
-    pub fn is_active(&self, id: &ItemId) -> bool {
-        self.items[id.0 as usize]
+    pub fn is_active(&self, id: ItemId) -> bool {
+        self.items[id as usize]
     }
 
     pub fn activate_n_annotate(
@@ -126,8 +132,8 @@ impl ActiveTable {
             Some(m) => {
                 // if interval completely covers item, remove it from map
                 if end - start == item_len {
-                    self.items[id.0 as usize] |= true;
-                    m.remove(&id);
+                    self.items[id as usize] |= true;
+                    m.remove(id);
                 } else {
                     if start > end {
                         log::error!(
@@ -139,9 +145,9 @@ impl ActiveTable {
                     } else {
                         m.add(id, start, end);
                     }
-                    if m.get(&id).unwrap()[0] == (0, item_len) {
-                        m.remove(&id);
-                        self.items[id.0 as usize] |= true;
+                    if m.get(id).unwrap()[0] == (0, item_len) {
+                        m.remove(id);
+                        self.items[id as usize] |= true;
                     }
                 }
                 Ok(())
@@ -149,8 +155,8 @@ impl ActiveTable {
         }
     }
 
-    pub fn get_active_intervals(&self, id: &ItemId, item_len: usize) -> Vec<(usize, usize)> {
-        if self.items[id.0 as usize] {
+    pub fn get_active_intervals(&self, id: ItemId, item_len: usize) -> Vec<(usize, usize)> {
+        if self.items[id as usize] {
             vec![(0, item_len)]
         } else if let Some(container) = &self.annotation {
             match container.get(id) {
@@ -180,40 +186,23 @@ impl IntervalContainer {
     }
 
     pub fn add(&mut self, id: ItemId, start: usize, end: usize) {
-        log::debug!("add {}:{}-{} to interval container", id, start, end);
         // produce union of intervals
         self.map
             .entry(id)
             .and_modify(|x| {
-                let i = x
+	               let i = x
                     .binary_search_by_key(&start, |&(y, _)| y)
                     .unwrap_or_else(|z| z);
-                log::debug!(
-                    "binary search of ({}, {}) in {:?} returned {}",
-                    start,
-                    end,
-                    x,
-                    i
-                );
                 if i > 0 && x[i - 1].1 >= start {
-                    if x[i - 1].1 < end {
-                        let mut stop = end;
-                        while i < x.len() && x[i].0 <= end {
-                            stop = std::cmp::max(stop, x[i].1);
-                            x.remove(i);
-                        }
-                        x[i - 1].1 = stop;
+                    if x[i - 1].1 <= end {
+                        x[i - 1].1 = end;
                     }
                     // else do nothing, because the new interval is fully enclosed in the previous
                     // interval
-                } else if i < x.len() && x[i].1 >= start && x[i].0 <= end {
-                    x[i].0 = std::cmp::min(x[i].0, start);
-                    let mut stop = std::cmp::max(x[i].1, end);
-                    while i + 1 < x.len() && x[i + 1].0 <= end {
-                        stop = std::cmp::max(stop, x[i + 1].1);
-                        x.remove(i + 1);
-                    }
-                    x[i].1 = stop;
+                } else if i < x.len() && x[i].1 >= start && x[i].1 < end {
+                    x[i].1 = end;
+                } else if i < x.len() && x[i].0 <= end {
+                    x[i].0 = start;
                 } else {
                     x.insert(i, (start, end));
                 }
@@ -221,21 +210,21 @@ impl IntervalContainer {
             .or_insert(vec![(start, end)]);
     }
 
-    pub fn get(&self, id: &ItemId) -> Option<&[(usize, usize)]> {
-        self.map.get(id).map(|x| &x[..])
+    pub fn get(&self, id: ItemId) -> Option<&[(usize, usize)]> {
+        self.map.get(&id).map(|x| &x[..])
     }
 
-    pub fn contains(&self, id: &ItemId) -> bool {
-        self.map.contains_key(id)
+    pub fn contains(&self, id: ItemId) -> bool {
+        self.map.contains_key(&id)
     }
 
-    pub fn remove(&mut self, id: &ItemId) -> Option<Vec<(usize, usize)>> {
-        self.map.remove(id)
+    pub fn remove(&mut self, id: ItemId) -> Option<Vec<(usize, usize)>> {
+        self.map.remove(&id)
     }
 
-    pub fn total_coverage(&self, id: &ItemId, exclude: &Option<Vec<(usize, usize)>>) -> usize {
+    pub fn total_coverage(&self, id: ItemId, exclude: &Option<Vec<(usize, usize)>>) -> usize {
         self.map
-            .get(id)
+            .get(&id)
             .as_ref()
             .map(|v| match exclude {
                 None => v.iter().fold(0, |x, (a, b)| x + b - a),
@@ -312,24 +301,24 @@ impl fmt::Display for Threshold {
 }
 
 impl Threshold {
-    pub fn get_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             Threshold::Relative(c) => format!("{}", c),
             Threshold::Absolute(c) => format!("{}", c),
         }
     }
 
-    pub fn to_absolute(self, n: usize) -> usize {
+    pub fn to_absolute(&self, n: usize) -> usize {
         match self {
-            Threshold::Absolute(c) => c,
+            Threshold::Absolute(c) => *c,
             Threshold::Relative(c) => (n as f64 * c).ceil() as usize,
         }
     }
 
-    pub fn to_relative(self, n: usize) -> f64 {
+    pub fn to_relative(&self, n: usize) -> f64 {
         match self {
-            Threshold::Relative(c) => c,
-            Threshold::Absolute(c) => c as f64 / n as f64,
+            Threshold::Relative(c) => *c,
+            Threshold::Absolute(c) => *c as f64 / n as f64,
         }
     }
 }
@@ -369,7 +358,7 @@ pub fn is_contained(v: &[(usize, usize)], el: &(usize, usize)) -> bool {
 }
 
 pub fn averageu32(v: &[u32]) -> f32 {
-    (v.iter().map(|x| *x as u64).sum::<u64>() as f64 / v.len() as f64) as f32
+    v.iter().sum::<u32>() as f32 / v.len() as f32
 }
 
 //pub fn averageu64 (v: &[u64]) -> f64 {
@@ -491,10 +480,10 @@ pub fn revcmp(kmer: u64, k: usize) -> u64 {
         >> (64 - k as u64 * 2)
 }
 
-// pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
-//     let mask: u64 = (1 << (2 * (k - 1))) - 1;
-//     (kmer_bits >> 2) & mask
-// }
+pub fn get_infix(kmer_bits: u64, k: usize) -> u64 {
+    let mask: u64 = (1 << (2 * (k - 1))) - 1;
+    (kmer_bits >> 2) & mask
+}
 
 #[allow(dead_code)]
 pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
@@ -512,33 +501,3 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
 //
 //    b + (1.0 + (a - b).exp2()).log2()
 //}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::graph::ItemId;
-
-    #[test]
-    fn test_interval_container() {
-        let mut ic = IntervalContainer::new();
-        ic.add(ItemId(0), 5, 6);
-        ic.add(ItemId(0), 9, 10);
-        ic.add(ItemId(0), 7, 8);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(5, 6), (7, 8), (9, 10)]));
-        ic.add(ItemId(0), 4, 5);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(4, 6), (7, 8), (9, 10)]));
-        ic.add(ItemId(0), 0, 11);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 11)]));
-        ic.add(ItemId(0), 11, 12);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12)]));
-        ic.add(ItemId(0), 13, 15);
-        ic.add(ItemId(0), 16, 20);
-        assert_eq!(
-            ic.map.get(&ItemId(0)),
-            Some(&vec![(0, 12), (13, 15), (16, 20)])
-        );
-        ic.add(ItemId(0), 14, 17);
-        assert_eq!(ic.map.get(&ItemId(0)), Some(&vec![(0, 12), (13, 20)]));
-    }
-}

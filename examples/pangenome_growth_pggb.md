@@ -1,12 +1,12 @@
 # Pangenome Coverage and Growth Statistics for PGGB
 
 *TIP:*
-You can try this example by downloading this file and running:
+You can try this example by downloading this file and running: 
 ````bash
 cat pangenome_growth_pggb.md | sed -n '/```shell/,/```/p' | sed '/```/d' | bash
 ````
 
-Here's a quick example for computing coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22:
+Here's a quick example for computing coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22: 
 
 1. Download and unpack the graph:
 ```shell
@@ -27,3 +27,4 @@ panacus-visualize chr22.hprc-v1.0-pggb.histgrowth.node.tsv > chr22.hprc-v1.0-pgg
 ```
 
 ![coverage histogram and pangenome growth of nodes in chr22.hprc-v1.0-pggb.gfa](/docs/chr22.hprc-v1.0-pggb.histgrowth.node.png?raw=true "coverage and pangenome growth statistics on the HPRC v.1.0 pggb, chr 22")
+

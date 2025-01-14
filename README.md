@@ -45,34 +45,34 @@ Make sure you have [conda](https://conda.io)/[mamba](https://anaconda.org/conda-
 mamba install -c conda-forge -c bioconda panacus
 ```
 
-### From binary release
+### From binary release 
 #### Linux x86\_64
 ```shell
-wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.5/panacus-0.2.5_x86_64-unknown-linux-musl.tar.gz
-tar -xzvf panacus-0.2.5_x86_64-unknown-linux-musl.tar.gz
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.3/panacus-0.2.3_linux_x86_64.tar.gz
+tar -xzvf panacus-0.2.3_linux_x86_64.tar.gz
 
 # install the Python libraries necessary for panacus-visualize
 pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 
 # suggestion: add tool to path in your ~/.bashrc
-export PATH="$(readlink -f panacus-0.2.5_x86_64-unknown-linux-musl/bin)":$PATH
+export PATH="$(readlink -f panacus-0.2.3_linux_x86_64/bin)":$PATH
 
-# you are ready to go!
+# you are ready to go! 
 panacus --help
 ```
 
 #### Mac OSX arm64
 ```shell
-wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.5/panacus-0.2.5_aarch64-apple-darwin.tar.gz
-tar -xzvf panacus-0.2.5_aarch64-apple-darwin.tar.gz
+wget --no-check-certificate -c https://github.com/marschall-lab/panacus/releases/download/0.2.3/panacus-0.2.3_macos_arm64.tar.gz
+tar -xzvf panacus-0.2.3_macos_arm64.tar.gz
 
 # install the Python libraries necessary for panacus-visualize
 pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 
 # suggestion: add tool to path in your ~/.bashrc
-export PATH="$(readlink -f panacus-0.2.5_aarch64-apple-darwin/bin)":$PATH
+export PATH="$(readlink -f panacus-0.2.3_macos_arm64/bin)":$PATH
 
-# you are ready to go!
+# you are ready to go! 
 panacus --help
 ```
 
@@ -93,7 +93,7 @@ pip install --user matplotlib numpy pandas scikit-learn scipy seaborn
 # suggestion: add tool to path in your ~/.bashrc
 export PATH="$(readlink -f bin)":$PATH
 
-# you are ready to go!
+# you are ready to go! 
 panacus --help
 
 ```
@@ -107,11 +107,10 @@ Calculate count statistics for pangenomic data
 Usage: panacus <COMMAND>
 
 Commands:
-  info                Return general graph and paths info
-  histgrowth          Run hist and growth. Return the growth curve
-  hist                Calculate coverage histogram
-  growth              Calculate growth curve from coverage histogram
-  ordered-histgrowth  Calculate growth curve based on group file order (if order is unspecified, use path order in GFA)
+  histgrowth          Run in default mode, i.e., run hist and growth successively and output the results of the latter
+  hist                Calculate coverage histogram from GFA file
+  growth              Construct growth table from coverage histogram
+  ordered-histgrowth  Compute growth table for order specified in grouping file (or, if non specified, the order of paths in the GFA file)
   table               Compute coverage table for count type
   help                Print this message or the help of the given subcommand(s)
 
@@ -131,4 +130,4 @@ panacus-visualize -e output.tsv > output.pdf
 Examples can be found in the [examples directory](/examples/).
 
 ## Citation
-Parmigiani, L., Garrison, E., Stoye, J., Marschall, T. & Doerr, D. Panacus: fast and exact pangenome growth and core size estimation. Bionformatics, https://doi.org/10.1093/bioinformatics/btae720 (2024).
+Parmigiani, L., Garrison, E., Stoye, J., Marschall, T. & Doerr, D. Panacus: fast and exact pangenome growth and core size estimation. 2024.06.11.598418 Preprint at https://doi.org/10.1101/2024.06.11.598418 (2024).

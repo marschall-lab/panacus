@@ -1,7 +1,7 @@
 # Ordered Pangenome Growth Statistics
 
 *TIP:*
-You can try this example by downloading this file and running:
+You can try this example by downloading this file and running: 
 ````bash
 cat ordered_pangenome_growth_statistics.md | sed -n '/```shell/,/```/p' | sed '/```/d' | bash
 ````
@@ -40,3 +40,4 @@ panacus-visualize hprc-v1.0-mc-grch38.ordered-histgrowth.bp.tsv > hprc-v1.0-mc-g
 ```
 
 ![ordered pangenome growth of bps in hprc-v1.0-mc-grch38.gfa](/docs/hprc-v1.0-mc-grch38.ordered-histgrowth.bp.png?raw=true "pangenome growth of non-reference sequence in the HPRC v.1.0 MC GRCh38 graph")
+

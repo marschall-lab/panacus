@@ -17,7 +17,7 @@ pub struct Hist {
     pub coverage: Vec<usize>,
 }
 
-pub fn choose(n: usize, k: usize) -> f64 {
+fn choose(n: usize, k: usize) -> f64 {
     let mut res: f64 = 0.0;
     if k > n {
         return 0.0;
@@ -75,12 +75,12 @@ impl Hist {
                     &c,
                     &q
                 );
-                self.calc_growth(c, q)
+                self.calc_growth(&c, &q)
             })
             .collect();
         // insert empty row for 0 element
         for g in &mut growths {
-            g.insert(0, f64::NAN);
+            g.insert(0, std::f64::NAN);
         }
         growths
     }
@@ -220,7 +220,8 @@ impl HistAuxilliary {
     fn parse_params(quorum: &str, coverage: &str) -> Result<Self, Error> {
         let mut quorum_thresholds = Vec::new();
         if !quorum.is_empty() {
-            quorum_thresholds = cli::parse_threshold_cli(quorum, cli::RequireThreshold::Relative)?;
+            quorum_thresholds =
+                cli::parse_threshold_cli(&quorum[..], cli::RequireThreshold::Relative)?;
             log::debug!(
                 "loaded {} quorum thresholds: {}",
                 quorum_thresholds.len(),
@@ -241,7 +242,7 @@ impl HistAuxilliary {
         let mut coverage_thresholds = Vec::new();
         if !coverage.is_empty() {
             coverage_thresholds =
-                cli::parse_threshold_cli(coverage, cli::RequireThreshold::Absolute)?;
+                cli::parse_threshold_cli(&coverage[..], cli::RequireThreshold::Absolute)?;
             log::debug!(
                 "loaded {} coverage thresholds: {}",
                 coverage_thresholds.len(),
@@ -274,82 +275,5 @@ impl HistAuxilliary {
             quorum: quorum_thresholds,
             coverage: coverage_thresholds,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn assert_almost_eq(a: f64, b: f64) {
-        let epsilon = 1e-10;
-        if (a - b).abs() > epsilon {
-            panic!("Values are not almost equal: {} vs {}", a, b);
-        }
-    }
-
-    fn factorial(n: usize) -> f64 {
-        (1..=n).fold(1.0, |acc, x| acc * x as f64)
-    }
-
-    #[test]
-    fn test_choose_function() {
-        assert_almost_eq(choose(5, 0), 0.0);
-        assert_almost_eq(choose(5, 5), 0.0);
-        assert_almost_eq(choose(5, 1), (5.0f64).log2());
-        assert_almost_eq(choose(5, 4), (5.0f64).log2());
-        let expected = (factorial(5) / (factorial(2) * factorial(3))).log2();
-        assert_almost_eq(choose(5, 2), expected);
-        assert_eq!(choose(5, 6), 0.0);
-    }
-
-    #[test]
-    fn test_hist_calc_growth_union() {
-        let hist = Hist {
-            count: CountType::Node,
-            coverage: vec![0, 5, 3, 2],
-        };
-
-        let t_coverage = Threshold::Absolute(0);
-        let test_growth: Vec<f64> = vec![5.666666666666667, 8.333333333333334, 10.0];
-        let growth = hist.calc_growth_union(&t_coverage);
-        assert_eq!(growth, test_growth, "Wrong growth union");
-    }
-
-    #[test]
-    fn test_hist_calc_growth_core() {
-        let hist = Hist {
-            count: CountType::Node,
-            coverage: vec![0, 5, 3, 2],
-        };
-
-        let t_coverage = Threshold::Absolute(0);
-        let test_core: Vec<f64> = vec![5.666666666666666, 3.0, 2.0];
-        let core = hist.calc_growth_core(&t_coverage);
-        assert_eq!(core, test_core, "Wrong growth core");
-    }
-
-    #[test]
-    fn test_hist_calc_growth_quorum() {
-        let hist = Hist {
-            count: CountType::Node,
-            coverage: vec![0, 5, 3, 2, 3, 5, 0, 4, 2, 1],
-        };
-
-        let t_coverage = Threshold::Absolute(0);
-        let t_quorum = Threshold::Relative(0.9);
-        let test_growth: Vec<f64> = vec![
-            11.88888888888889,
-            7.027777777777777,
-            4.761904761904761,
-            3.4444444444444438,
-            2.5952380952380953,
-            2.0,
-            1.5555555555555545,
-            1.2222222222222217,
-            1.0,
-        ];
-        let growth = hist.calc_growth_quorum(&t_coverage, &t_quorum);
-        assert_eq!(growth, test_growth, "Wrong growth quorum");
     }
 }

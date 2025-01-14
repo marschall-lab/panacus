@@ -1,12 +1,12 @@
 # Pangenome Coverage and Growth Statistics for Minigraph-Cactus
 
 *TIP:*
-You can try this example by downloading this file and running:
+You can try this example by downloading this file and running: 
 ````bash
 cat pangenome_growth_minigraph_cactus.md | sed -n '/```shell/,/```/p' | sed '/```/d' | bash
 ````
 
-This example shows how to ccompute coverage and pangenome growth statistics for the HPRC v.1.1 mc, chr 22:
+This example shows how to ccompute coverage and pangenome growth statistics for the HPRC v.1.1 mc, chr 22: 
 
 1. Download the graph:
 ```shell
@@ -31,3 +31,4 @@ panacus-visualize -e chr22.hprc-v1.1-mc-grch38.histgrowth.node.tsv > chr22.hprc-
 ```
 
 ![coverage histogram and pangenome growth of nodes in chr22.hprc-v1.1-mc-grch38.gfa](/docs/chr22.hprc-v1.1-mc-grch38.histgrowth.node.png?raw=true "coverage and pangenome growth statistics on the HPRC v.1.1 mc-grch38, chr 22")
+

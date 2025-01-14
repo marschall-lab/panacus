@@ -1,6 +1,6 @@
 [package]
 name        = "panacus"
-version     = "0.2.6"
+version     = "0.2.3"
 edition     = "2018"
 rust-version= "1.60"
 
@@ -21,10 +21,10 @@ rustc-hash  = "1"
 strum       = "0.25"
 strum_macros= "0.25"
 time        = { version = "0.3", features = ["macros", "formatting"] }
+memchr      = "2.7.4"
 
 # Logging and error management
 anyhow     = "1"
 env_logger = "0.10"
 log        = "0.4"
 thiserror  = "1"
-thousands = "0.2.0"
