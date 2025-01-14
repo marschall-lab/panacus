@@ -279,22 +279,46 @@ impl GraphBroker {
     }
 
     fn set_abaci_by_total(mut self) -> Self {
-        let count_types = if self.count_type == CountType::All {
-            vec![CountType::Node, CountType::Bp, CountType::Edge]
-        } else {
+        let count_types_not_edge = if self.count_type == CountType::All {
+            vec![CountType::Node, CountType::Bp]
+        } else if self.count_type != CountType::Edge {
             vec![self.count_type.clone()]
+        } else {
+            Vec::new()
         };
-        log::info!("calculating abaci for count_types: {:?}", count_types);
-        let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-        let (abaci, path_lens) = AbacusByTotal::from_gfa_multiple(
-            &mut data,
-            self.abacus_aux.as_ref().unwrap(),
-            self.graph_aux.as_ref().unwrap(),
-            &count_types,
+        let shall_calculate_edge =
+            self.count_type == CountType::All || self.count_type == CountType::Edge;
+        log::info!(
+            "calculating abaci for count_types: {:?}, and edge: {}",
+            count_types_not_edge,
+            shall_calculate_edge
         );
-        let abaci: HashMap<CountType, AbacusByTotal> = zip(count_types, abaci).collect();
-        if self.input_requirements.contains(&Req::PathLens) {
-            self.path_lens = Some(path_lens);
+        let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
+        let mut abaci = if !count_types_not_edge.is_empty() {
+            let (abaci, path_lens) = AbacusByTotal::from_gfa_multiple(
+                &mut data,
+                self.abacus_aux.as_ref().unwrap(),
+                self.graph_aux.as_ref().unwrap(),
+                &count_types_not_edge,
+            );
+            let abaci: HashMap<CountType, AbacusByTotal> =
+                zip(count_types_not_edge, abaci).collect();
+            if self.input_requirements.contains(&Req::PathLens) {
+                self.path_lens = Some(path_lens);
+            }
+            abaci
+        } else {
+            HashMap::new()
+        };
+        if shall_calculate_edge {
+            let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
+            let (mut edge_abacus, _) = AbacusByTotal::from_gfa_multiple(
+                &mut data,
+                self.abacus_aux.as_ref().unwrap(),
+                self.graph_aux.as_ref().unwrap(),
+                &vec![CountType::Edge],
+            );
+            abaci.insert(CountType::Edge, edge_abacus.pop().unwrap());
         }
         //if let CountType::All = self.count_type {
         //    for count_type in CountType::iter() {

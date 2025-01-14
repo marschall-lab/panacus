@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use analyses::{Analysis, ConstructibleAnalysis, InputRequirement};
 use analysis_parameter::{AnalysisParameter, Grouping};
-use clap::Command;
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use graph_broker::GraphBroker;
 use html_report::AnalysisSection;
 
@@ -50,12 +50,25 @@ macro_rules! some_or_return {
     };
 }
 
+pub fn set_number_of_threads(params: &ArgMatches) {
+    //if num_threads is 0 then the Rayon will select
+    //the number of threads to the core number automatically
+    let threads = params.get_one("threads").unwrap();
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(*threads)
+        .build_global()
+        .expect("Failed to initialize global thread pool");
+    log::info!(
+        "running panacus on {} threads",
+        rayon::current_num_threads()
+    );
+}
+
 pub fn run_cli() -> Result<(), anyhow::Error> {
     let mut out = std::io::BufWriter::new(std::io::stdout());
 
     // read parameters and store them in memory
     // let params = cli::read_params();
-    // cli::set_number_of_threads(&params);
     let args = Command::new("panacus")
         .subcommand(commands::report::get_subcommand())
         .subcommand(commands::hist::get_subcommand())
@@ -63,7 +76,18 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::histgrowth::get_subcommand())
         .subcommand(commands::info::get_subcommand())
         .subcommand_required(true)
+        .arg(
+            Arg::new("threads")
+                .short('t')
+                .action(ArgAction::Set)
+                .value_name("COUNT")
+                .default_value("0")
+                .value_parser(clap::value_parser!(usize))
+                .help("Set the number of threads used (default: use all threads)"),
+        )
         .get_matches();
+
+    set_number_of_threads(&args);
 
     let mut instructions = Vec::new();
     let mut shall_write_html = false;
