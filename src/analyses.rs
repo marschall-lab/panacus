@@ -3,7 +3,7 @@ pub mod hist;
 // pub mod histgrowth;
 pub mod info;
 pub mod ordered_histgrowth;
-// pub mod table;
+pub mod table;
 
 use std::collections::HashSet;
 

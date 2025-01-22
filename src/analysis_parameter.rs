@@ -42,6 +42,16 @@ pub enum AnalysisParameter {
         #[serde(default)]
         nice: bool,
     },
+    Table {
+        #[serde(default)]
+        count_type: CountType,
+        graph: String,
+
+        subset: Option<String>,
+        exclude: Option<String>,
+        grouping: Option<Grouping>,
+        total: bool,
+    },
     Info {
         graph: String,
         subset: Option<String>,
@@ -65,7 +75,6 @@ pub enum AnalysisParameter {
         exclude: Option<String>,
         grouping: Option<Grouping>,
     },
-    Table,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
@@ -178,8 +187,8 @@ impl Ord for AnalysisParameter {
                 | AnalysisParameter::Subset { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
-            AnalysisParameter::Table => match other {
-                AnalysisParameter::Table => std::cmp::Ordering::Equal,
+            AnalysisParameter::Table { .. } => match other {
+                AnalysisParameter::Table { .. } => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }
@@ -192,7 +201,7 @@ impl Ord for AnalysisParameter {
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }
                 | AnalysisParameter::Info { .. }
-                | AnalysisParameter::Table => std::cmp::Ordering::Greater,
+                | AnalysisParameter::Table { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
             AnalysisParameter::Growth { hist, .. } => match other {
