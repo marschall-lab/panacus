@@ -14,6 +14,6 @@ etc/package-lock.json
 etc/package.json
 .pre-commit-config.yaml
 **.old
-/*.yaml
+**/*.yaml
 /*.svg
 /*.data

@@ -16,6 +16,8 @@ pub struct OrderedHistgrowth {
     inner: Option<InnerOrderedGrowth>,
 }
 
+const MAX_WIDTH: usize = 25;
+
 impl ConstructibleAnalysis for OrderedHistgrowth {
     fn from_parameter(parameter: AnalysisParameter) -> Self {
         Self {
@@ -49,6 +51,12 @@ impl Analysis for OrderedHistgrowth {
         dm: Option<&GraphBroker>,
     ) -> anyhow::Result<Vec<AnalysisSection>> {
         self.set_inner(dm)?;
+        let count = match self.parameter {
+            AnalysisParameter::OrderedGrowth { count_type, .. } => count_type,
+            _ => {
+                panic!("Parameter has to fit the analysis")
+            }
+        };
         let hist_aux = &self.inner.as_ref().unwrap().hist_aux;
         let growth_labels = (0..hist_aux.coverage.len())
             .map(|i| {
@@ -72,13 +80,13 @@ impl Analysis for OrderedHistgrowth {
             id: format!("{id_prefix}"),
             analysis: "Pangenome Growth".to_string(),
             run_name: self.get_run_name(),
-            countable: "COUNTABLE".to_string(),
+            countable: count.to_string(),
             table: Some(table.clone()),
             items: vec![ReportItem::MultiBar {
                 id: format!("{id_prefix}"),
                 names: growth_labels.clone(),
                 x_label: "taxa".to_string(),
-                y_label: format!("COUNTABLEs",),
+                y_label: format!("{}s", count),
                 labels: (1..growths[0].len()).map(|i| i.to_string()).collect(),
                 values: growths.clone(),
                 log_toggle: false,
@@ -116,18 +124,29 @@ impl Analysis for OrderedHistgrowth {
 }
 
 impl OrderedHistgrowth {
+    fn truncate(input: &str) -> String {
+        let res: String = input.chars().rev().take(MAX_WIDTH).collect();
+        let res: String = res.chars().rev().collect();
+        if res.len() < input.len() {
+            format!("...{}", res)
+        } else {
+            res
+        }
+    }
+
     fn get_run_name(&self) -> String {
         match &self.parameter {
             AnalysisParameter::OrderedGrowth {
-                name,
-                graph,
-                count_type,
-                ..
+                name, count_type, ..
             } => {
                 if name.is_some() {
                     return name.as_ref().unwrap().to_string();
                 }
-                format!("for graph {} and count {}", graph, count_type)
+                format!(
+                    "{}|{}",
+                    Self::truncate(&self.inner.as_ref().unwrap().graph),
+                    count_type
+                )
             }
             _ => panic!("Hist analysis needs to contain hist parameter"),
         }
@@ -165,7 +184,11 @@ impl OrderedHistgrowth {
                         .calc_growth(c, q, gb.unwrap().get_node_lens())
                 })
                 .collect();
-            self.inner = Some(InnerOrderedGrowth { growths, hist_aux });
+            self.inner = Some(InnerOrderedGrowth {
+                growths,
+                hist_aux,
+                graph: gb.unwrap().get_fname(),
+            });
             Ok(())
         } else {
             panic!("OrderedGrowth should always contain ordered-growth parameter")
@@ -176,4 +199,5 @@ impl OrderedHistgrowth {
 struct InnerOrderedGrowth {
     growths: Growths,
     hist_aux: ThresholdContainer,
+    graph: String,
 }
