@@ -8,7 +8,6 @@ use std::mem::take;
 
 /* external crate*/
 use itertools::Itertools;
-use rayon::prelude::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::graph_broker::graph::{Edge, ItemId, Orientation};
@@ -1033,11 +1032,12 @@ impl AbacusByGroup {
         // create mapping from numerical node ids to original node identifiers
         log::info!("reporting coverage table");
         let dummy = Vec::new();
-        let id2node: Vec<&Vec<u8>> = vec![&dummy; graph_storage.node_count + 1];
+        let mut id2node: Vec<&Vec<u8>> = vec![&dummy; graph_storage.node_count + 1];
         // TODO: fix issue
-        //for (node, id) in graph_storage.node2id.iter() {
-        //    id2node[id.0 as usize] = node;
-        //}
+        let node_tuples = graph_storage.get_node_tuples();
+        for (node, id) in node_tuples.iter() {
+            id2node[id.0 as usize] = node;
+        }
 
         match self.count {
             CountType::Node | CountType::Bp => {

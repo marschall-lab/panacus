@@ -233,6 +233,13 @@ impl GraphStorage {
         self.node2id.values().cloned().collect()
     }
 
+    pub fn get_node_tuples(&self) -> Vec<(Vec<u8>, ItemId)> {
+        self.node2id
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+
     // pub fn from_cdbg_gfa(gfa_file: &str, k: usize) -> Self {
     //     let (node2id, path_segments, node_lens, extremities) =
     //         Self::parse_nodes_gfa(gfa_file, Some(k));
