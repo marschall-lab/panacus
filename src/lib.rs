@@ -75,6 +75,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::growth::get_subcommand())
         .subcommand(commands::histgrowth::get_subcommand())
         .subcommand(commands::info::get_subcommand())
+        .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand_required(true)
         .arg(
             Arg::new("threads")
@@ -111,8 +112,12 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     if let Some(info) = commands::info::get_instructions(&args) {
         instructions.extend(info?);
     }
+    if let Some(ordered_histgrowth) = commands::ordered_histgrowth::get_instructions(&args) {
+        instructions.extend(ordered_histgrowth?);
+    }
 
     let instructions = get_tasks(instructions)?;
+    log::info!("{:?}", instructions);
 
     // ride on!
     if !dry_run {
@@ -178,6 +183,35 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 let hist = analyses::hist::Hist::from_parameter(h);
                 reqs.extend(hist.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(hist)));
+            }
+            o @ AnalysisParameter::OrderedGrowth { .. } => {
+                if let AnalysisParameter::OrderedGrowth {
+                    subset,
+                    exclude,
+                    grouping,
+                    ..
+                } = &o
+                {
+                    let subset = subset.to_owned();
+                    let exclude = exclude.clone().unwrap_or_default();
+                    let grouping = grouping.to_owned();
+                    if subset != current_subset {
+                        tasks.push(Task::SubsetChange(subset.clone()));
+                        current_subset = subset;
+                    }
+                    if exclude != current_exclude {
+                        tasks.push(Task::ExcludeChange(exclude.clone()));
+                        current_exclude = exclude;
+                    }
+                    if grouping != current_grouping {
+                        tasks.push(Task::GroupingChange(grouping.clone()));
+                        current_grouping = grouping;
+                    }
+                }
+                let ordered_growth =
+                    analyses::ordered_histgrowth::OrderedHistgrowth::from_parameter(o);
+                reqs.extend(ordered_growth.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(ordered_growth)));
             }
             g @ AnalysisParameter::Growth { .. } => {
                 tasks.push(Task::Analysis(Box::new(
@@ -370,6 +404,72 @@ fn preprocess_instructions(
                     grouping,
                 }
             }
+            AnalysisParameter::OrderedGrowth {
+                name,
+                coverage,
+                quorum,
+                count_type,
+                display,
+                graph,
+                subset,
+                exclude,
+                grouping,
+            } => {
+                let subset = match subset {
+                    Some(subset) => {
+                        if subsets.contains_key(&subset) {
+                            Some(subsets[&subset].to_string())
+                        } else {
+                            Some(subset)
+                        }
+                    }
+                    None => None,
+                };
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::OrderedGrowth {
+                        graph: new_name,
+                        subset,
+                        exclude,
+                        grouping,
+                        name,
+                        coverage,
+                        quorum,
+                        display,
+                        count_type,
+                    };
+                }
+                AnalysisParameter::OrderedGrowth {
+                    graph,
+                    subset,
+                    exclude,
+                    grouping,
+                    name,
+                    coverage,
+                    quorum,
+                    display,
+                    count_type,
+                }
+            }
             p => p,
         })
         .collect();
@@ -393,10 +493,13 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
     for instruction in others {
         match instruction {
             ref i @ AnalysisParameter::Info { ref graph, .. } => {
-                insert_after_graph(i.clone(), graph, &mut current_instructions)
+                insert_after_graph(i.clone(), graph, &mut current_instructions);
             }
             ref h @ AnalysisParameter::Hist { ref graph, .. } => {
-                insert_after_graph(h.clone(), graph, &mut current_instructions)
+                insert_after_graph(h.clone(), graph, &mut current_instructions);
+            }
+            ref o @ AnalysisParameter::OrderedGrowth { ref graph, .. } => {
+                insert_after_graph(o.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),
         }

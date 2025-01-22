@@ -48,7 +48,23 @@ pub enum AnalysisParameter {
         exclude: Option<String>,
         grouping: Option<Grouping>,
     },
-    OrderedGrowth,
+    OrderedGrowth {
+        name: Option<String>,
+
+        coverage: Option<String>,
+        quorum: Option<String>,
+
+        #[serde(default)]
+        count_type: CountType,
+        graph: String,
+
+        #[serde(default = "get_true")]
+        display: bool,
+
+        subset: Option<String>,
+        exclude: Option<String>,
+        grouping: Option<Grouping>,
+    },
     Table,
 }
 
@@ -170,8 +186,8 @@ impl Ord for AnalysisParameter {
                 | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
-            AnalysisParameter::OrderedGrowth => match other {
-                AnalysisParameter::OrderedGrowth => std::cmp::Ordering::Equal,
+            AnalysisParameter::OrderedGrowth { name, .. } => match other {
+                AnalysisParameter::OrderedGrowth { name: o_name, .. } => name.cmp(o_name),
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }

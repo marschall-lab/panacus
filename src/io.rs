@@ -1,5 +1,5 @@
 /* standard use */
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::io::{Error, ErrorKind};
 use std::str::{self, FromStr};
 
@@ -479,33 +479,33 @@ pub fn write_table(headers: &Vec<Vec<String>>, columns: &Vec<Vec<f64>>) -> Resul
     Ok(res)
 }
 
-pub fn write_ordered_table<W: Write>(
+pub fn write_ordered_table(
     headers: &Vec<Vec<String>>,
     columns: &Vec<Vec<f64>>,
     index: &Vec<String>,
-    out: &mut BufWriter<W>,
-) -> Result<(), std::io::Error> {
+) -> anyhow::Result<String> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
+    let mut res = String::new();
 
     for i in 0..n {
         for j in 0..headers.len() {
             if j > 0 {
-                write!(out, "\t")?;
+                res.push_str("\t");
             }
-            write!(out, "{:0}", headers[j][i])?;
+            res.push_str(&format!("{:0}", headers[j][i]));
         }
-        writeln!(out)?;
+        res.push_str("\n");
     }
     let n = columns.first().unwrap_or(&Vec::new()).len();
     for i in 1..n {
-        write!(out, "{}", index[i - 1])?;
+        res.push_str(&format!("{}", index[i - 1]));
         for column in columns {
-            write!(out, "\t{:0}", column[i].floor())?;
+            res.push_str(&format!("\t{:0}", column[i].floor()));
         }
-        writeln!(out)?;
+        res.push_str("\n");
     }
 
-    Ok(())
+    Ok(res)
 }
 
 // pub fn write_hist_table<W: Write>(hists: &[Hist], out: &mut BufWriter<W>) -> Result<(), Error> {
@@ -534,24 +534,24 @@ pub fn write_ordered_table<W: Write>(
 //     }
 //     write_table(&header_cols, &output_columns, out)
 // }
-fn write_metadata_comments<W: Write>(out: &mut BufWriter<W>) -> Result<(), Error> {
-    writeln!(
-        out,
-        "# {}",
+fn write_metadata_comments() -> anyhow::Result<String> {
+    let mut res = format!(
+        "# {}\n",
         std::env::args().collect::<Vec<String>>().join(" ")
-    )?;
+    );
     let version = option_env!("GIT_HASH").unwrap_or(env!("CARGO_PKG_VERSION"));
-    writeln!(out, "# version {}", version)
+    let version = format!("# version {}", version);
+    res.push_str(&version);
+    Ok(res)
 }
 
-pub fn write_ordered_histgrowth_table<W: Write>(
+pub fn write_ordered_histgrowth_table(
     abacus_group: &AbacusByGroup,
     hist_aux: &ThresholdContainer,
     node_lens: &Vec<u32>,
-    out: &mut BufWriter<W>,
-) -> Result<(), Error> {
+) -> anyhow::Result<String> {
     log::info!("reporting ordered-growth table");
-    write_metadata_comments(out)?;
+    let mut res = write_metadata_comments()?;
 
     let mut output_columns: Vec<Vec<f64>> = hist_aux
         .coverage
@@ -589,7 +589,9 @@ pub fn write_ordered_histgrowth_table<W: Write>(
             })
             .collect::<Vec<Vec<String>>>(),
     );
-    write_ordered_table(&header_cols, &output_columns, &abacus_group.groups, out)
+    let table = write_ordered_table(&header_cols, &output_columns, &abacus_group.groups)?;
+    res.push_str(&table);
+    Ok(res)
 }
 
 #[cfg(test)]
