@@ -7,7 +7,7 @@ use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
     Command::new("ordered-histgrowth")
-        .about("Calculate coverage histogram")
+        .about("Calculate growth curve based on group file order (if order is unspecified, use path order in GFA)")
         .args(&[
             arg!(gfa_file: <GFA_FILE> "graph in GFA1 format, accepts also compressed (.gz) file"),
             arg!(-s --subset <FILE> "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)"),

@@ -6,7 +6,7 @@ use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
     Command::new("hist")
-        .about("Return general graph and paths info")
+        .about("Calculate coverage histogram")
         .args(&[
             arg!(gfa_file: <GFA_FILE> "graph in GFA1 format, accepts also compressed (.gz) file"),
             arg!(-s --subset <FILE> "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)"),

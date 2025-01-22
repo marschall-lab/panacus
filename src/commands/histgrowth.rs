@@ -6,9 +6,10 @@ use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
     Command::new("histgrowth")
-        .about("Calculate coverage histogram")
+        .about("Run hist and growth. Return the growth curve")
         .args(&[
             arg!(gfa_file: <GFA_FILE> "graph in GFA1 format, accepts also compressed (.gz) file"),
+            // TODO: arg!(-a --hist "Also include histogram in output"),
             arg!(-s --subset <FILE> "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)"),
             arg!(-e --exclude <FILE> "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list"),
             arg!(-g --groupby <FILE> "Merge counts from paths by path-group mapping from given tab-separated two-column file"),
