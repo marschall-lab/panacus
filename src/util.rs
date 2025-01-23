@@ -3,36 +3,55 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 /* external use */
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
+use crate::graph_broker::ItemId;
+
 /* internal use */
-use crate::graph::ItemId;
 
 // storage space for item IDs
 pub type ItemIdSize = u64;
 pub type CountSize = u32;
 pub type GroupSize = u16;
 
-pub const SIZE_T: usize = 2048;
 pub struct Wrap<T>(pub *mut T);
 unsafe impl Sync for Wrap<Vec<usize>> {}
 unsafe impl Sync for Wrap<Vec<u64>> {}
 unsafe impl Sync for Wrap<Vec<u32>> {}
 unsafe impl Sync for Wrap<Vec<u16>> {}
-unsafe impl Sync for Wrap<[Vec<u32>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u32>>> {}
-unsafe impl Sync for Wrap<[Vec<u64>; SIZE_T]> {}
 unsafe impl Sync for Wrap<Vec<Vec<u64>>> {}
 // unsafe impl Sync for Wrap<[HashMap<u64, InfixEqStorage>; SIZE_T]> {}
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, EnumVariantNames, EnumIter)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    EnumString,
+    EnumVariantNames,
+    EnumIter,
+    Hash,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
 #[strum(serialize_all = "lowercase")]
 pub enum CountType {
     Node,
     Bp,
     Edge,
     All,
+}
+
+impl Default for CountType {
+    fn default() -> Self {
+        CountType::Node
+    }
 }
 
 impl fmt::Display for CountType {
@@ -50,16 +69,17 @@ impl fmt::Display for CountType {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ItemTable {
-    pub items: [Vec<ItemIdSize>; SIZE_T],
-    pub id_prefsum: [Vec<ItemIdSize>; SIZE_T],
+    pub items: Vec<ItemIdSize>,
+    pub id_prefsum: Vec<ItemIdSize>,
 }
 
 impl ItemTable {
     pub fn new(num_walks_paths: usize) -> Self {
         Self {
-            items: [(); SIZE_T].map(|_| vec![]),
-            id_prefsum: [(); SIZE_T].map(|_| vec![0; num_walks_paths + 1]),
+            items: vec![],
+            id_prefsum: vec![0; num_walks_paths + 1],
         }
     }
 }
@@ -86,6 +106,7 @@ impl ItemTable {
 //     }
 // }
 
+#[derive(Debug)]
 pub struct ActiveTable {
     pub items: Vec<bool>,
     // intervall container + item len vector
@@ -506,6 +527,12 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
     }
 }
 
+pub fn to_id(s: &str) -> String {
+    s.to_string()
+        .to_lowercase()
+        .replace(&[' ', '|', '/', '\\', '\'', '"'], "-")
+}
+
 //pub fn log2_add(a: f64, b: f64) -> f64 {
 //    // we assume both a and b are log2'd
 //    let (a, b) = if a < b { (a, b) } else { (b, a) };
@@ -517,7 +544,7 @@ pub fn canonical(kmer_bits: u64, k: usize) -> u64 {
 mod tests {
 
     use super::*;
-    use crate::graph::ItemId;
+    use crate::graph_broker::ItemId;
 
     #[test]
     fn test_interval_container() {
