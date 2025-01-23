@@ -5,6 +5,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::{GraphBroker, ThresholdContainer};
 use crate::html_report::ReportItem;
+use crate::util::CountType;
 use crate::{analyses::InputRequirement, io::write_ordered_histgrowth_table};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
@@ -119,7 +120,13 @@ impl Analysis for OrderedHistgrowth {
     }
 
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
-        HashSet::from([InputRequirement::AbacusByGroup])
+        if let AnalysisParameter::OrderedGrowth { count_type, .. } = &self.parameter {
+            let mut req = HashSet::from([InputRequirement::AbacusByGroup]);
+            req.extend(Self::count_to_input_req(*count_type));
+            req
+        } else {
+            HashSet::new()
+        }
     }
 }
 
@@ -131,6 +138,19 @@ impl OrderedHistgrowth {
             format!("...{}", res)
         } else {
             res
+        }
+    }
+
+    fn count_to_input_req(count: CountType) -> HashSet<InputRequirement> {
+        match count {
+            CountType::Bp => HashSet::from([InputRequirement::Bp]),
+            CountType::Node => HashSet::from([InputRequirement::Node]),
+            CountType::Edge => HashSet::from([InputRequirement::Edge]),
+            CountType::All => HashSet::from([
+                InputRequirement::Bp,
+                InputRequirement::Node,
+                InputRequirement::Edge,
+            ]),
         }
     }
 

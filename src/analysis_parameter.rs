@@ -31,6 +31,9 @@ pub enum AnalysisParameter {
 
         #[serde(default = "get_true")]
         display: bool,
+
+        #[serde(default)]
+        add_hist: bool,
     },
     Subset {
         name: String,
@@ -51,6 +54,7 @@ pub enum AnalysisParameter {
         exclude: Option<String>,
         grouping: Option<Grouping>,
         total: bool,
+        order: Option<String>,
     },
     Info {
         graph: String,
@@ -63,6 +67,8 @@ pub enum AnalysisParameter {
 
         coverage: Option<String>,
         quorum: Option<String>,
+
+        order: Option<String>,
 
         #[serde(default)]
         count_type: CountType,

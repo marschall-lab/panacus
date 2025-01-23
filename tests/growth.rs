@@ -6,7 +6,9 @@ use std::process::Command; // Run programs
 fn growth_table_gets_written_successfully() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("panacus")?;
 
-    cmd.arg("growth").arg("tests/test_files/t_groups.hist.tsv");
+    cmd.arg("growth")
+        .arg("tests/test_files/t_groups.hist.tsv")
+        .arg("--hist");
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("panacus\thist\tgrowth"));

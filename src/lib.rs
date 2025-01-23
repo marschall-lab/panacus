@@ -146,6 +146,7 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
     let mut tasks = Vec::new();
     let mut reqs = HashSet::new();
     let mut last_graph_change = 0usize;
+    let mut current_order = None;
     let mut current_subset = None;
     let mut current_exclude = String::new();
     let mut current_grouping = None;
@@ -193,12 +194,18 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                     subset,
                     exclude,
                     grouping,
+                    order,
                     ..
                 } = &o
                 {
+                    let order = order.to_owned();
                     let subset = subset.to_owned();
                     let exclude = exclude.clone().unwrap_or_default();
                     let grouping = grouping.to_owned();
+                    if order != current_order {
+                        tasks.push(Task::OrderChange(order.clone()));
+                        current_order = order;
+                    }
                     if subset != current_subset {
                         tasks.push(Task::SubsetChange(subset.clone()));
                         current_subset = subset;
@@ -222,12 +229,18 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                     subset,
                     exclude,
                     grouping,
+                    order,
                     ..
                 } = &t
                 {
+                    let order = order.to_owned();
                     let subset = subset.to_owned();
                     let exclude = exclude.clone().unwrap_or_default();
                     let grouping = grouping.to_owned();
+                    if order != current_order {
+                        tasks.push(Task::OrderChange(order.clone()));
+                        current_order = order;
+                    }
                     if subset != current_subset {
                         tasks.push(Task::SubsetChange(subset.clone()));
                         current_subset = subset;
@@ -392,6 +405,7 @@ fn preprocess_instructions(
                 subset,
                 exclude,
                 grouping,
+                order,
             } => {
                 let subset = match subset {
                     Some(subset) => {
@@ -431,6 +445,7 @@ fn preprocess_instructions(
                         exclude,
                         grouping,
                         total,
+                        order,
                     };
                 }
                 AnalysisParameter::Table {
@@ -440,6 +455,7 @@ fn preprocess_instructions(
                     exclude,
                     grouping,
                     total,
+                    order,
                 }
             }
             AnalysisParameter::Info {
@@ -503,6 +519,7 @@ fn preprocess_instructions(
                 subset,
                 exclude,
                 grouping,
+                order,
             } => {
                 let subset = match subset {
                     Some(subset) => {
@@ -545,6 +562,7 @@ fn preprocess_instructions(
                         quorum,
                         display,
                         count_type,
+                        order,
                     };
                 }
                 AnalysisParameter::OrderedGrowth {
@@ -557,6 +575,7 @@ fn preprocess_instructions(
                     quorum,
                     display,
                     count_type,
+                    order,
                 }
             }
             p => p,
@@ -678,6 +697,7 @@ pub enum Task {
     SubsetChange(Option<String>),
     ExcludeChange(String),
     GroupingChange(Option<Grouping>),
+    OrderChange(Option<String>),
 }
 
 impl Debug for Task {
@@ -689,6 +709,7 @@ impl Debug for Task {
                 .field(&reqs)
                 .field(nice)
                 .finish(),
+            Self::OrderChange(order) => f.debug_tuple("OrderChange").field(&order).finish(),
             Self::SubsetChange(subset) => f.debug_tuple("SubsetChange").field(&subset).finish(),
             Self::ExcludeChange(exclude) => f.debug_tuple("ExcludeChange").field(&exclude).finish(),
             Self::GroupingChange(grouping) => {
@@ -722,6 +743,16 @@ pub fn execute_pipeline<W: Write>(
             Task::GraphChange(input_reqs, nice) => {
                 log::info!("Executing graph change: {:?}", input_reqs);
                 gb = Some(GraphBroker::from_gfa(&input_reqs, *nice));
+                if is_next_analysis {
+                    gb = Some(gb.expect("GraphBroker is some").finish()?);
+                }
+            }
+            Task::OrderChange(order) => {
+                log::info!("Executing order change: {:?}", order);
+                gb = Some(
+                    gb.expect("OrderChange after Graph")
+                        .with_order(order.as_ref().expect("Order exists")),
+                );
                 if is_next_analysis {
                     gb = Some(gb.expect("GraphBroker is some").finish()?);
                 }
@@ -850,6 +881,7 @@ mod tests {
             quorum: None,
             hist: hist.to_string(),
             display: false,
+            add_hist: true,
         }
     }
 

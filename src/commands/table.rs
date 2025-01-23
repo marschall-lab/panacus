@@ -32,6 +32,7 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
             .expect("hist subcommand has count type")
             .to_owned();
         let total = args.get_flag("total");
+        let order = args.get_one::<String>("order").cloned();
         let subset = args.get_one::<String>("subset").cloned();
         let exclude = args.get_one::<String>("exclude").cloned();
         let grouping = args.get_one::<String>("groupby").cloned();
@@ -49,6 +50,7 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
             subset,
             exclude,
             grouping,
+            order,
         }];
         log::info!("{parameters:?}");
         Some(Ok(parameters))

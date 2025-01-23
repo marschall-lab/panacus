@@ -64,14 +64,20 @@ impl Analysis for Growth {
                 .collect::<Vec<_>>(),
         };
 
-        for h in hists {
-            output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
-            header_cols.push(vec![
-                "hist".to_string(),
-                h.count.to_string(),
-                String::new(),
-                String::new(),
-            ])
+        if let AnalysisParameter::Growth { add_hist, .. } = self.parameter {
+            if add_hist {
+                for h in hists {
+                    output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+                    header_cols.push(vec![
+                        "hist".to_string(),
+                        h.count.to_string(),
+                        String::new(),
+                        String::new(),
+                    ])
+                }
+            }
+        } else {
+            panic!("Growth needs growth parameter");
         }
 
         for (count, g) in growths {

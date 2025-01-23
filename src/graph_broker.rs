@@ -42,7 +42,7 @@ pub struct GraphBroker {
 
     path_lens: Option<HashMap<PathSegment, (u32, u32)>>,
     gfa_file: String,
-    nice: bool,
+    _nice: bool,
     input_requirements: HashSet<Req>,
     count_type: CountType,
 }
@@ -56,7 +56,7 @@ impl GraphBroker {
             total_abaci: None,
             group_abacus: None,
             hists: None,
-            nice: false,
+            _nice: false,
             path_lens: None,
             gfa_file: String::new(),
             input_requirements: HashSet::new(),
@@ -107,7 +107,7 @@ impl GraphBroker {
             hists: None,
             path_lens: None,
             gfa_file: gfa_file.to_owned(),
-            nice,
+            _nice: nice,
             input_requirements: input_requirements.clone(),
             count_type,
         }

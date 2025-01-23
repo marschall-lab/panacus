@@ -20,7 +20,7 @@ impl Analysis for Table {
                 }
             };
             let mut buf = BufWriter::new(Vec::new());
-            gb.write_abacus_by_group(total, &mut buf);
+            gb.write_abacus_by_group(total, &mut buf)?;
             let bytes = buf.into_inner()?;
             let string = String::from_utf8(bytes)?;
             Ok(string)
@@ -34,7 +34,13 @@ impl Analysis for Table {
     }
 
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
-        HashSet::from([InputRequirement::AbacusByGroup])
+        if let AnalysisParameter::Table { count_type, .. } = &self.parameter {
+            let mut req = HashSet::from([InputRequirement::AbacusByGroup]);
+            req.extend(Self::count_to_input_req(*count_type));
+            req
+        } else {
+            HashSet::new()
+        }
     }
 
     fn generate_report_section(
