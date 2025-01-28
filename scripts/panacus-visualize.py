@@ -6,6 +6,7 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter as ADHF
 from sys import stdout, stderr, exit
 from functools import partial
+from io import StringIO
 from os import fdopen, path
 import re
 
@@ -27,6 +28,13 @@ N_HEADERS = 4
 SUPPORTED_FILE_FORMATS = plt.gcf().canvas.get_supported_filetypes().keys()
 
 ids = pd.IndexSlice
+
+
+def read_csv(filename, comment='#', **kwargs):
+    lines = "".join([line for line in filename
+                     if not line.startswith(comment)])
+    return pd.read_csv(StringIO(lines), **kwargs)
+
 
 def clean_multicolumn_labels(df):
     '''
@@ -211,7 +219,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    df = clean_multicolumn_labels(pd.read_csv(args.stats, sep='\t', header=list(range(N_HEADERS)), index_col=[0], comment='#'))
+    df = clean_multicolumn_labels(read_csv(args.stats, sep='\t', header=list(range(N_HEADERS)), index_col=[0], comment='#'))
     if df.columns[0][0] not in ['hist', 'growth', 'ordered-growth']:
         print('This script cannot visualize the content of this type of table, exiting.', file=stderr)
         exit(1)
