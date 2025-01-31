@@ -56,6 +56,17 @@ pub enum AnalysisParameter {
         total: bool,
         order: Option<String>,
     },
+    Similarity {
+        #[serde(default)]
+        count_type: CountType,
+        graph: String,
+
+        subset: Option<String>,
+        exclude: Option<String>,
+        grouping: Option<Grouping>,
+        total: bool,
+        order: Option<String>,
+    },
     Info {
         graph: String,
         subset: Option<String>,
@@ -195,6 +206,14 @@ impl Ord for AnalysisParameter {
             },
             AnalysisParameter::Table { .. } => match other {
                 AnalysisParameter::Table { .. } => std::cmp::Ordering::Equal,
+                AnalysisParameter::Graph { .. }
+                | AnalysisParameter::Subset { .. }
+                //| AnalysisParameter::Grouping { .. }
+                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
+                _ => std::cmp::Ordering::Less,
+            },
+            AnalysisParameter::Similarity { .. } => match other {
+                AnalysisParameter::Similarity { .. } => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }

@@ -1,3 +1,4 @@
+use core::panic;
 use std::iter::zip;
 use std::{
     collections::{HashMap, HashSet},
@@ -161,7 +162,12 @@ impl GraphBroker {
             gb = gb.set_hists();
         }
         if gb.input_requirements.contains(&Req::AbacusByGroup) {
+            if gb.input_requirements.contains(&Req::AbacusByGroupCsc) {
+                panic!("Input should not require CSC and CSR AbacusByGroup at the same time!");
+            }
             gb = gb.set_abacus_by_group()?;
+        } else if gb.input_requirements.contains(&Req::AbacusByGroupCsc) {
+            gb = gb.set_abacus_by_group_csc()?;
         }
         Ok(gb)
     }
@@ -261,6 +267,12 @@ impl GraphBroker {
             );
             log::error!("{}", &msg);
         }
+    }
+
+    fn set_abacus_by_group_csc(self) -> Result<Self, Error> {
+        let mut res = self.set_abacus_by_group()?;
+        res.group_abacus.as_mut().unwrap().to_csc();
+        Ok(res)
     }
 
     fn set_abacus_by_group(mut self) -> Result<Self, Error> {

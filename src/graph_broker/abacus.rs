@@ -1001,6 +1001,72 @@ impl AbacusByGroup {
         res
     }
 
+    pub fn to_csc(&mut self) {
+        let r = std::mem::take(&mut self.r);
+        //r.remove(0);
+        let c = std::mem::take(&mut self.c);
+        let v = std::mem::take(&mut self.v);
+        let n_row = r.len() - 1;
+        let n_col = self.groups.len();
+        let (c, r, v) = Self::csr_tocsc(n_row, n_col, r, c, v);
+        self.r = r.into_iter().map(|x| x as usize).collect();
+        self.c = c.into_iter().map(|x| x as u16).collect();
+        self.v = v;
+    }
+
+    // adapted from https://github.com/scipy/scipy/blob/v1.15.1/scipy/sparse/sparsetools/csc.h#L104
+    fn csr_tocsc(
+        n_row: usize,
+        n_col: usize,
+        p1: Vec<usize>,
+        j1: Vec<u16>,
+        x1: Option<Vec<u32>>,
+    ) -> (Vec<usize>, Vec<u16>, Option<Vec<u32>>) {
+        let number_non_zeros = p1[n_row];
+
+        let mut p2 = vec![0; n_col + 1];
+        let mut i2 = vec![0; number_non_zeros];
+        let mut x2 = vec![1; number_non_zeros];
+
+        for n in 0..number_non_zeros {
+            p2[j1[n] as usize] += 1;
+        }
+
+        let mut cumsum = 0;
+        for col in 0..n_col {
+            let temp = p2[col];
+            p2[col] = cumsum;
+            cumsum += temp;
+        }
+        p2[n_col] = number_non_zeros;
+
+        for row in 0..n_row {
+            for jj in p1[row]..p1[row + 1] {
+                let col = j1[jj] as usize;
+                let dest = p2[col];
+
+                i2[dest] = row as u16;
+                if let Some(x1) = x1.as_ref() {
+                    x2[dest] = x1[jj];
+                }
+                p2[col] += 1;
+            }
+        }
+
+        let mut last = 0;
+        for col in 0..=n_col {
+            let temp = p2[col];
+            p2[col] = last;
+            last = temp;
+        }
+
+        if x1.is_some() {
+            (p2, i2, Some(x2))
+        } else {
+            (p2, i2, None)
+        }
+    }
+
     #[allow(dead_code)]
     pub fn write_rcv<W: Write>(&self, out: &mut BufWriter<W>) -> Result<(), Error> {
         write!(out, "{}", self.r[0])?;
