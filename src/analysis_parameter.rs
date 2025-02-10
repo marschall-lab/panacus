@@ -64,7 +64,6 @@ pub enum AnalysisParameter {
         subset: Option<String>,
         exclude: Option<String>,
         grouping: Option<Grouping>,
-        total: bool,
         order: Option<String>,
     },
     Info {

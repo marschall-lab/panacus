@@ -31,7 +31,6 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
             .get_one::<CountType>("count")
             .expect("hist subcommand has count type")
             .to_owned();
-        let total = args.get_flag("total");
         let order = args.get_one::<String>("order").cloned();
         let subset = args.get_one::<String>("subset").cloned();
         let exclude = args.get_one::<String>("exclude").cloned();
@@ -45,7 +44,6 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
         };
         let parameters = vec![AnalysisParameter::Similarity {
             count_type: count,
-            total,
             graph,
             subset,
             exclude,

@@ -1003,14 +1003,13 @@ impl AbacusByGroup {
 
     pub fn to_csc(&mut self) {
         let r = std::mem::take(&mut self.r);
-        //r.remove(0);
         let c = std::mem::take(&mut self.c);
         let v = std::mem::take(&mut self.v);
         let n_row = r.len() - 1;
         let n_col = self.groups.len();
-        let (c, r, v) = Self::csr_tocsc(n_row, n_col, r, c, v);
+        let (r, c, v) = Self::csr_tocsc(n_row, n_col, r, c, v);
         self.r = r.into_iter().map(|x| x as usize).collect();
-        self.c = c.into_iter().map(|x| x as u16).collect();
+        self.c = c.into_iter().map(|x| x as GroupSize).collect();
         self.v = v;
     }
 
@@ -1019,9 +1018,9 @@ impl AbacusByGroup {
         n_row: usize,
         n_col: usize,
         p1: Vec<usize>,
-        j1: Vec<u16>,
+        j1: Vec<GroupSize>,
         x1: Option<Vec<u32>>,
-    ) -> (Vec<usize>, Vec<u16>, Option<Vec<u32>>) {
+    ) -> (Vec<usize>, Vec<GroupSize>, Option<Vec<u32>>) {
         let number_non_zeros = p1[n_row];
 
         let mut p2 = vec![0; n_col + 1];
@@ -1045,7 +1044,7 @@ impl AbacusByGroup {
                 let col = j1[jj] as usize;
                 let dest = p2[col];
 
-                i2[dest] = row as u16;
+                i2[dest] = row as GroupSize;
                 if let Some(x1) = x1.as_ref() {
                     x2[dest] = x1[jj];
                 }
@@ -1059,7 +1058,6 @@ impl AbacusByGroup {
             p2[col] = last;
             last = temp;
         }
-
         if x1.is_some() {
             (p2, i2, Some(x2))
         } else {

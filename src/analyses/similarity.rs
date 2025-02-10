@@ -1,16 +1,22 @@
 use itertools::Itertools;
+use rayon::iter::IntoParallelIterator;
+use rayon::prelude::*;
 
 use crate::{
-    analyses::InputRequirement, analysis_parameter::AnalysisParameter, io::write_metadata_comments,
-    util::CountType,
+    analyses::InputRequirement, analysis_parameter::AnalysisParameter, html_report::ReportItem,
+    io::write_metadata_comments, util::CountType,
 };
+use core::panic;
 use std::collections::HashSet;
+use std::iter::FromIterator;
+use std::usize;
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
 
 pub struct Similarity {
     parameter: AnalysisParameter,
     table: Option<Vec<Vec<f32>>>,
+    count: CountType,
 }
 
 impl Analysis for Similarity {
@@ -36,26 +42,59 @@ impl Analysis for Similarity {
     }
 
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
-        if let AnalysisParameter::Similarity { count_type, .. } = &self.parameter {
-            let mut req = HashSet::from([InputRequirement::AbacusByGroupCsc]);
-            req.extend(Self::count_to_input_req(*count_type));
-            req
-        } else {
-            HashSet::new()
-        }
+        let mut req = HashSet::from([InputRequirement::AbacusByGroupCsc]);
+        req.extend(Self::count_to_input_req(self.count));
+        req
     }
 
     fn generate_report_section(
         &mut self,
-        _dm: Option<&crate::graph_broker::GraphBroker>,
+        gb: Option<&crate::graph_broker::GraphBroker>,
     ) -> anyhow::Result<Vec<AnalysisSection>> {
-        Ok(Vec::new())
+        if self.table.is_none() {
+            self.set_table(gb);
+        }
+        if gb.is_none() {
+            panic!("Similarity analysis needs a graph")
+        }
+        let gb = gb.unwrap();
+        let k = match self.parameter {
+            AnalysisParameter::Similarity { count_type, .. } => count_type,
+            _ => panic!("Similarity analysis needs Similarity parameter"),
+        };
+        let table = self.generate_table(Some(gb))?;
+        let table = format!("`{}`", &table);
+        let id_prefix = format!(
+            "sim-heat-{}",
+            self.get_run_name()
+                .to_lowercase()
+                .replace(&[' ', '|', '\\'], "-")
+        );
+        let tabs = vec![AnalysisSection {
+            id: format!("{id_prefix}-{k}"),
+            analysis: "Similarity Heatmap".to_string(),
+            table: Some(table.clone()),
+            run_name: self.get_run_name(),
+            countable: k.to_string(),
+            items: vec![ReportItem::Heatmap {
+                id: format!("{id_prefix}-{k}"),
+                name: gb.get_fname(),
+                x_labels: gb.get_abacus_by_group().groups.clone(),
+                y_labels: gb.get_abacus_by_group().groups.clone(),
+                values: self.table.as_ref().unwrap().clone(),
+            }],
+        }];
+        Ok(tabs)
     }
 }
 
 impl ConstructibleAnalysis for Similarity {
     fn from_parameter(parameter: crate::analysis_parameter::AnalysisParameter) -> Self {
         Self {
+            count: match &parameter {
+                AnalysisParameter::Similarity { count_type, .. } => *count_type,
+                _ => panic!("Similarity analysis needs similarity parameter"),
+            },
             parameter,
             table: None,
         }
@@ -77,28 +116,47 @@ impl Similarity {
     }
 
     fn set_table(&mut self, gb: Option<&crate::graph_broker::GraphBroker>) {
-        let mut table = Vec::new();
         let gb = gb.as_ref().unwrap();
-        let c = &gb.get_abacus_by_group().c;
-        let r = &gb.get_abacus_by_group().r;
-        let v = gb.get_abacus_by_group().v.as_ref().unwrap();
+        let c = &gb.get_abacus_by_group().r;
+        let r = &gb.get_abacus_by_group().c;
         let tuples: Vec<(_, _)> = c.iter().map(|x| *x as usize).tuple_windows().collect();
-        for i in 0..(tuples.len() - 1) {
-            let mut row = vec![0.0; i];
-            row.push(1.0);
-            for j in (i + 1)..tuples.len() {
-                let t1 = tuples[i];
-                let t2 = tuples[j];
-                let score = calc_score(
-                    &r[t1.0..t1.1],
-                    &r[t2.0..t2.1],
-                    &v[t1.0..t1.1],
-                    &v[t2.0..t2.1],
-                );
-                row.push(score);
-            }
-            table.push(row);
-        }
+        let sets: Vec<HashSet<_>> = tuples
+            .iter()
+            .map(|tuple| {
+                let set = HashSet::from_iter(r[tuple.0..tuple.1].iter().cloned());
+                set
+            })
+            .collect();
+        log::info!("Finished building sets");
+        let mut table: Vec<(usize, Vec<f32>)> = (0..(sets.len() - 1))
+            .into_par_iter()
+            .map(|i| {
+                let mut row = vec![0.0; tuples.len()];
+                row[i] = 1.0;
+                for j in (i + 1)..sets.len() {
+                    let score = if self.count != CountType::Bp {
+                        sets[i].intersection(&sets[j]).count() as f32
+                            / sets[i].union(&sets[j]).count() as f32
+                    } else {
+                        sets[i]
+                            .intersection(&sets[j])
+                            .map(|el| gb.get_node_lens()[*el as usize] as f32)
+                            .sum::<f32>()
+                            / sets[i]
+                                .union(&sets[j])
+                                .map(|el| gb.get_node_lens()[*el as usize] as f32)
+                                .sum::<f32>()
+                    };
+                    let score = if score == -0.0 { 0.0 } else { score }; // Prevent -0 being
+                                                                         // displayed
+                    row[j] = score;
+                }
+                log::debug!("{}/{}", i, tuples.len());
+                (i, row)
+            })
+            .collect();
+        table.sort_by_key(|el| el.0);
+        let mut table: Vec<Vec<f32>> = table.into_iter().map(|(_, row)| row).collect();
         let mut last_row = vec![0.0; tuples.len() - 1];
         last_row.push(1.0);
         table.push(last_row);
@@ -109,6 +167,30 @@ impl Similarity {
         }
 
         self.table = Some(table);
+    }
+
+    fn get_run_name(&self) -> String {
+        match &self.parameter {
+            AnalysisParameter::Similarity {
+                graph,
+                subset,
+                exclude,
+                grouping,
+                ..
+            } => {
+                format!(
+                    "{}-{}|{}\\{}",
+                    graph,
+                    match grouping.clone() {
+                        Some(g) => g.to_string(),
+                        None => "Ungrouped".to_string(),
+                    },
+                    subset.clone().unwrap_or_default(),
+                    exclude.clone().unwrap_or_default()
+                )
+            }
+            _ => panic!("Hist analysis needs to contain hist parameter"),
+        }
     }
 }
 
@@ -127,23 +209,4 @@ fn get_table_string(table: &Vec<Vec<f32>>, groups: &Vec<String>) -> String {
         res.push_str("\n");
     }
     res
-}
-
-fn calc_score(r1: &[usize], r2: &[usize], v1: &[u32], v2: &[u32]) -> f32 {
-    let mut s = 0;
-    let mut d = 0;
-    for (r1_idx, r1_value) in r1.iter().enumerate() {
-        if let Some(r2_idx) = r2.iter().position(|el| el == r1_value) {
-            s += std::cmp::min(v1[r1_idx], v2[r2_idx]);
-            d += ((v1[r1_idx] as i64) - (v2[r2_idx] as i64)).abs() as u32;
-        } else {
-            d += v1[r1_idx];
-        }
-    }
-    for (r2_idx, r2_value) in r2.iter().enumerate() {
-        if r1.iter().position(|el| el == r2_value).is_none() {
-            d += v2[r2_idx];
-        }
-    }
-    (s as f32) / ((s + d) as f32)
 }

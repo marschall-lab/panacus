@@ -1,2 +1,12 @@
+<div class="d-flex flex-row-reverse">
+    <div class="form-check form-switch">
+        <label class="form-check-label" for="btn-colorscale-{{id}}">set zero</label>
+        <input type="range" class="form-range" min="0" max="{{max}}" step="0.01" value="0.0" id="btn-colorscale-{{id}}">
+        <div class="d-flex justify-content-between">
+            <span>0</span>
+            <span>{{max}}</span>
+        </div>
+    </div>
+</div>
 <canvas id="chart-heatmap-{{id}}"></canvas>
 <br/>

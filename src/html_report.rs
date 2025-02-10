@@ -322,9 +322,19 @@ impl ReportItem {
                     "new Heatmap('{}', '{}', {:?}, {:?}, {:?})",
                     id, name, x_labels, y_labels, values,
                 );
-                let data = HashMap::from([("id".to_string(), to_json(&id))]);
+                let max_scale = format!(
+                    "{:.2}",
+                    values
+                        .iter()
+                        .flatten()
+                        .fold(f32::INFINITY, |a, &b| a.min(b))
+                );
+                let data = HashMap::from([
+                    ("id".to_string(), to_json(&id)),
+                    ("max".to_string(), to_json(max_scale)),
+                ]);
                 Ok((
-                    registry.render("bar", &data)?,
+                    registry.render("heatmap", &data)?,
                     HashMap::from([(
                         "datasets".to_string(),
                         HashMap::from([(id.clone(), js_object)]),

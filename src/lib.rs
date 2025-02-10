@@ -439,7 +439,6 @@ fn preprocess_instructions(
             AnalysisParameter::Similarity {
                 graph,
                 count_type,
-                total,
                 subset,
                 exclude,
                 grouping,
@@ -482,7 +481,6 @@ fn preprocess_instructions(
                         subset,
                         exclude,
                         grouping,
-                        total,
                         order,
                     };
                 }
@@ -492,7 +490,6 @@ fn preprocess_instructions(
                     subset,
                     exclude,
                     grouping,
-                    total,
                     order,
                 }
             }

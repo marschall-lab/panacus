@@ -25,7 +25,6 @@ for (let key in objects.datasets) {
     let element = objects.datasets[key];
     if (element instanceof Bar) {
         let h = element;
-        console.log('test ' + h.id);
         var ctx = document.getElementById('chart-bar-' + h.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
@@ -79,7 +78,6 @@ for (let key in objects.datasets) {
         }
     } else if (element instanceof MultiBar) {
         let m = element;
-        console.log('multi-test ' + m.id);
         var ctx = document.getElementById('chart-bar-' + m.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
@@ -135,13 +133,98 @@ for (let key in objects.datasets) {
         if (m.log_toggle) {
             buildLogToggle(myChart, "bar-" + m.id);
         }
+    } else if (element instanceof Heatmap) {
+        let h = element;
+        var ctx = document.getElementById('chart-heatmap-' + h.id);
+        const data_points = h.values.map(function(e, i) {
+            return e.map(function(f, j) {
+                return {x: i, y: j, v: f, x_label: h.x_labels[i], y_label: h.y_labels[j]};
+            });
+        }).flat();
+        const data = {
+            datasets: [{
+                label: 'My Matrix',
+                data: data_points,
+                    //{x: 1, y: 1, v: 11},
+                    //{x: 1, y: 2, v: 12},
+                    //{x: 1, y: 3, v: 13},
+                    //{x: 2, y: 1, v: 21},
+                    //{x: 2, y: 2, v: 22},
+                    //{x: 2, y: 3, v: 23},
+                    //{x: 3, y: 1, v: 31},
+                    //{x: 3, y: 2, v: 32},
+                    //{x: 3, y: 3, v: 33}
+                backgroundColor(context) {
+                    const value = context.dataset.data[context.dataIndex].v;
+                    return getColor(value, 0.0);
+                },
+                //borderColor(context) {
+                //    const value = context.dataset.data[context.dataIndex].v;
+                //    const alpha = value;
+                //    return colorize(0, 100, 0, alpha);
+                //},
+                // borderWidth: 0,
+                width: ({chart}) => (chart.chartArea || {}).width / h.x_labels.length,
+                height: ({chart}) =>(chart.chartArea || {}).height / h.y_labels.length
+            }]
+        };
+        var myChart = new Chart(ctx, {
+            type: 'matrix',
+            data: data,
+            options: {
+                plugins: {
+                    legend: false,
+                    tooltip: {
+                        callbacks: {
+                            title() {
+                                return '';
+                            },
+                            label(context) {
+                                const v = context.dataset.data[context.dataIndex];
+                                return [v.x_label + ' - ', v.y_label + ':', v.v];
+                            }
+                        }
+                    },
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            stepSize: 1,
+                            callback: ((context, index) => {
+                                return h.x_labels[context];
+                            })
+                        },
+                        grid: {
+                            display: false
+                        },
+                        position: 'top',
+                    },
+                    y: {
+                        offset: true,
+                        ticks: {
+                            stepSize: 1,
+                            callback: ((context, index) => {
+                                return h.y_labels[context];
+                            })
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        buildPlotDownload(myChart, h.id, fname);
+        buildColorSlider(myChart, h.id);
     }
 }
 
-console.log("tables");
 for (let key in objects.tables) {
     let table = objects.tables[key];
-    console.log(table);
     buildTableDownload(table, key, key + '_' + fname);
 }
 
