@@ -172,6 +172,7 @@ for (let key in objects.datasets) {
             type: 'matrix',
             data: data,
             options: {
+                aspectRatio: 1,
                 plugins: {
                     legend: false,
                     tooltip: {

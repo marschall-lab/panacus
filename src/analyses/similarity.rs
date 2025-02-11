@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use kodama::{linkage, Dendrogram};
 use rayon::iter::IntoParallelIterator;
 use rayon::prelude::*;
 
@@ -166,6 +167,17 @@ impl Similarity {
             }
         }
 
+        let mut distances = calculate_distances(&table);
+        let dend = linkage(&mut distances, table.len(), kodama::Method::Average);
+        let order = get_order_from_dendrogram(&dend);
+        let mut order = order.into_iter().enumerate().collect::<Vec<_>>();
+        order.sort_by_key(|el| el.1);
+        let order = order.into_iter().map(|el| el.0).collect::<Vec<_>>();
+        sort_by_indices(&mut table, &order);
+        for row in table.iter_mut() {
+            sort_by_indices(row, &order);
+        }
+
         self.table = Some(table);
     }
 
@@ -194,6 +206,31 @@ impl Similarity {
     }
 }
 
+fn sort_by_indices<T>(list: &mut Vec<T>, indices: &Vec<usize>) {
+    let mut indices = indices.clone();
+    for i in 0..indices.len() {
+        while i != indices[i] {
+            let new_i = indices[i];
+            indices.swap(i, new_i);
+            list.swap(i, new_i);
+        }
+    }
+}
+
+fn get_order_from_dendrogram(dend: &Dendrogram<f32>) -> Vec<usize> {
+    let observations = dend.observations();
+    let mut indices = Vec::new();
+    for step in dend.steps() {
+        if step.cluster1 < observations {
+            indices.push(step.cluster1);
+        }
+        if step.cluster2 < observations {
+            indices.push(step.cluster2);
+        }
+    }
+    indices
+}
+
 fn get_table_string(table: &Vec<Vec<f32>>, groups: &Vec<String>) -> String {
     let mut res = String::new();
     res.push_str("group");
@@ -209,4 +246,22 @@ fn get_table_string(table: &Vec<Vec<f32>>, groups: &Vec<String>) -> String {
         res.push_str("\n");
     }
     res
+}
+
+fn euclidean(row1: &Vec<f32>, row2: &Vec<f32>) -> f32 {
+    row1.iter()
+        .zip(row2.iter())
+        .map(|(v1, v2)| (v1 - v2).powf(2.0))
+        .sum::<f32>()
+        .sqrt()
+}
+
+fn calculate_distances(table: &Vec<Vec<f32>>) -> Vec<f32> {
+    let mut condensed = vec![];
+    for row in 0..table.len() - 1 {
+        for col in row + 1..table.len() {
+            condensed.push(euclidean(&table[row], &table[col]));
+        }
+    }
+    condensed
 }

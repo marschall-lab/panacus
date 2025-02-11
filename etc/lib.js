@@ -84,9 +84,14 @@ function buildColorSlider(chart, name) {
             const value = context.dataset.data[context.dataIndex].v;
             return getColor(value, event.currentTarget.value)
         };
-        chart.options.plugins.tooltip.callbacks.label = (context) => {
-            const v = context.dataset.data[context.dataIndex];
-            return [v.x_label + ' - ', v.y_label + ':', v.v];
+        chart.options.plugins.tooltip.callbacks = {
+            title() {
+                return '';
+            },
+            label(context) {
+                const v = context.dataset.data[context.dataIndex];
+                return [v.x_label + ' - ', v.y_label + ':', v.v];
+            }
         }
         chart.update();
     });
