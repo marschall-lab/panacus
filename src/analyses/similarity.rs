@@ -17,6 +17,7 @@ use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
 pub struct Similarity {
     parameter: AnalysisParameter,
     table: Option<Vec<Vec<f32>>>,
+    labels: Option<Vec<String>>,
     count: CountType,
 }
 
@@ -28,14 +29,11 @@ impl Analysis for Similarity {
         if self.table.is_none() {
             self.set_table(gb);
         }
-        if let Some(gb) = gb {
-            let mut text = write_metadata_comments()?;
-            let table = self.table.as_ref().unwrap();
-            text.push_str(&get_table_string(table, &gb.get_abacus_by_group().groups));
-            Ok(text)
-        } else {
-            Ok("".to_string())
-        }
+        let mut text = write_metadata_comments()?;
+        let table = self.table.as_ref().unwrap();
+        let labels = self.labels.as_ref().unwrap();
+        text.push_str(&get_table_string(table, labels));
+        Ok(text)
     }
 
     fn get_type(&self) -> String {
@@ -80,8 +78,8 @@ impl Analysis for Similarity {
             items: vec![ReportItem::Heatmap {
                 id: format!("{id_prefix}-{k}"),
                 name: gb.get_fname(),
-                x_labels: gb.get_abacus_by_group().groups.clone(),
-                y_labels: gb.get_abacus_by_group().groups.clone(),
+                x_labels: self.labels.as_ref().unwrap().clone(),
+                y_labels: self.labels.as_ref().unwrap().clone(),
                 values: self.table.as_ref().unwrap().clone(),
             }],
         }];
@@ -98,6 +96,7 @@ impl ConstructibleAnalysis for Similarity {
             },
             parameter,
             table: None,
+            labels: None,
         }
     }
 }
@@ -121,6 +120,7 @@ impl Similarity {
         let c = &gb.get_abacus_by_group().r;
         let r = &gb.get_abacus_by_group().c;
         let tuples: Vec<(_, _)> = c.iter().map(|x| *x as usize).tuple_windows().collect();
+        let mut labels = gb.get_abacus_by_group().groups.clone();
         let sets: Vec<HashSet<_>> = tuples
             .iter()
             .map(|tuple| {
@@ -168,7 +168,7 @@ impl Similarity {
         }
 
         let mut distances = calculate_distances(&table);
-        let dend = linkage(&mut distances, table.len(), kodama::Method::Average);
+        let dend = linkage(&mut distances, table.len(), kodama::Method::Single);
         let order = get_order_from_dendrogram(&dend);
         let mut order = order.into_iter().enumerate().collect::<Vec<_>>();
         order.sort_by_key(|el| el.1);
@@ -177,8 +177,10 @@ impl Similarity {
         for row in table.iter_mut() {
             sort_by_indices(row, &order);
         }
+        sort_by_indices(&mut labels, &order);
 
         self.table = Some(table);
+        self.labels = Some(labels);
     }
 
     fn get_run_name(&self) -> String {
