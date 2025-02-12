@@ -85,6 +85,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
                 .value_name("COUNT")
                 .default_value("0")
                 .value_parser(clap::value_parser!(usize))
+                .global(true)
                 .help("Set the number of threads used (default: use all threads)"),
         )
         .get_matches();
