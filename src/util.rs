@@ -14,7 +14,7 @@ use crate::graph_broker::ItemId;
 // storage space for item IDs
 pub type ItemIdSize = u64;
 pub type CountSize = u32;
-pub type GroupSize = u16;
+pub type GroupSize = u64;
 
 pub struct Wrap<T>(pub *mut T);
 unsafe impl Sync for Wrap<Vec<usize>> {}

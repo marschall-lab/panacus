@@ -1,4 +1,8 @@
-use crate::{analyses::InputRequirement, analysis_parameter::AnalysisParameter, util::CountType};
+use crate::{
+    analyses::InputRequirement, analysis_parameter::AnalysisParameter, io::write_metadata_comments,
+    util::CountType,
+};
+use core::panic;
 use std::{collections::HashSet, io::BufWriter};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
@@ -22,10 +26,11 @@ impl Analysis for Table {
             let mut buf = BufWriter::new(Vec::new());
             gb.write_abacus_by_group(total, &mut buf)?;
             let bytes = buf.into_inner()?;
-            let string = String::from_utf8(bytes)?;
+            let mut string = write_metadata_comments()?;
+            string.push_str(&String::from_utf8(bytes)?);
             Ok(string)
         } else {
-            Ok("".to_string())
+            panic!("Table table generation should get Graph");
         }
     }
 
