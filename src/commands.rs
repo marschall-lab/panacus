@@ -1,3 +1,4 @@
+pub mod counts;
 pub mod growth;
 pub mod hist;
 pub mod histgrowth;

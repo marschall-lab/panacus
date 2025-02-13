@@ -28,8 +28,15 @@ class MultiBar {
     }
 }
 
+class Hexbin {
+    constructor(id, values) {
+        this.id = id;
+        this.values = values;
+    }
+}
+
 function buildPlotDownload(chart, obj, prefix) {
-    console.log('btn-download-plot-' + obj);
+    // console.log('btn-download-plot-' + obj);
     document.getElementById('btn-download-plot-' + obj).onclick = function() {
         var a = document.createElement('a');
         a.href = chart.toBase64Image();
@@ -39,7 +46,7 @@ function buildPlotDownload(chart, obj, prefix) {
 }
 
 function buildTableDownload(table, id, prefix) {
-    console.log('btn-download-table-' + id);
+    // console.log('btn-download-table-' + id);
     document.getElementById('btn-download-table-' + id).onclick = function() {
         let blob = new Blob([table], {type: 'text/plain'});
         var a = document.createElement('a');

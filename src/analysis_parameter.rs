@@ -56,6 +56,9 @@ pub enum AnalysisParameter {
         total: bool,
         order: Option<String>,
     },
+    Counts {
+        graph: String,
+    },
     Info {
         graph: String,
         subset: Option<String>,
@@ -195,6 +198,14 @@ impl Ord for AnalysisParameter {
             },
             AnalysisParameter::Table { .. } => match other {
                 AnalysisParameter::Table { .. } => std::cmp::Ordering::Equal,
+                AnalysisParameter::Graph { .. }
+                | AnalysisParameter::Subset { .. }
+                //| AnalysisParameter::Grouping { .. }
+                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
+                _ => std::cmp::Ordering::Less,
+            },
+            AnalysisParameter::Counts { .. } => match other {
+                AnalysisParameter::Counts { .. } => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }

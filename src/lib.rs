@@ -77,6 +77,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::info::get_subcommand())
         .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand(commands::table::get_subcommand())
+        .subcommand(commands::counts::get_subcommand())
         .subcommand_required(true)
         .arg(
             Arg::new("threads")
@@ -118,6 +119,9 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
     if let Some(table) = commands::table::get_instructions(&args) {
         instructions.extend(table?);
+    }
+    if let Some(counts) = commands::counts::get_instructions(&args) {
+        instructions.extend(counts?);
     }
 
     let instructions = get_tasks(instructions)?;
@@ -291,6 +295,11 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 reqs.extend(info.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(info)));
             }
+            c @ AnalysisParameter::Counts { .. } => {
+                let counts = analyses::counts::Counts::from_parameter(c);
+                reqs.extend(counts.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(counts)));
+            }
             section @ _ => panic!(
                 "YAML section {:?} should not exist after preprocessing",
                 section
@@ -397,6 +406,32 @@ fn preprocess_instructions(
                     exclude,
                     grouping,
                 }
+            }
+            AnalysisParameter::Counts { graph } => {
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::Counts { graph: new_name };
+                }
+                AnalysisParameter::Counts { graph }
             }
             AnalysisParameter::Table {
                 graph,
@@ -611,6 +646,9 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             }
             ref t @ AnalysisParameter::Table { ref graph, .. } => {
                 insert_after_graph(t.clone(), graph, &mut current_instructions);
+            }
+            ref c @ AnalysisParameter::Counts { ref graph } => {
+                insert_after_graph(c.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),
         }

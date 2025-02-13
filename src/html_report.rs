@@ -69,6 +69,9 @@ pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.m
 pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
 pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
 pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
+pub const D3_JS: &[u8] = include_bytes!("../etc/d3.v7.min.js");
+pub const D3_HEXBIN_JS: &[u8] = include_bytes!("../etc/d3-hexbin.v0.2.min.js");
+pub const D3_LEGEND_JS: &[u8] = include_bytes!("../etc/d3-legend.min.js");
 pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
 pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.min.js");
 pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.min.js");
@@ -208,6 +211,15 @@ impl AnalysisSection {
             String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
         );
         vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
+        vars.insert("d3_js", String::from_utf8_lossy(D3_JS).into_owned());
+        vars.insert(
+            "d3_hexbin_js",
+            String::from_utf8_lossy(D3_HEXBIN_JS).into_owned(),
+        );
+        vars.insert(
+            "d3_legend_js",
+            String::from_utf8_lossy(D3_LEGEND_JS).into_owned(),
+        );
         vars.insert(
             "custom_css",
             String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
@@ -276,6 +288,10 @@ pub enum ReportItem {
         id: String,
         header: Vec<String>,
         values: Vec<Vec<String>>,
+    },
+    Hexbin {
+        id: String,
+        values: Vec<(u32, u32)>,
     },
 }
 
@@ -346,6 +362,24 @@ impl ReportItem {
                 ]);
                 Ok((
                     registry.render("bar", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
+                ))
+            }
+            Self::Hexbin { id, values } => {
+                if !registry.has_template("hexbin") {
+                    registry.register_template_file("hexbin", "./hbs/hexbin.hbs")?;
+                }
+                let mut js_object = format!("new Hexbin('{}', [", id,);
+                for value in values {
+                    js_object.push_str(&format!("{{ x: {}, y: {} }}, ", value.0, value.1));
+                }
+                js_object.push_str("])");
+                let data = HashMap::from([("id".to_string(), to_json(&id))]);
+                Ok((
+                    registry.render("hexbin", &data)?,
                     HashMap::from([(
                         "datasets".to_string(),
                         HashMap::from([(id.clone(), js_object)]),
