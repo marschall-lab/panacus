@@ -77,7 +77,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::info::get_subcommand())
         .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand(commands::table::get_subcommand())
-        .subcommand(commands::counts::get_subcommand())
+        .subcommand(commands::node_distribution::get_subcommand())
         .subcommand_required(true)
         .arg(
             Arg::new("threads")
@@ -120,7 +120,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     if let Some(table) = commands::table::get_instructions(&args) {
         instructions.extend(table?);
     }
-    if let Some(counts) = commands::counts::get_instructions(&args) {
+    if let Some(counts) = commands::node_distribution::get_instructions(&args) {
         instructions.extend(counts?);
     }
 
@@ -295,8 +295,8 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 reqs.extend(info.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(info)));
             }
-            c @ AnalysisParameter::Counts { .. } => {
-                let counts = analyses::counts::Counts::from_parameter(c);
+            c @ AnalysisParameter::NodeDistribution { .. } => {
+                let counts = analyses::node_distribution::NodeDistribution::from_parameter(c);
                 reqs.extend(counts.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(counts)));
             }
@@ -407,7 +407,7 @@ fn preprocess_instructions(
                     grouping,
                 }
             }
-            AnalysisParameter::Counts { graph } => {
+            AnalysisParameter::NodeDistribution { graph } => {
                 if !graphs.contains_key(&graph[..]) {
                     if !new_instructions
                         .iter()
@@ -429,9 +429,9 @@ fn preprocess_instructions(
                         });
                     }
                     let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
-                    return AnalysisParameter::Counts { graph: new_name };
+                    return AnalysisParameter::NodeDistribution { graph: new_name };
                 }
-                AnalysisParameter::Counts { graph }
+                AnalysisParameter::NodeDistribution { graph }
             }
             AnalysisParameter::Table {
                 graph,
@@ -647,7 +647,7 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             ref t @ AnalysisParameter::Table { ref graph, .. } => {
                 insert_after_graph(t.clone(), graph, &mut current_instructions);
             }
-            ref c @ AnalysisParameter::Counts { ref graph } => {
+            ref c @ AnalysisParameter::NodeDistribution { ref graph } => {
                 insert_after_graph(c.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),

@@ -56,7 +56,7 @@ pub enum AnalysisParameter {
         total: bool,
         order: Option<String>,
     },
-    Counts {
+    NodeDistribution {
         graph: String,
     },
     Info {
@@ -204,8 +204,8 @@ impl Ord for AnalysisParameter {
                 | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
-            AnalysisParameter::Counts { .. } => match other {
-                AnalysisParameter::Counts { .. } => std::cmp::Ordering::Equal,
+            AnalysisParameter::NodeDistribution { .. } => match other {
+                AnalysisParameter::NodeDistribution { .. } => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }

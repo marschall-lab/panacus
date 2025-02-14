@@ -10,14 +10,14 @@ use crate::{
 
 use super::{Analysis, ConstructibleAnalysis, InputRequirement};
 
-pub struct Counts {
+pub struct NodeDistribution {
     parameter: AnalysisParameter,
     inner: Vec<(u32, u32)>,
 }
 
-impl Analysis for Counts {
+impl Analysis for NodeDistribution {
     fn get_type(&self) -> String {
-        "Counts".to_string()
+        "NodeDistribution".to_string()
     }
 
     fn generate_table(
@@ -69,7 +69,7 @@ impl Analysis for Counts {
     }
 }
 
-impl ConstructibleAnalysis for Counts {
+impl ConstructibleAnalysis for NodeDistribution {
     fn from_parameter(parameter: crate::analysis_parameter::AnalysisParameter) -> Self {
         Self {
             parameter,
@@ -78,7 +78,7 @@ impl ConstructibleAnalysis for Counts {
     }
 }
 
-impl Counts {
+impl NodeDistribution {
     fn set_table(&mut self, gb: Option<&GraphBroker>) {
         if let Some(gb) = gb {
             let countables = &gb.get_abacus_by_total(CountType::Node).countable[1..];
@@ -93,7 +93,7 @@ impl Counts {
 
     fn get_run_name(&self) -> String {
         match &self.parameter {
-            AnalysisParameter::Counts { graph } => {
+            AnalysisParameter::NodeDistribution { graph } => {
                 format!("{}", graph)
             }
             _ => panic!("Counts analysis needs to contain counts parameter"),
