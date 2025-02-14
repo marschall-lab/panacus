@@ -168,7 +168,13 @@ impl Similarity {
         }
 
         let mut distances = calculate_distances(&table);
-        let dend = linkage(&mut distances, table.len(), kodama::Method::Centroid);
+
+        let method = match self.parameter {
+            AnalysisParameter::Similarity { cluster_method, .. } => cluster_method,
+            _ => panic!("Similarity analysis needs to contain similarity parameter"),
+        }
+        .to_kodama();
+        let dend = linkage(&mut distances, table.len(), method);
         let order = get_order_from_dendrogram(&dend);
         let mut order = order.into_iter().enumerate().collect::<Vec<_>>();
         order.sort_by_key(|el| el.1);
@@ -203,7 +209,7 @@ impl Similarity {
                     exclude.clone().unwrap_or_default()
                 )
             }
-            _ => panic!("Hist analysis needs to contain hist parameter"),
+            _ => panic!("Similarity analysis needs to contain similarity parameter"),
         }
     }
 }

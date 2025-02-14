@@ -443,6 +443,7 @@ fn preprocess_instructions(
                 exclude,
                 grouping,
                 order,
+                cluster_method,
             } => {
                 let subset = match subset {
                     Some(subset) => {
@@ -482,6 +483,7 @@ fn preprocess_instructions(
                         exclude,
                         grouping,
                         order,
+                        cluster_method,
                     };
                 }
                 AnalysisParameter::Similarity {
@@ -491,6 +493,7 @@ fn preprocess_instructions(
                     exclude,
                     grouping,
                     order,
+                    cluster_method,
                 }
             }
             AnalysisParameter::Table {
