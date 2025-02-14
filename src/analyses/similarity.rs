@@ -168,7 +168,7 @@ impl Similarity {
         }
 
         let mut distances = calculate_distances(&table);
-        let dend = linkage(&mut distances, table.len(), kodama::Method::Single);
+        let dend = linkage(&mut distances, table.len(), kodama::Method::Centroid);
         let order = get_order_from_dendrogram(&dend);
         let mut order = order.into_iter().enumerate().collect::<Vec<_>>();
         order.sort_by_key(|el| el.1);
