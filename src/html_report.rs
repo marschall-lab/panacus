@@ -69,6 +69,7 @@ pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.m
 pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
 pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
 pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
+pub const CHART_JS_MATRIX: &[u8] = include_bytes!("../etc/chartjs-chart-matrix.min.js");
 pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
 pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.min.js");
 pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.min.js");
@@ -209,6 +210,10 @@ impl AnalysisSection {
         );
         vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
         vars.insert(
+            "chart_js_matrix",
+            String::from_utf8_lossy(CHART_JS_MATRIX).into_owned(),
+        );
+        vars.insert(
             "custom_css",
             String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
         );
@@ -277,6 +282,13 @@ pub enum ReportItem {
         header: Vec<String>,
         values: Vec<Vec<String>>,
     },
+    Heatmap {
+        id: String,
+        name: String,
+        x_labels: Vec<String>,
+        y_labels: Vec<String>,
+        values: Vec<Vec<f32>>,
+    },
 }
 
 impl ReportItem {
@@ -294,6 +306,39 @@ impl ReportItem {
                 Ok((
                     registry.render("table", &data)?,
                     HashMap::from([("datasets".to_string(), HashMap::new())]),
+                ))
+            }
+            Self::Heatmap {
+                id,
+                name,
+                x_labels,
+                y_labels,
+                values,
+            } => {
+                if !registry.has_template("heatmap") {
+                    registry.register_template_file("heatmap", "./hbs/heatmap.hbs")?;
+                }
+                let js_object = format!(
+                    "new Heatmap('{}', '{}', {:?}, {:?}, {:?})",
+                    id, name, x_labels, y_labels, values,
+                );
+                let max_scale = format!(
+                    "{:.2}",
+                    values
+                        .iter()
+                        .flatten()
+                        .fold(f32::INFINITY, |a, &b| a.min(b))
+                );
+                let data = HashMap::from([
+                    ("id".to_string(), to_json(&id)),
+                    ("max".to_string(), to_json(max_scale)),
+                ]);
+                Ok((
+                    registry.render("heatmap", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
                 ))
             }
             Self::Bar {

@@ -1,5 +1,6 @@
-use core::panic;
+use std::fmt;
 use std::fmt::Display;
+use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
 use serde::{Deserialize, Serialize};
 
@@ -55,6 +56,19 @@ pub enum AnalysisParameter {
         grouping: Option<Grouping>,
         total: bool,
         order: Option<String>,
+    },
+    Similarity {
+        #[serde(default)]
+        count_type: CountType,
+        graph: String,
+
+        subset: Option<String>,
+        exclude: Option<String>,
+        grouping: Option<Grouping>,
+        order: Option<String>,
+
+        #[serde(default)]
+        cluster_method: ClusterMethod,
     },
     Info {
         graph: String,
@@ -201,6 +215,14 @@ impl Ord for AnalysisParameter {
                 | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
+            AnalysisParameter::Similarity { .. } => match other {
+                AnalysisParameter::Similarity { .. } => std::cmp::Ordering::Equal,
+                AnalysisParameter::Graph { .. }
+                | AnalysisParameter::Subset { .. }
+                //| AnalysisParameter::Grouping { .. }
+                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
+                _ => std::cmp::Ordering::Less,
+            },
             AnalysisParameter::OrderedGrowth { name, .. } => match other {
                 AnalysisParameter::OrderedGrowth { name: o_name, .. } => name.cmp(o_name),
                 AnalysisParameter::Graph { .. }
@@ -216,5 +238,69 @@ impl Ord for AnalysisParameter {
                 _ => std::cmp::Ordering::Greater,
             },
         }
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    EnumString,
+    EnumVariantNames,
+    EnumIter,
+    Hash,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
+#[strum(serialize_all = "lowercase")]
+pub enum ClusterMethod {
+    Single,
+    Complete,
+    Average,
+    Weighted,
+    Ward,
+    Centroid,
+    Median,
+}
+
+impl Default for ClusterMethod {
+    fn default() -> Self {
+        Self::Centroid
+    }
+}
+
+impl ClusterMethod {
+    pub fn to_kodama(self) -> kodama::Method {
+        match self {
+            Self::Single => kodama::Method::Single,
+            Self::Complete => kodama::Method::Complete,
+            Self::Average => kodama::Method::Average,
+            Self::Weighted => kodama::Method::Weighted,
+            Self::Ward => kodama::Method::Ward,
+            Self::Centroid => kodama::Method::Centroid,
+            Self::Median => kodama::Method::Median,
+        }
+    }
+}
+
+impl fmt::Display for ClusterMethod {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "{}",
+            match self {
+                Self::Single => "single",
+                Self::Complete => "complete",
+                Self::Average => "average",
+                Self::Weighted => "weighted",
+                Self::Ward => "ward",
+                Self::Centroid => "centroid",
+                Self::Median => "median",
+            }
+        )
     }
 }

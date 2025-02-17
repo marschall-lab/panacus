@@ -77,6 +77,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::info::get_subcommand())
         .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand(commands::table::get_subcommand())
+        .subcommand(commands::similarity::get_subcommand())
         .subcommand_required(true)
         .arg(
             Arg::new("threads")
@@ -119,6 +120,9 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
     if let Some(table) = commands::table::get_instructions(&args) {
         instructions.extend(table?);
+    }
+    if let Some(similarity) = commands::similarity::get_instructions(&args) {
+        instructions.extend(similarity?);
     }
 
     let instructions = get_tasks(instructions)?;
@@ -224,6 +228,40 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                     analyses::ordered_histgrowth::OrderedHistgrowth::from_parameter(o);
                 reqs.extend(ordered_growth.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(ordered_growth)));
+            }
+            s @ AnalysisParameter::Similarity { .. } => {
+                if let AnalysisParameter::Similarity {
+                    subset,
+                    exclude,
+                    grouping,
+                    order,
+                    ..
+                } = &s
+                {
+                    let order = order.to_owned();
+                    let subset = subset.to_owned();
+                    let exclude = exclude.clone().unwrap_or_default();
+                    let grouping = grouping.to_owned();
+                    if order != current_order {
+                        tasks.push(Task::OrderChange(order.clone()));
+                        current_order = order;
+                    }
+                    if subset != current_subset {
+                        tasks.push(Task::SubsetChange(subset.clone()));
+                        current_subset = subset;
+                    }
+                    if exclude != current_exclude {
+                        tasks.push(Task::ExcludeChange(exclude.clone()));
+                        current_exclude = exclude;
+                    }
+                    if grouping != current_grouping {
+                        tasks.push(Task::GroupingChange(grouping.clone()));
+                        current_grouping = grouping;
+                    }
+                }
+                let similarity = analyses::similarity::Similarity::from_parameter(s);
+                reqs.extend(similarity.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(similarity)));
             }
             t @ AnalysisParameter::Table { .. } => {
                 if let AnalysisParameter::Table {
@@ -397,6 +435,66 @@ fn preprocess_instructions(
                     subset,
                     exclude,
                     grouping,
+                }
+            }
+            AnalysisParameter::Similarity {
+                graph,
+                count_type,
+                subset,
+                exclude,
+                grouping,
+                order,
+                cluster_method,
+            } => {
+                let subset = match subset {
+                    Some(subset) => {
+                        if subsets.contains_key(&subset) {
+                            Some(subsets[&subset].to_string())
+                        } else {
+                            Some(subset)
+                        }
+                    }
+                    None => None,
+                };
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::Similarity {
+                        count_type,
+                        graph: new_name,
+                        subset,
+                        exclude,
+                        grouping,
+                        order,
+                        cluster_method,
+                    };
+                }
+                AnalysisParameter::Similarity {
+                    count_type,
+                    graph,
+                    subset,
+                    exclude,
+                    grouping,
+                    order,
+                    cluster_method,
                 }
             }
             AnalysisParameter::Table {
@@ -612,6 +710,9 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             }
             ref t @ AnalysisParameter::Table { ref graph, .. } => {
                 insert_after_graph(t.clone(), graph, &mut current_instructions);
+            }
+            ref s @ AnalysisParameter::Similarity { ref graph, .. } => {
+                insert_after_graph(s.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),
         }

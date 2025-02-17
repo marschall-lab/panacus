@@ -535,13 +535,13 @@ pub fn write_ordered_table(
 //     }
 //     write_table(&header_cols, &output_columns, out)
 // }
-fn write_metadata_comments() -> anyhow::Result<String> {
+pub fn write_metadata_comments() -> anyhow::Result<String> {
     let mut res = format!(
         "# {}\n",
         std::env::args().collect::<Vec<String>>().join(" ")
     );
     let version = option_env!("GIT_HASH").unwrap_or(env!("CARGO_PKG_VERSION"));
-    let version = format!("# version {}", version);
+    let version = format!("# version {}\n", version);
     res.push_str(&version);
     Ok(res)
 }
