@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::{f64, fmt};
 
 use base64::{engine::general_purpose, Engine};
 use handlebars::{to_json, Handlebars, RenderError};
@@ -291,7 +292,7 @@ pub enum ReportItem {
     },
     Hexbin {
         id: String,
-        values: Vec<(u32, u32)>,
+        bins: Vec<(u32, u32)>,
     },
 }
 
@@ -368,13 +369,13 @@ impl ReportItem {
                     )]),
                 ))
             }
-            Self::Hexbin { id, values } => {
+            Self::Hexbin { id, bins } => {
                 if !registry.has_template("hexbin") {
                     registry.register_template_file("hexbin", "./hbs/hexbin.hbs")?;
                 }
                 let mut js_object = format!("new Hexbin('{}', [", id,);
-                for value in values {
-                    js_object.push_str(&format!("{{ x: {}, y: {} }}, ", value.0, value.1));
+                for bin in bins {
+                    js_object.push_str(&format!("{{ x: {}, y: {} }}, ", bin.0, bin.1));
                 }
                 js_object.push_str("])");
                 let data = HashMap::from([("id".to_string(), to_json(&id))]);
@@ -387,5 +388,93 @@ impl ReportItem {
                 ))
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Bin {
+    points: Vec<(u32, u32)>,
+    x: f64,
+    y: f64,
+}
+
+impl fmt::Display for Bin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{x: {}, y: {}, points: {:?} }}",
+            self.x, self.y, self.points
+        )
+    }
+}
+
+impl Bin {
+    pub fn hexbin(points: &Vec<(u32, u32)>, _radius: f64) -> Vec<Self> {
+        let x_range = match points.iter().map(|el| el.0).minmax() {
+            itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
+            _ => panic!("Need at least two values for hexbining"),
+        };
+        let y_range = match points.iter().map(|el| el.1).minmax() {
+            itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
+            _ => panic!("Need at least two values for hexbining"),
+        };
+        let mut bins_by_id: HashMap<String, Bin> = HashMap::new();
+        let radius = 20.0;
+        for point in points {
+            let px = (point.0 as f64 - x_range.0) / (x_range.1 - x_range.0) * (928.0 - 20.0 - 60.0)
+                + 60.0;
+            let px = px.round();
+
+            let py = -(point.1 as f64 - y_range.0) / (y_range.1 - y_range.0)
+                * (928.0 - 50.0 - 20.0)
+                + (928.0 - 50.0);
+            let py = py.round();
+
+            //eprintln!("1: {:?}, {}, {}", point, px, py);
+
+            let dx = 2.0 * (f64::consts::PI / 3.0).sin() * radius;
+            let dy = 1.5 * radius;
+
+            let py = py / dy;
+            let mut pj = py.round() as i64;
+            let px = px / dx - (pj % 2) as f64 / 2.0;
+            let mut pi = px.round();
+            let py1 = py - pj as f64;
+            //eprintln!("2: dx: {}, dy: {}", dx, dy);
+            //eprintln!("2: px: {}, py: {}", px, py);
+            //eprintln!("2: pi: {}, pj: {}", pi, pj);
+            //eprintln!("2: py1: {}", py1);
+
+            if py1.abs() * 3.0 > 1.0 {
+                //eprintln!("Special case");
+                let px1 = px - pi;
+                let pi2 = pi + (if px < py { -1.0 } else { 1.0 }) / 2.0;
+                let pj2 = pj as f64 + (if py < pj as f64 { -1.0 } else { 1.0 });
+                let px2 = px - pi2;
+                let py2 = py - pj2;
+                if px1.powi(2) + py1.powi(2) > px2.powi(2) + py2.powi(2) {
+                    pi = pi2 + (if (pj % 2) == 1 { 1.0 } else { -1.0 }) / 2.0;
+                    pj = pj2 as i64;
+                }
+            }
+
+            let id = format!("{}-{}", pi, pj);
+            if let Some(bin) = bins_by_id.get_mut(&id) {
+                bin.points.push(*point);
+            } else {
+                let x = (pi + (pj % 2) as f64 / 2.0) * dx;
+                let y = pj as f64 * dy;
+                bins_by_id.insert(
+                    id,
+                    Self {
+                        points: vec![*point],
+                        x,
+                        y,
+                    },
+                );
+            }
+            //eprintln!("---------------------");
+        }
+        bins_by_id.into_values().collect()
     }
 }

@@ -1,10 +1,9 @@
-use core::panic;
 use std::collections::HashSet;
 
 use crate::{
     analysis_parameter::AnalysisParameter,
     graph_broker::GraphBroker,
-    html_report::{AnalysisSection, ReportItem},
+    html_report::{AnalysisSection, Bin, ReportItem},
     util::CountType,
 };
 
@@ -62,7 +61,7 @@ impl Analysis for NodeDistribution {
             countable: CountType::Node.to_string(),
             items: vec![ReportItem::Hexbin {
                 id: format!("{id_prefix}-{}", CountType::Node),
-                values: self.inner.clone(),
+                bins: self.inner.clone(),
             }],
         }];
         Ok(tab)
@@ -83,11 +82,14 @@ impl NodeDistribution {
         if let Some(gb) = gb {
             let countables = &gb.get_abacus_by_total(CountType::Node).countable[1..];
             let node_lens = &gb.get_node_lens()[1..];
-            self.inner = countables
+            let points = countables
                 .iter()
                 .copied()
                 .zip(node_lens.iter().copied())
                 .collect();
+            let bins = Bin::hexbin(&points, 0.1);
+            eprintln!("{:?}", bins.len());
+            self.inner = points;
         }
     }
 

@@ -176,7 +176,6 @@ for (let key in objects.datasets) {
     let element = objects.datasets[key];
     if (element instanceof Bar) {
         let h = element;
-        console.log('test ' + h.id);
         var ctx = document.getElementById('chart-bar-' + h.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
@@ -230,7 +229,6 @@ for (let key in objects.datasets) {
         }
     } else if (element instanceof MultiBar) {
         let m = element;
-        console.log('multi-test ' + m.id);
         var ctx = document.getElementById('chart-bar-' + m.id);
         var myChart = new Chart(ctx, {
             type: 'bar',
@@ -288,7 +286,6 @@ for (let key in objects.datasets) {
         }
     } else if (element instanceof Hexbin) {
         let h = element;
-        // console.log('chart-hexbin-' + h.id);
         var ctx = document.getElementById('chart-hexbin-' + h.id);
         buildPlotDownload(myChart, h.id, fname);
         const width = 928;
@@ -301,16 +298,13 @@ for (let key in objects.datasets) {
 
         // Create the positional scales.
             const x = d3.scaleLinear()
-            .domain(d3.extent(h.values, d => d["x"]))
+            .domain(d3.extent(h.bins, d => d["x"]))
             .range([marginLeft, width - marginRight]);
 
         const y = d3.scaleLinear()
-            .domain(d3.extent(h.values, d => d["y"]))
+            .domain(d3.extent(h.bins, d => d["y"]))
             .rangeRound([height - marginBottom, marginTop]);
 
-        console.log(d3.extent(h.values, d => d["x"]));
-        console.log(x(0));
-        console.log(x(1));
         // Bin the data.
             const hexbin = d3.hexbin()
             .x(d => x(d["x"]))
@@ -318,9 +312,8 @@ for (let key in objects.datasets) {
             .radius(radius * width / 928)
             .extent([[marginLeft, marginTop], [width - marginRight, height - marginBottom]]);
 
-        console.log(h.values);
-        const bins = hexbin(h.values);
-        console.log(bins);
+        const bins = hexbin(h.bins);
+        console.log(bins.length);
 
         // Create the color scale.
             const color = d3.scaleSequential(d3.interpolateBuPu)
@@ -376,17 +369,7 @@ for (let key in objects.datasets) {
     }
 }
 
-// console.log("tables");
 for (let key in objects.tables) {
     let table = objects.tables[key];
-    // console.log(table);
     buildTableDownload(table, key, key + '_' + fname);
 }
-
-// var tabs = document.querySelectorAll('button[data-bs-toggle="tab"]')
-// tabs.forEach(function(tab) {
-//     tab.addEventListener('show.bs.tab', function (event) {
-//         document.querySelector(event.target.dataset.bsTarget).classList.remove('d-none');
-//         document.querySelector(event.relatedTarget.dataset.bsTarget).classList.add('d-none');
-//     });
-// });
