@@ -292,7 +292,10 @@ pub enum ReportItem {
     },
     Hexbin {
         id: String,
-        bins: Vec<(u32, u32)>,
+        bins: Vec<Bin>,
+        min: (u32, u32),
+        max: (u32, u32),
+        radius: u32,
     },
 }
 
@@ -369,13 +372,34 @@ impl ReportItem {
                     )]),
                 ))
             }
-            Self::Hexbin { id, bins } => {
+            Self::Hexbin {
+                id,
+                bins,
+                min,
+                max,
+                radius,
+            } => {
                 if !registry.has_template("hexbin") {
                     registry.register_template_file("hexbin", "./hbs/hexbin.hbs")?;
                 }
-                let mut js_object = format!("new Hexbin('{}', [", id,);
+                let mut js_object = format!(
+                    "new Hexbin('{}', {:?}, {:?}, {}, [",
+                    id,
+                    [min.0, min.1],
+                    [max.0, max.1],
+                    radius
+                );
                 for bin in bins {
-                    js_object.push_str(&format!("{{ x: {}, y: {} }}, ", bin.0, bin.1));
+                    let points = bin
+                        .points
+                        .iter()
+                        .map(|(a, b)| format!("{{ x: {}, y: {} }}", a, b))
+                        .join(",");
+                    let points = format!("[{}]", points);
+                    js_object.push_str(&format!(
+                        "{{ x: {}, y: {}, points: {} }}, ",
+                        bin.x, bin.y, points
+                    ));
                 }
                 js_object.push_str("])");
                 let data = HashMap::from([("id".to_string(), to_json(&id))]);
@@ -393,9 +417,9 @@ impl ReportItem {
 
 #[derive(Debug, Clone)]
 pub struct Bin {
-    points: Vec<(u32, u32)>,
-    x: f64,
-    y: f64,
+    pub points: Vec<(u32, u32)>,
+    pub x: f64,
+    pub y: f64,
 }
 
 impl fmt::Display for Bin {

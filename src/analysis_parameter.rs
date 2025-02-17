@@ -58,6 +58,8 @@ pub enum AnalysisParameter {
     },
     NodeDistribution {
         graph: String,
+        #[serde(default = "get_radius")]
+        radius: u32,
     },
     Info {
         graph: String,
@@ -105,6 +107,10 @@ impl Display for Grouping {
 
 fn get_true() -> bool {
     true
+}
+
+fn get_radius() -> u32 {
+    20
 }
 
 impl AnalysisParameter {

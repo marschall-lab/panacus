@@ -29,9 +29,19 @@ class MultiBar {
 }
 
 class Hexbin {
-    constructor(id, bins) {
+    constructor(id, min, max, radius, bins) {
         this.id = id;
-        this.bins = bins;
+        this.min = min;
+        this.max = max;
+        this.radius = radius;
+        console.time('bin');
+        this.bins = bins.map(function (el) {
+            var bin = el.points;
+            bin.x = el.x;
+            bin.y = el.y;
+            return bin;
+        });
+        console.timeEnd('bin');
     }
 }
 

@@ -7,6 +7,8 @@ new bootstrap.Tooltip(tooltipTriggerEl)
 })
 })()
 
+console.time('hook');
+
 // Copyright 2021, Observable Inc.
 // Released under the ISC license.
 // https://observablehq.com/@d3/color-legend
@@ -285,12 +287,13 @@ for (let key in objects.datasets) {
             buildLogToggle(myChart, "bar-" + m.id);
         }
     } else if (element instanceof Hexbin) {
+        console.time('hex');
         let h = element;
         var ctx = document.getElementById('chart-hexbin-' + h.id);
         buildPlotDownload(myChart, h.id, fname);
         const width = 928;
         const height = width;
-        const radius = 20;
+        const radius = h.radius;
         const marginTop = 20;
         const marginRight = 20;
         const marginBottom = 30 + radius;
@@ -298,22 +301,22 @@ for (let key in objects.datasets) {
 
         // Create the positional scales.
             const x = d3.scaleLinear()
-            .domain(d3.extent(h.bins, d => d["x"]))
+            .domain([h.min[0], h.max[0]])
             .range([marginLeft, width - marginRight]);
 
         const y = d3.scaleLinear()
-            .domain(d3.extent(h.bins, d => d["y"]))
+            .domain([h.min[1], h.max[1]])
             .rangeRound([height - marginBottom, marginTop]);
 
         // Bin the data.
-            const hexbin = d3.hexbin()
+        const hexbin = d3.hexbin()
             .x(d => x(d["x"]))
             .y(d => y(d["y"]))
             .radius(radius * width / 928)
             .extent([[marginLeft, marginTop], [width - marginRight, height - marginBottom]]);
 
-        const bins = hexbin(h.bins);
-        console.log(bins.length);
+        // const bins = hexbin(h.bins);
+        const bins = h.bins;
 
         // Create the color scale.
             const color = d3.scaleSequential(d3.interpolateBuPu)
@@ -366,6 +369,7 @@ for (let key in objects.datasets) {
         Legend(color, { given_svg: inner_svg });
 
         ctx.append(svg.node());
+        console.timeEnd('hex');
     }
 }
 
@@ -373,3 +377,5 @@ for (let key in objects.tables) {
     let table = objects.tables[key];
     buildTableDownload(table, key, key + '_' + fname);
 }
+
+console.timeEnd('hook');

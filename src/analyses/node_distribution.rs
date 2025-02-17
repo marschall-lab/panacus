@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use itertools::Itertools;
+
 use crate::{
     analysis_parameter::AnalysisParameter,
     graph_broker::GraphBroker,
@@ -11,7 +13,9 @@ use super::{Analysis, ConstructibleAnalysis, InputRequirement};
 
 pub struct NodeDistribution {
     parameter: AnalysisParameter,
-    inner: Vec<(u32, u32)>,
+    bins: Vec<Bin>,
+    min: (u32, u32),
+    max: (u32, u32),
 }
 
 impl Analysis for NodeDistribution {
@@ -23,17 +27,15 @@ impl Analysis for NodeDistribution {
         &mut self,
         gb: Option<&crate::graph_broker::GraphBroker>,
     ) -> anyhow::Result<String> {
-        if self.inner.is_empty() {
+        if self.bins.is_empty() {
             self.set_table(gb);
         }
-        let mut result = "Coverage\tLength\n".to_string();
-        let body = self
-            .inner
-            .iter()
-            .map(|(a, b)| format!("{}\t{}\n", a, b))
-            .collect::<Vec<String>>()
-            .join("");
-        result.push_str(&body);
+        let mut result = "Coverage\tLength\tBin\n".to_string();
+        for (i, bin) in self.bins.iter().enumerate() {
+            for point in &bin.points {
+                result.push_str(&format!("{}\t{}\t{}\n", point.0, point.1, i));
+            }
+        }
         Ok(result)
     }
 
@@ -46,6 +48,7 @@ impl Analysis for NodeDistribution {
         gb: Option<&crate::graph_broker::GraphBroker>,
     ) -> anyhow::Result<Vec<crate::html_report::AnalysisSection>> {
         let table = self.generate_table(gb)?;
+        //let table = "".to_string();
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "node-dist-{}",
@@ -53,6 +56,12 @@ impl Analysis for NodeDistribution {
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
+        let radius = match self.parameter {
+            AnalysisParameter::NodeDistribution { radius, .. } => {
+                (radius as f64 / 100.0 * 928.0).round() as u32
+            }
+            _ => panic!("NodeDistribution needs a node distribution parameter"),
+        };
         let tab = vec![AnalysisSection {
             id: format!("{}-{}", id_prefix, CountType::Node.to_string()),
             analysis: "Node distribution".to_string(),
@@ -61,7 +70,10 @@ impl Analysis for NodeDistribution {
             countable: CountType::Node.to_string(),
             items: vec![ReportItem::Hexbin {
                 id: format!("{id_prefix}-{}", CountType::Node),
-                bins: self.inner.clone(),
+                bins: self.bins.clone(),
+                min: self.min,
+                max: self.max,
+                radius,
             }],
         }];
         Ok(tab)
@@ -72,7 +84,9 @@ impl ConstructibleAnalysis for NodeDistribution {
     fn from_parameter(parameter: crate::analysis_parameter::AnalysisParameter) -> Self {
         Self {
             parameter,
-            inner: Vec::new(),
+            bins: Vec::new(),
+            min: (0, 0),
+            max: (0, 0),
         }
     }
 }
@@ -81,7 +95,15 @@ impl NodeDistribution {
     fn set_table(&mut self, gb: Option<&GraphBroker>) {
         if let Some(gb) = gb {
             let countables = &gb.get_abacus_by_total(CountType::Node).countable[1..];
+            let (cov_min, cov_max) = match countables.iter().minmax() {
+                itertools::MinMaxResult::MinMax(min, max) => (min, max),
+                _ => panic!("Node distribution needs to have at least two countables"),
+            };
             let node_lens = &gb.get_node_lens()[1..];
+            let (lens_min, lens_max) = match node_lens.iter().minmax() {
+                itertools::MinMaxResult::MinMax(min, max) => (min, max),
+                _ => panic!("Node distribution needs to have at least two countables"),
+            };
             let points = countables
                 .iter()
                 .copied()
@@ -89,14 +111,16 @@ impl NodeDistribution {
                 .collect();
             let bins = Bin::hexbin(&points, 0.1);
             eprintln!("{:?}", bins.len());
-            self.inner = points;
+            self.bins = bins;
+            self.min = (*cov_min, *lens_min);
+            self.max = (*cov_max, *lens_max);
         }
     }
 
     fn get_run_name(&self) -> String {
         match &self.parameter {
-            AnalysisParameter::NodeDistribution { graph } => {
-                format!("{}", graph)
+            AnalysisParameter::NodeDistribution { graph, radius } => {
+                format!("{}-{}", graph, radius)
             }
             _ => panic!("Counts analysis needs to contain counts parameter"),
         }

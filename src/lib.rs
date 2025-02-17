@@ -407,7 +407,7 @@ fn preprocess_instructions(
                     grouping,
                 }
             }
-            AnalysisParameter::NodeDistribution { graph } => {
+            AnalysisParameter::NodeDistribution { graph, radius } => {
                 if !graphs.contains_key(&graph[..]) {
                     if !new_instructions
                         .iter()
@@ -429,9 +429,12 @@ fn preprocess_instructions(
                         });
                     }
                     let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
-                    return AnalysisParameter::NodeDistribution { graph: new_name };
+                    return AnalysisParameter::NodeDistribution {
+                        graph: new_name,
+                        radius,
+                    };
                 }
-                AnalysisParameter::NodeDistribution { graph }
+                AnalysisParameter::NodeDistribution { graph, radius }
             }
             AnalysisParameter::Table {
                 graph,
@@ -647,7 +650,7 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             ref t @ AnalysisParameter::Table { ref graph, .. } => {
                 insert_after_graph(t.clone(), graph, &mut current_instructions);
             }
-            ref c @ AnalysisParameter::NodeDistribution { ref graph } => {
+            ref c @ AnalysisParameter::NodeDistribution { ref graph, .. } => {
                 insert_after_graph(c.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),
