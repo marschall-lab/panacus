@@ -109,7 +109,10 @@ impl Analysis for Growth {
                 format!(
                     "coverage ≥ {}, quorum ≥ {}%",
                     hist_aux.coverage[i].get_string(),
-                    hist_aux.quorum[i].get_string()
+                    match hist_aux.quorum[i] {
+                        crate::util::Threshold::Relative(x) => (x * 100.0).to_string(),
+                        crate::util::Threshold::Absolute(x) => (x * 100).to_string(),
+                    }
                 )
             })
             .collect::<Vec<_>>();
