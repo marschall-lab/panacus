@@ -46,6 +46,7 @@ strip ./pkg/${NAME}-${VERSION}_${ARCH}/bin/${EXEC}
 ln -s ../scripts/$NAME-visualize.py ./pkg/${NAME}-${VERSION}_${ARCH}/$NAME-visualize
 
 cp LICENSE ./pkg/${NAME}-${VERSION}_${ARCH}/
+cp LICENSES ./pkg/${NAME}-${VERSION}_${ARCH}/
 bash ./set-version.sh
 cp README.md ./pkg/${NAME}-${VERSION}_${ARCH}/
 cp -r examples ./pkg/${NAME}-${VERSION}_${ARCH}/
