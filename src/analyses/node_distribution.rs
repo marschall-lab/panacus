@@ -58,7 +58,8 @@ impl Analysis for NodeDistribution {
         );
         let radius = match self.parameter {
             AnalysisParameter::NodeDistribution { radius, .. } => {
-                (radius as f64 / 100.0 * 928.0).round() as u32
+                //(radius as f64 / 100.0 * 928.0).round() as u32
+                radius
             }
             _ => panic!("NodeDistribution needs a node distribution parameter"),
         };

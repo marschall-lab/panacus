@@ -11,6 +11,7 @@ pub fn get_subcommand() -> Command {
                 .help("Radius of the hexagons used to bin")
                 .short('r')
                 .long("radius")
+                .value_parser(clap::value_parser!(u32))
                 .default_value("20"),
         ])
 }
