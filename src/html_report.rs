@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::from_utf8};
 use std::{f64, fmt};
 
 use base64::{engine::general_purpose, Engine};
@@ -33,7 +33,8 @@ pub struct AnalysisSection {
 impl AnalysisSection {
     fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("analysis_tab") {
-            registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
+            registry
+                .register_template_string("analysis_tab", from_utf8(ANALYSIS_TAB_HBS).unwrap())?;
         }
         let items = self
             .items
@@ -73,11 +74,20 @@ pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
 pub const D3_JS: &[u8] = include_bytes!("../etc/d3.v7.min.js");
 pub const D3_HEXBIN_JS: &[u8] = include_bytes!("../etc/d3-hexbin.v0.2.min.js");
 pub const D3_LEGEND_JS: &[u8] = include_bytes!("../etc/d3-legend.min.js");
+pub const CHART_JS_MATRIX: &[u8] = include_bytes!("../etc/chartjs-chart-matrix.min.js");
 pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
 pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.min.js");
 pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.min.js");
 pub const PANACUS_LOGO: &[u8] = include_bytes!("../etc/panacus-illustration-small.png");
 pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
+
+pub const REPORT_HBS: &[u8] = include_bytes!("../hbs/report.hbs");
+pub const BAR_HBS: &[u8] = include_bytes!("../hbs/bar.hbs");
+pub const TREE_HBS: &[u8] = include_bytes!("../hbs/tree.hbs");
+pub const TABLE_HBS: &[u8] = include_bytes!("../hbs/table.hbs");
+pub const HEATMAP_HBS: &[u8] = include_bytes!("../hbs/heatmap.hbs");
+pub const ANALYSIS_TAB_HBS: &[u8] = include_bytes!("../hbs/analysis_tab.hbs");
+pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs");
 
 fn get_js_objects_string(objects: JsVars) -> String {
     let mut res = String::from("{");
@@ -105,7 +115,7 @@ impl AnalysisSection {
         filename: &str,
     ) -> Result<String, RenderError> {
         if !registry.has_template("report") {
-            registry.register_template_file("report", "./hbs/report.hbs")?;
+            registry.register_template_string("report", from_utf8(REPORT_HBS).unwrap())?;
         }
 
         let tree = Self::get_tree(&sections, registry)?;
@@ -191,7 +201,7 @@ impl AnalysisSection {
             ),
         );
         if !registry.has_template("tree") {
-            registry.register_template_file("tree", "./hbs/tree.hbs")?;
+            registry.register_template_string("tree", from_utf8(TREE_HBS).unwrap())?;
         }
         let tree = registry.render("tree", &vars)?;
         Ok(tree)
@@ -222,6 +232,10 @@ impl AnalysisSection {
             String::from_utf8_lossy(D3_LEGEND_JS).into_owned(),
         );
         vars.insert(
+            "chart_js_matrix",
+            String::from_utf8_lossy(CHART_JS_MATRIX).into_owned(),
+        );
+        vars.insert(
             "custom_css",
             String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
         );
@@ -246,7 +260,10 @@ impl AnalysisSection {
 
     fn generate_report_content(sections: Vec<Self>, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("report_content") {
-            registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
+            registry.register_template_string(
+                "report_content",
+                from_utf8(REPORT_CONTENT_HBS).unwrap(),
+            )?;
         }
         let mut js_objects = Vec::new();
         let sections = sections
@@ -297,6 +314,13 @@ pub enum ReportItem {
         max: (u32, u32),
         radius: u32,
     },
+    Heatmap {
+        id: String,
+        name: String,
+        x_labels: Vec<String>,
+        y_labels: Vec<String>,
+        values: Vec<Vec<f32>>,
+    },
 }
 
 impl ReportItem {
@@ -304,7 +328,7 @@ impl ReportItem {
         match self {
             Self::Table { id, header, values } => {
                 if !registry.has_template("table") {
-                    registry.register_template_file("table", "./hbs/table.hbs")?;
+                    registry.register_template_string("table", from_utf8(TABLE_HBS).unwrap())?;
                 }
                 let data = HashMap::from([
                     ("id".to_string(), to_json(id)),
@@ -314,6 +338,40 @@ impl ReportItem {
                 Ok((
                     registry.render("table", &data)?,
                     HashMap::from([("datasets".to_string(), HashMap::new())]),
+                ))
+            }
+            Self::Heatmap {
+                id,
+                name,
+                x_labels,
+                y_labels,
+                values,
+            } => {
+                if !registry.has_template("heatmap") {
+                    registry
+                        .register_template_string("heatmap", from_utf8(HEATMAP_HBS).unwrap())?;
+                }
+                let js_object = format!(
+                    "new Heatmap('{}', '{}', {:?}, {:?}, {:?})",
+                    id, name, x_labels, y_labels, values,
+                );
+                let max_scale = format!(
+                    "{:.2}",
+                    values
+                        .iter()
+                        .flatten()
+                        .fold(f32::INFINITY, |a, &b| a.min(b))
+                );
+                let data = HashMap::from([
+                    ("id".to_string(), to_json(&id)),
+                    ("max".to_string(), to_json(max_scale)),
+                ]);
+                Ok((
+                    registry.render("heatmap", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
                 ))
             }
             Self::Bar {
@@ -326,7 +384,7 @@ impl ReportItem {
                 log_toggle,
             } => {
                 if !registry.has_template("bar") {
-                    registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                    registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
                 let js_object = format!(
                     "new Bar('{}', '{}', '{}', '{}', {:?}, {:?}, {})",
@@ -354,7 +412,7 @@ impl ReportItem {
                 log_toggle,
             } => {
                 if !registry.has_template("bar") {
-                    registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                    registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
                 let js_object = format!(
                     "new MultiBar('{}', {:?}, '{}', '{}', {:?}, {:?}, {})",
@@ -454,8 +512,6 @@ impl Bin {
                 + (928.0 - 50.0);
             let py = py.round();
 
-            //eprintln!("1: {:?}, {}, {}", point, px, py);
-
             let dx = 2.0 * (f64::consts::PI / 3.0).sin() * radius;
             let dy = 1.5 * radius;
 
@@ -464,13 +520,8 @@ impl Bin {
             let px = px / dx - (pj % 2) as f64 / 2.0;
             let mut pi = px.round();
             let py1 = py - pj as f64;
-            //eprintln!("2: dx: {}, dy: {}", dx, dy);
-            //eprintln!("2: px: {}, py: {}", px, py);
-            //eprintln!("2: pi: {}, pj: {}", pi, pj);
-            //eprintln!("2: py1: {}", py1);
 
             if py1.abs() * 3.0 > 1.0 {
-                //eprintln!("Special case");
                 let px1 = px - pi;
                 let pi2 = pi + (if px < py { -1.0 } else { 1.0 }) / 2.0;
                 let pj2 = pj as f64 + (if py < pj as f64 { -1.0 } else { 1.0 });
@@ -497,7 +548,6 @@ impl Bin {
                     },
                 );
             }
-            //eprintln!("---------------------");
         }
         bins_by_id.into_values().collect()
     }

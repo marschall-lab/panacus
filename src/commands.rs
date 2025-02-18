@@ -5,4 +5,5 @@ pub mod info;
 pub mod node_distribution;
 pub mod ordered_histgrowth;
 pub mod report;
+pub mod similarity;
 pub mod table;

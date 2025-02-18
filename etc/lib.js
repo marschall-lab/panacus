@@ -41,7 +41,16 @@ class Hexbin {
             bin.y = el.y;
             return bin;
         });
-        console.timeEnd('bin');
+    }
+}
+
+class Heatmap {
+    constructor(id, name, x_labels, y_labels, values) {
+        this.id = id;
+        this.name = name;
+        this.x_labels = x_labels;
+        this.y_labels = y_labels;
+        this.values = values;
     }
 }
 
@@ -70,6 +79,35 @@ function buildLogToggle(chart, name) {
             chart.options.scales.y.type = 'logarithmic';
         } else {
             chart.options.scales.y.type = 'linear';
+        }
+        chart.update();
+    });
+}
+
+function getColor(value, zero) {
+    const corrected = (value - zero) / (1.0 - zero);
+    const flipped = 1.0 - corrected;
+    const r = 255.0 - flipped * (255.0 - 179.0);
+    const g = 255.0 - flipped * 255.0;
+    const b = 255.0 - flipped * 255.0;
+    const text = 'rgb(' + r + ',' + g + ',' + b + ')';
+    return text;
+}
+
+function buildColorSlider(chart, name) {
+    document.getElementById('btn-colorscale-' + name).addEventListener('change', function(event) {
+        chart.data.datasets[0].backgroundColor = (context) => {
+            const value = context.dataset.data[context.dataIndex].v;
+            return getColor(value, event.currentTarget.value)
+        };
+        chart.options.plugins.tooltip.callbacks = {
+            title() {
+                return '';
+            },
+            label(context) {
+                const v = context.dataset.data[context.dataIndex];
+                return [v.x_label + ' - ', v.y_label + ':', v.v];
+            }
         }
         chart.update();
     });

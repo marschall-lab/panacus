@@ -7,8 +7,6 @@ new bootstrap.Tooltip(tooltipTriggerEl)
 })
 })()
 
-console.time('hook');
-
 const pluginCanvasBackgroundColor = {
   id: 'customCanvasBackgroundColor',
   beforeDraw: (chart, args, options) => {
@@ -221,6 +219,79 @@ for (let key in objects.datasets) {
 
         ctx.append(svg.node());
         console.timeEnd('hex');
+    } else if (element instanceof Heatmap) {
+        let h = element;
+        var ctx = document.getElementById('chart-heatmap-' + h.id);
+        const data_points = h.values.map(function(e, i) {
+            return e.map(function(f, j) {
+                return {x: i, y: j, v: f, x_label: h.x_labels[i], y_label: h.y_labels[j]};
+            });
+        }).flat();
+        const data = {
+            datasets: [{
+                label: 'My Matrix',
+                data: data_points,
+                backgroundColor(context) {
+                    const value = context.dataset.data[context.dataIndex].v;
+                    return getColor(value, 0.0);
+                },
+                width: ({chart}) => (chart.chartArea || {}).width / h.x_labels.length,
+                height: ({chart}) =>(chart.chartArea || {}).height / h.y_labels.length
+            }]
+        };
+        var myChart = new Chart(ctx, {
+            type: 'matrix',
+            data: data,
+            options: {
+                aspectRatio: 1,
+                plugins: {
+                    legend: false,
+                    tooltip: {
+                        callbacks: {
+                            title() {
+                                return '';
+                            },
+                            label(context) {
+                                const v = context.dataset.data[context.dataIndex];
+                                return [v.x_label + ' - ', v.y_label + ':', v.v];
+                            }
+                        }
+                    },
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            stepSize: 1,
+                            callback: ((context, index) => {
+                                return h.x_labels[context];
+                            })
+                        },
+                        grid: {
+                            display: false
+                        },
+                        position: 'top',
+                    },
+                    y: {
+                        offset: true,
+                        ticks: {
+                            stepSize: 1,
+                            callback: ((context, index) => {
+                                return h.y_labels[context];
+                            })
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        buildPlotDownload(myChart, h.id, fname);
+        buildColorSlider(myChart, h.id);
     }
 }
 
@@ -228,5 +299,3 @@ for (let key in objects.tables) {
     let table = objects.tables[key];
     buildTableDownload(table, key, key + '_' + fname);
 }
-
-console.timeEnd('hook');

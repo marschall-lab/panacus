@@ -7,6 +7,8 @@ mod html_report;
 mod io;
 mod util;
 
+use env_logger::Builder;
+use log::LevelFilter;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -50,7 +52,7 @@ macro_rules! some_or_return {
     };
 }
 
-pub fn set_number_of_threads(params: &ArgMatches) {
+fn set_number_of_threads(params: &ArgMatches) {
     //if num_threads is 0 then the Rayon will select
     //the number of threads to the core number automatically
     let threads = params.get_one("threads").unwrap();
@@ -62,6 +64,14 @@ pub fn set_number_of_threads(params: &ArgMatches) {
         "running panacus on {} threads",
         rayon::current_num_threads()
     );
+}
+
+fn set_verbosity(args: &ArgMatches) {
+    if args.get_flag("verbose") {
+        Builder::new().filter_level(LevelFilter::Debug).init();
+    } else {
+        Builder::new().filter_level(LevelFilter::Info).init();
+    }
 }
 
 pub fn run_cli() -> Result<(), anyhow::Error> {
@@ -78,6 +88,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand(commands::table::get_subcommand())
         .subcommand(commands::node_distribution::get_subcommand())
+        .subcommand(commands::similarity::get_subcommand())
         .subcommand_required(true)
         .arg(
             Arg::new("threads")
@@ -86,10 +97,20 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
                 .value_name("COUNT")
                 .default_value("0")
                 .value_parser(clap::value_parser!(usize))
+                .global(true)
+                .help("Set the number of threads used (default: use all threads)"),
+        )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .action(ArgAction::SetTrue)
+                .global(true)
                 .help("Set the number of threads used (default: use all threads)"),
         )
         .get_matches();
 
+    set_verbosity(&args);
     set_number_of_threads(&args);
 
     let mut instructions = Vec::new();
@@ -122,6 +143,9 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
     if let Some(counts) = commands::node_distribution::get_instructions(&args) {
         instructions.extend(counts?);
+    }
+    if let Some(similarity) = commands::similarity::get_instructions(&args) {
+        instructions.extend(similarity?);
     }
 
     let instructions = get_tasks(instructions)?;
@@ -227,6 +251,40 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                     analyses::ordered_histgrowth::OrderedHistgrowth::from_parameter(o);
                 reqs.extend(ordered_growth.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(ordered_growth)));
+            }
+            s @ AnalysisParameter::Similarity { .. } => {
+                if let AnalysisParameter::Similarity {
+                    subset,
+                    exclude,
+                    grouping,
+                    order,
+                    ..
+                } = &s
+                {
+                    let order = order.to_owned();
+                    let subset = subset.to_owned();
+                    let exclude = exclude.clone().unwrap_or_default();
+                    let grouping = grouping.to_owned();
+                    if order != current_order {
+                        tasks.push(Task::OrderChange(order.clone()));
+                        current_order = order;
+                    }
+                    if subset != current_subset {
+                        tasks.push(Task::SubsetChange(subset.clone()));
+                        current_subset = subset;
+                    }
+                    if exclude != current_exclude {
+                        tasks.push(Task::ExcludeChange(exclude.clone()));
+                        current_exclude = exclude;
+                    }
+                    if grouping != current_grouping {
+                        tasks.push(Task::GroupingChange(grouping.clone()));
+                        current_grouping = grouping;
+                    }
+                }
+                let similarity = analyses::similarity::Similarity::from_parameter(s);
+                reqs.extend(similarity.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(similarity)));
             }
             t @ AnalysisParameter::Table { .. } => {
                 if let AnalysisParameter::Table {
@@ -435,6 +493,66 @@ fn preprocess_instructions(
                     };
                 }
                 AnalysisParameter::NodeDistribution { graph, radius }
+            }
+            AnalysisParameter::Similarity {
+                graph,
+                count_type,
+                subset,
+                exclude,
+                grouping,
+                order,
+                cluster_method,
+            } => {
+                let subset = match subset {
+                    Some(subset) => {
+                        if subsets.contains_key(&subset) {
+                            Some(subsets[&subset].to_string())
+                        } else {
+                            Some(subset)
+                        }
+                    }
+                    None => None,
+                };
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::Similarity {
+                        count_type,
+                        graph: new_name,
+                        subset,
+                        exclude,
+                        grouping,
+                        order,
+                        cluster_method,
+                    };
+                }
+                AnalysisParameter::Similarity {
+                    count_type,
+                    graph,
+                    subset,
+                    exclude,
+                    grouping,
+                    order,
+                    cluster_method,
+                }
             }
             AnalysisParameter::Table {
                 graph,
@@ -652,6 +770,9 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             }
             ref c @ AnalysisParameter::NodeDistribution { ref graph, .. } => {
                 insert_after_graph(c.clone(), graph, &mut current_instructions);
+            }
+            ref s @ AnalysisParameter::Similarity { ref graph, .. } => {
+                insert_after_graph(s.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),
         }

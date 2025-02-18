@@ -3,6 +3,7 @@ pub mod hist;
 pub mod info;
 pub mod node_distribution;
 pub mod ordered_histgrowth;
+pub mod similarity;
 pub mod table;
 
 use std::collections::HashSet;
@@ -33,5 +34,6 @@ pub enum InputRequirement {
     PathLens,
     Hist,
     AbacusByGroup,
+    AbacusByGroupCsc,
     Graph(String),
 }

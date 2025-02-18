@@ -104,7 +104,6 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
                 continue;
             }
 
-            // TODO: separate this step and do it twice (?)
             let mut indices: HashMap<CountType, Vec<usize>> = HashMap::new();
             for (i, count_type) in count_types
                 .iter()
@@ -161,7 +160,6 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
                     let mut exclude_tables_red = exclude_tables.iter_mut().enumerate().filter(|(i, _)| is.contains(i)).map(|(_, e)| e).collect();
                     match count {
                         CountType::Node | CountType::Bp => {
-                            //eprintln!("{:?}, {:?}", count, exclude_tables[i]);
                             let (node_len, bp_len) = update_tables_multiple(
                                 &mut item_tables[is[0]],
                                 &mut subset_covered_bps.as_mut(),
@@ -199,12 +197,11 @@ pub fn parse_gfa_paths_walks_multiple<R: Read>(
         count_types,
         duration
     );
-    //for i in 0..count_types.len() {
-    //    eprintln!(
-    //        "{}: {:?}\n{:?}\n{:?}\n",
-    //        i, count_types[i], item_tables[i], exclude_tables[i]
-    //    );
-    //}
+
+    // In case of node/bps, copy first table into the second
+    if item_tables.len() == 2 {
+        item_tables[1] = item_tables[0].clone();
+    }
     (item_tables, exclude_tables, subset_covered_bps, paths_len)
 }
 
@@ -220,10 +217,8 @@ pub fn parse_gfa_paths_walks<R: Read>(
     HashMap<PathSegment, (u32, u32)>,
 ) {
     log::info!("parsing path + walk sequences");
-    // TODO: item_table will be returned
     let mut item_table = ItemTable::new(graph_storage.path_segments.len());
 
-    // TODO: subset_covered_bps and exclude_table will be returned
     let (mut subset_covered_bps, mut exclude_table, include_map, exclude_map) =
         graph_mask.load_optional_subsetting(graph_storage, count);
 
@@ -285,7 +280,6 @@ pub fn parse_gfa_paths_walks<R: Read>(
                     &path_seg, &include_coords, &exclude_coords);
 
                 // update prefix sum
-                // TODO: do this for all 3 tables
                 item_table.id_prefsum[num_path + 1] += item_table.id_prefsum[num_path];
 
                 num_path += 1;
@@ -293,7 +287,6 @@ pub fn parse_gfa_paths_walks<R: Read>(
                 continue;
             }
 
-            // TODO: separate this step and do it twice (?)
             if count != &CountType::Edge
                 && (graph_mask.include_coords.is_none()
                     || is_contained(include_coords, &(start, end)))
@@ -841,7 +834,7 @@ pub fn parse_walk_seq_to_item_vec(
                     break;
                 }
                 let segment_id = get_walk_segment_id(&data[curr_pos..segment_end], graph_storage);
-                let orientation = Orientation::from_pm(data[curr_pos]);
+                let orientation = Orientation::from_lg(data[curr_pos]);
                 segment_ids.push((segment_id, orientation));
                 // move curr_pos forward (after next comma)
                 curr_pos = segment_end;
@@ -1280,7 +1273,6 @@ mod tests {
             ItemId(15),
         ];
         for i in 1..35 {
-            eprintln!("{}:", i);
             let (res, _) = get_path_segment_ids(data, &graph_storage, end, i);
             assert_eq!(res, exp);
         }
@@ -1308,7 +1300,6 @@ mod tests {
             ItemId(15),
         ];
         for i in 1..35 {
-            eprintln!("{}:", i);
             let (res, _) = get_walk_segment_ids(data, &graph_storage, end, i);
             assert_eq!(res, exp);
         }
