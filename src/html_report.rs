@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::from_utf8};
 
 use base64::{engine::general_purpose, Engine};
 use handlebars::{to_json, Handlebars, RenderError};
@@ -32,7 +32,9 @@ pub struct AnalysisSection {
 impl AnalysisSection {
     fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("analysis_tab") {
-            registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
+            //registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
+            registry
+                .register_template_string("analysis_tab", from_utf8(ANALYSIS_TAB_HBS).unwrap())?;
         }
         let items = self
             .items
@@ -76,6 +78,14 @@ pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.min.js");
 pub const PANACUS_LOGO: &[u8] = include_bytes!("../etc/panacus-illustration-small.png");
 pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
 
+pub const REPORT_HBS: &[u8] = include_bytes!("../hbs/report.hbs");
+pub const BAR_HBS: &[u8] = include_bytes!("../hbs/bar.hbs");
+pub const TREE_HBS: &[u8] = include_bytes!("../hbs/tree.hbs");
+pub const TABLE_HBS: &[u8] = include_bytes!("../hbs/table.hbs");
+pub const HEATMAP_HBS: &[u8] = include_bytes!("../hbs/heatmap.hbs");
+pub const ANALYSIS_TAB_HBS: &[u8] = include_bytes!("../hbs/analysis_tab.hbs");
+pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs");
+
 fn get_js_objects_string(objects: JsVars) -> String {
     let mut res = String::from("{");
     for (k, v) in objects {
@@ -102,7 +112,8 @@ impl AnalysisSection {
         filename: &str,
     ) -> Result<String, RenderError> {
         if !registry.has_template("report") {
-            registry.register_template_file("report", "./hbs/report.hbs")?;
+            //registry.register_template_file("report", "./hbs/report.hbs")?;
+            registry.register_template_string("report", from_utf8(REPORT_HBS).unwrap())?;
         }
 
         let tree = Self::get_tree(&sections, registry)?;
@@ -188,7 +199,8 @@ impl AnalysisSection {
             ),
         );
         if !registry.has_template("tree") {
-            registry.register_template_file("tree", "./hbs/tree.hbs")?;
+            //registry.register_template_file("tree", "./hbs/tree.hbs")?;
+            registry.register_template_string("tree", from_utf8(TREE_HBS).unwrap())?;
         }
         let tree = registry.render("tree", &vars)?;
         Ok(tree)
@@ -238,7 +250,11 @@ impl AnalysisSection {
 
     fn generate_report_content(sections: Vec<Self>, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("report_content") {
-            registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
+            //registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
+            registry.register_template_string(
+                "report_content",
+                from_utf8(REPORT_CONTENT_HBS).unwrap(),
+            )?;
         }
         let mut js_objects = Vec::new();
         let sections = sections
@@ -296,7 +312,8 @@ impl ReportItem {
         match self {
             Self::Table { id, header, values } => {
                 if !registry.has_template("table") {
-                    registry.register_template_file("table", "./hbs/table.hbs")?;
+                    //registry.register_template_file("table", "./hbs/table.hbs")?;
+                    registry.register_template_string("table", from_utf8(TABLE_HBS).unwrap())?;
                 }
                 let data = HashMap::from([
                     ("id".to_string(), to_json(id)),
@@ -316,7 +333,9 @@ impl ReportItem {
                 values,
             } => {
                 if !registry.has_template("heatmap") {
-                    registry.register_template_file("heatmap", "./hbs/heatmap.hbs")?;
+                    //registry.register_template_file("heatmap", "./hbs/heatmap.hbs")?;
+                    registry
+                        .register_template_string("heatmap", from_utf8(HEATMAP_HBS).unwrap())?;
                 }
                 let js_object = format!(
                     "new Heatmap('{}', '{}', {:?}, {:?}, {:?})",
@@ -351,7 +370,8 @@ impl ReportItem {
                 log_toggle,
             } => {
                 if !registry.has_template("bar") {
-                    registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                    //registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                    registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
                 let js_object = format!(
                     "new Bar('{}', '{}', '{}', '{}', {:?}, {:?}, {})",
@@ -379,7 +399,8 @@ impl ReportItem {
                 log_toggle,
             } => {
                 if !registry.has_template("bar") {
-                    registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                    //registry.register_template_file("bar", "./hbs/bar.hbs")?;
+                    registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
                 let js_object = format!(
                     "new MultiBar('{}', {:?}, '{}', '{}', {:?}, {:?}, {})",

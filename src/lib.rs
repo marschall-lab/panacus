@@ -7,6 +7,8 @@ mod html_report;
 mod io;
 mod util;
 
+use env_logger::Builder;
+use log::LevelFilter;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -50,7 +52,7 @@ macro_rules! some_or_return {
     };
 }
 
-pub fn set_number_of_threads(params: &ArgMatches) {
+fn set_number_of_threads(params: &ArgMatches) {
     //if num_threads is 0 then the Rayon will select
     //the number of threads to the core number automatically
     let threads = params.get_one("threads").unwrap();
@@ -62,6 +64,14 @@ pub fn set_number_of_threads(params: &ArgMatches) {
         "running panacus on {} threads",
         rayon::current_num_threads()
     );
+}
+
+fn set_verbosity(args: &ArgMatches) {
+    if args.get_flag("verbose") {
+        Builder::new().filter_level(LevelFilter::Debug).init();
+    } else {
+        Builder::new().filter_level(LevelFilter::Info).init();
+    }
 }
 
 pub fn run_cli() -> Result<(), anyhow::Error> {
@@ -89,8 +99,17 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
                 .global(true)
                 .help("Set the number of threads used (default: use all threads)"),
         )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .help("Set the number of threads used (default: use all threads)"),
+        )
         .get_matches();
 
+    set_verbosity(&args);
     set_number_of_threads(&args);
 
     let mut instructions = Vec::new();

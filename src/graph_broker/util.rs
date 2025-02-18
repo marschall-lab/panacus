@@ -841,7 +841,7 @@ pub fn parse_walk_seq_to_item_vec(
                     break;
                 }
                 let segment_id = get_walk_segment_id(&data[curr_pos..segment_end], graph_storage);
-                let orientation = Orientation::from_pm(data[curr_pos]);
+                let orientation = Orientation::from_lg(data[curr_pos]);
                 segment_ids.push((segment_id, orientation));
                 // move curr_pos forward (after next comma)
                 curr_pos = segment_end;
