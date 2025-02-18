@@ -32,7 +32,6 @@ pub struct AnalysisSection {
 impl AnalysisSection {
     fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("analysis_tab") {
-            //registry.register_template_file("analysis_tab", "./hbs/analysis_tab.hbs")?;
             registry
                 .register_template_string("analysis_tab", from_utf8(ANALYSIS_TAB_HBS).unwrap())?;
         }
@@ -112,7 +111,6 @@ impl AnalysisSection {
         filename: &str,
     ) -> Result<String, RenderError> {
         if !registry.has_template("report") {
-            //registry.register_template_file("report", "./hbs/report.hbs")?;
             registry.register_template_string("report", from_utf8(REPORT_HBS).unwrap())?;
         }
 
@@ -199,7 +197,6 @@ impl AnalysisSection {
             ),
         );
         if !registry.has_template("tree") {
-            //registry.register_template_file("tree", "./hbs/tree.hbs")?;
             registry.register_template_string("tree", from_utf8(TREE_HBS).unwrap())?;
         }
         let tree = registry.render("tree", &vars)?;
@@ -250,7 +247,6 @@ impl AnalysisSection {
 
     fn generate_report_content(sections: Vec<Self>, registry: &mut Handlebars) -> RenderedHTML {
         if !registry.has_template("report_content") {
-            //registry.register_template_file("report_content", "./hbs/report_content.hbs")?;
             registry.register_template_string(
                 "report_content",
                 from_utf8(REPORT_CONTENT_HBS).unwrap(),
@@ -312,7 +308,6 @@ impl ReportItem {
         match self {
             Self::Table { id, header, values } => {
                 if !registry.has_template("table") {
-                    //registry.register_template_file("table", "./hbs/table.hbs")?;
                     registry.register_template_string("table", from_utf8(TABLE_HBS).unwrap())?;
                 }
                 let data = HashMap::from([
@@ -333,7 +328,6 @@ impl ReportItem {
                 values,
             } => {
                 if !registry.has_template("heatmap") {
-                    //registry.register_template_file("heatmap", "./hbs/heatmap.hbs")?;
                     registry
                         .register_template_string("heatmap", from_utf8(HEATMAP_HBS).unwrap())?;
                 }
@@ -370,7 +364,6 @@ impl ReportItem {
                 log_toggle,
             } => {
                 if !registry.has_template("bar") {
-                    //registry.register_template_file("bar", "./hbs/bar.hbs")?;
                     registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
                 let js_object = format!(
@@ -399,7 +392,6 @@ impl ReportItem {
                 log_toggle,
             } => {
                 if !registry.has_template("bar") {
-                    //registry.register_template_file("bar", "./hbs/bar.hbs")?;
                     registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
                 let js_object = format!(
