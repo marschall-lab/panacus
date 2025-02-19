@@ -10,6 +10,7 @@ use std::collections::HashSet;
 
 use crate::{
     analysis_parameter::AnalysisParameter, graph_broker::GraphBroker, html_report::AnalysisSection,
+    util::CountType,
 };
 
 pub trait Analysis {
@@ -33,8 +34,7 @@ pub enum InputRequirement {
     Bp,
     PathLens,
     Hist,
-    AbacusByGroup,
-    AbacusByGroupCsc,
+    AbacusByGroup(CountType),
     Graph(String),
     // Subset(String),
     // Grouping(String),

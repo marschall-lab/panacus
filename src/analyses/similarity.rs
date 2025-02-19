@@ -41,7 +41,7 @@ impl Analysis for Similarity {
     }
 
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
-        let mut req = HashSet::from([InputRequirement::AbacusByGroupCsc]);
+        let mut req = HashSet::from([InputRequirement::AbacusByGroup(self.count)]);
         req.extend(Self::count_to_input_req(self.count));
         req
     }

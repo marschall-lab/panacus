@@ -40,6 +40,7 @@ pub struct GraphBroker {
     total_abaci: Option<HashMap<CountType, AbacusByTotal>>,
     group_abacus: Option<AbacusByGroup>,
     hists: Option<HashMap<CountType, Hist>>,
+    csc_abacus: bool,
 
     path_lens: Option<HashMap<PathSegment, (u32, u32)>>,
     gfa_file: String,
@@ -62,6 +63,7 @@ impl GraphBroker {
             gfa_file: String::new(),
             input_requirements: HashSet::new(),
             count_type: CountType::All,
+            csc_abacus: false,
         }
     }
 
@@ -111,6 +113,7 @@ impl GraphBroker {
             _nice: nice,
             input_requirements: input_requirements.clone(),
             count_type,
+            csc_abacus: false,
         }
     }
 
@@ -156,18 +159,32 @@ impl GraphBroker {
         self
     }
 
+    pub fn with_csc_abacus(mut self) -> Self {
+        self.csc_abacus = true;
+        self
+    }
+
     pub fn finish(self) -> Result<Self, Error> {
         let mut gb = self.set_abacus_aux()?.set_abaci_by_total();
         if gb.input_requirements.contains(&Req::Hist) {
             gb = gb.set_hists();
         }
-        if gb.input_requirements.contains(&Req::AbacusByGroup) {
-            if gb.input_requirements.contains(&Req::AbacusByGroupCsc) {
-                panic!("Input should not require CSC and CSR AbacusByGroup at the same time!");
+        let mut has_already_used_abacus = false;
+        for req in gb.input_requirements.clone() {
+            match req {
+                Req::AbacusByGroup(count) => {
+                    if has_already_used_abacus {
+                        panic!("Panacus is currently not able to have multiple Abaci By Group for different countables. Please run panacus either multiple times or wait for the planned pipelining feature");
+                    }
+                    if gb.csc_abacus {
+                        gb = gb.set_abacus_by_group_csc(count)?;
+                    } else {
+                        gb = gb.set_abacus_by_group(count)?;
+                    }
+                    has_already_used_abacus = true;
+                }
+                _ => continue,
             }
-            gb = gb.set_abacus_by_group()?;
-        } else if gb.input_requirements.contains(&Req::AbacusByGroupCsc) {
-            gb = gb.set_abacus_by_group_csc()?;
         }
         Ok(gb)
     }
@@ -269,20 +286,20 @@ impl GraphBroker {
         }
     }
 
-    fn set_abacus_by_group_csc(self) -> Result<Self, Error> {
-        let mut res = self.set_abacus_by_group()?;
+    fn set_abacus_by_group_csc(self, count: CountType) -> Result<Self, Error> {
+        let mut res = self.set_abacus_by_group(count)?;
         res.group_abacus.as_mut().unwrap().to_csc();
         Ok(res)
     }
 
-    fn set_abacus_by_group(mut self) -> Result<Self, Error> {
+    fn set_abacus_by_group(mut self, count: CountType) -> Result<Self, Error> {
         // let mut abaci_by_group = HashMap::new();
         let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
         let abacus = AbacusByGroup::from_gfa(
             &mut data,
             self.abacus_aux.as_ref().unwrap(),
             self.graph_aux.as_ref().unwrap(),
-            self.count_type,
+            count,
             true,
         )?;
         // abaci_by_group.insert(self.count_type, abacus);

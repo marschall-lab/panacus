@@ -65,7 +65,6 @@ pub enum AnalysisParameter {
         subset: Option<String>,
         exclude: Option<String>,
         grouping: Option<Grouping>,
-        order: Option<String>,
 
         #[serde(default)]
         cluster_method: ClusterMethod,
@@ -221,6 +220,7 @@ impl Ord for AnalysisParameter {
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }
                 | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
+                | AnalysisParameter::OrderedGrowth { .. } => std::cmp::Ordering::Greater,
                 _ => std::cmp::Ordering::Less,
             },
             AnalysisParameter::OrderedGrowth { name, .. } => match other {
@@ -230,6 +230,7 @@ impl Ord for AnalysisParameter {
                 //| AnalysisParameter::Grouping { .. }
                 | AnalysisParameter::Info { .. }
                 | AnalysisParameter::Table { .. } => std::cmp::Ordering::Greater,
+                | AnalysisParameter::Similarity { .. } => std::cmp::Ordering::Less,
                 _ => std::cmp::Ordering::Less,
             },
             AnalysisParameter::Growth { hist, .. } => match other {

@@ -40,7 +40,7 @@ impl Analysis for Table {
 
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
         if let AnalysisParameter::Table { count_type, .. } = &self.parameter {
-            let mut req = HashSet::from([InputRequirement::AbacusByGroup]);
+            let mut req = HashSet::from([InputRequirement::AbacusByGroup(*count_type)]);
             req.extend(Self::count_to_input_req(*count_type));
             req
         } else {

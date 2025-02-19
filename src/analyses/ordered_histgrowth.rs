@@ -77,9 +77,10 @@ impl Analysis for OrderedHistgrowth {
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
+        let labels = dm.unwrap().get_abacus_by_group().groups.clone();
         let growth_tabs = vec![AnalysisSection {
             id: format!("{id_prefix}"),
-            analysis: "Pangenome Growth".to_string(),
+            analysis: "Ordered Growth".to_string(),
             run_name: self.get_run_name(),
             countable: count.to_string(),
             table: Some(table.clone()),
@@ -88,7 +89,8 @@ impl Analysis for OrderedHistgrowth {
                 names: growth_labels.clone(),
                 x_label: "taxa".to_string(),
                 y_label: format!("{}s", count),
-                labels: (1..growths[0].len()).map(|i| i.to_string()).collect(),
+                //labels: (1..growths[0].len()).map(|i| i.to_string()).collect(),
+                labels,
                 values: growths.clone(),
                 log_toggle: false,
             }],
@@ -121,7 +123,7 @@ impl Analysis for OrderedHistgrowth {
 
     fn get_graph_requirements(&self) -> HashSet<InputRequirement> {
         if let AnalysisParameter::OrderedGrowth { count_type, .. } = &self.parameter {
-            let mut req = HashSet::from([InputRequirement::AbacusByGroup]);
+            let mut req = HashSet::from([InputRequirement::AbacusByGroup(*count_type)]);
             req.extend(Self::count_to_input_req(*count_type));
             req
         } else {
