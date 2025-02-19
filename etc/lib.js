@@ -34,13 +34,7 @@ class Hexbin {
         this.min = min;
         this.max = max;
         this.radius = radius;
-        console.time('bin');
-        this.bins = bins.map(function (el) {
-            var bin = el.points;
-            bin.x = el.x;
-            bin.y = el.y;
-            return bin;
-        });
+        this.bins = bins;
     }
 }
 

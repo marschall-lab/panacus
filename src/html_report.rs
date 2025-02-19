@@ -310,8 +310,8 @@ pub enum ReportItem {
     Hexbin {
         id: String,
         bins: Vec<Bin>,
-        min: (u32, u32),
-        max: (u32, u32),
+        min: (u32, f64),
+        max: (u32, f64),
         radius: u32,
     },
     Heatmap {
@@ -441,22 +441,13 @@ impl ReportItem {
                     registry.register_template_file("hexbin", "./hbs/hexbin.hbs")?;
                 }
                 let mut js_object = format!(
-                    "new Hexbin('{}', {:?}, {:?}, {}, [",
-                    id,
-                    [min.0, min.1],
-                    [max.0, max.1],
-                    radius
+                    "new Hexbin('{}', [{}, {}], [{}, {}], {}, [",
+                    id, min.0, min.1, max.0, max.1, radius
                 );
                 for bin in bins {
-                    let points = bin
-                        .points
-                        .iter()
-                        .map(|(a, b)| format!("{{ x: {}, y: {} }}", a, b))
-                        .join(",");
-                    let points = format!("[{}]", points);
                     js_object.push_str(&format!(
-                        "{{ x: {}, y: {}, points: {} }}, ",
-                        bin.x, bin.y, points
+                        "{{ x: {}, y: {}, length: {} }}, ",
+                        bin.x, bin.y, bin.length
                     ));
                 }
                 js_object.push_str("])");
@@ -475,41 +466,51 @@ impl ReportItem {
 
 #[derive(Debug, Clone)]
 pub struct Bin {
-    pub points: Vec<(u32, u32)>,
+    pub length: f64,
     pub x: f64,
     pub y: f64,
+    pub real_x: f64,
+    pub real_y: f64,
 }
 
 impl fmt::Display for Bin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{x: {}, y: {}, points: {:?} }}",
-            self.x, self.y, self.points
+            "{{x: {}, y: {}, length: {:?} }}",
+            self.x, self.y, self.length
         )
     }
 }
 
+struct CounterBin {
+    pub length: u64,
+    pub x: f64,
+    pub y: f64,
+    pub real_x: f64,
+    pub real_y: f64,
+}
+
 impl Bin {
-    pub fn hexbin(points: &Vec<(u32, u32)>, _radius: f64) -> Vec<Self> {
-        let x_range = match points.iter().map(|el| el.0).minmax() {
+    pub fn hexbin(points: &Vec<(u32, f64)>, _radius: f64) -> Vec<Self> {
+        let x_domain = match points.iter().map(|el| el.0).minmax() {
             itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
             _ => panic!("Need at least two values for hexbining"),
         };
-        let y_range = match points.iter().map(|el| el.1).minmax() {
+        let y_domain = match points.iter().map(|el| el.1).minmax() {
             itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
             _ => panic!("Need at least two values for hexbining"),
         };
-        let mut bins_by_id: HashMap<String, Bin> = HashMap::new();
+        let mut bins_by_id: HashMap<String, CounterBin> = HashMap::new();
         let radius = 20.0;
+        let (x_range, x_offset) = (928.0 - 20.0 - 82.0, 82.0);
+        let (y_range, y_offset) = (928.0 - 20.0 - 50.0, 928.0 - 50.0);
         for point in points {
-            let px = (point.0 as f64 - x_range.0) / (x_range.1 - x_range.0) * (928.0 - 20.0 - 60.0)
-                + 60.0;
+            let px = (point.0 as f64 - x_domain.0) / (x_domain.1 - x_domain.0) * x_range + x_offset;
             let px = px.round();
 
-            let py = -(point.1 as f64 - y_range.0) / (y_range.1 - y_range.0)
-                * (928.0 - 50.0 - 20.0)
-                + (928.0 - 50.0);
+            let py =
+                -(point.1 as f64 - y_domain.0) / (y_domain.1 - y_domain.0) * y_range + y_offset;
             let py = py.round();
 
             let dx = 2.0 * (f64::consts::PI / 3.0).sin() * radius;
@@ -535,20 +536,33 @@ impl Bin {
 
             let id = format!("{}-{}", pi, pj);
             if let Some(bin) = bins_by_id.get_mut(&id) {
-                bin.points.push(*point);
+                bin.length += 1;
             } else {
                 let x = (pi + (pj % 2) as f64 / 2.0) * dx;
                 let y = pj as f64 * dy;
+                let real_x = (x - x_offset) / x_range * (x_domain.1 - x_domain.0) + x_domain.0;
+                let real_y = -(y - y_offset) / y_range * (y_domain.1 - y_domain.0) + y_domain.0;
                 bins_by_id.insert(
                     id,
-                    Self {
-                        points: vec![*point],
+                    CounterBin {
+                        length: 1,
                         x,
                         y,
+                        real_x,
+                        real_y,
                     },
                 );
             }
         }
-        bins_by_id.into_values().collect()
+        bins_by_id
+            .into_values()
+            .map(|el| Self {
+                length: (el.length as f64).log10(),
+                x: el.x,
+                y: el.y,
+                real_x: el.real_x,
+                real_y: el.real_y,
+            })
+            .collect()
     }
 }

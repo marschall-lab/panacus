@@ -4,7 +4,7 @@ use crate::analysis_parameter::AnalysisParameter;
 
 pub fn get_subcommand() -> Command {
     Command::new("node-distribution")
-        .about("Return list of nodes with coverages and lenghts")
+        .about("Return the list of bins with there coverages, log10-lengths and log10-sizes. Due to this being the values for the centers of the hexagons shown in the html plot and not real values, some values might be negative.")
         .args(&[
             arg!(gfa_file: <GFA_FILE> "graph in GFA1 format, accepts also compressed (.gz) file"),
             Arg::new("radius")

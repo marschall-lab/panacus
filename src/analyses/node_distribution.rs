@@ -14,8 +14,8 @@ use super::{Analysis, ConstructibleAnalysis, InputRequirement};
 pub struct NodeDistribution {
     parameter: AnalysisParameter,
     bins: Vec<Bin>,
-    min: (u32, u32),
-    max: (u32, u32),
+    min: (u32, f64),
+    max: (u32, f64),
 }
 
 impl Analysis for NodeDistribution {
@@ -30,11 +30,12 @@ impl Analysis for NodeDistribution {
         if self.bins.is_empty() {
             self.set_table(gb);
         }
-        let mut result = "Coverage\tLength\tBin\n".to_string();
+        let mut result = "Bin\tCoverage\tLog-Length\tLog-Size\n".to_string();
         for (i, bin) in self.bins.iter().enumerate() {
-            for point in &bin.points {
-                result.push_str(&format!("{}\t{}\t{}\n", point.0, point.1, i));
-            }
+            result.push_str(&format!(
+                "{}\t{}\t{}\t{}\n",
+                i, bin.real_x, bin.real_y, bin.length
+            ));
         }
         Ok(result)
     }
@@ -86,8 +87,8 @@ impl ConstructibleAnalysis for NodeDistribution {
         Self {
             parameter,
             bins: Vec::new(),
-            min: (0, 0),
-            max: (0, 0),
+            min: (0, 0.0),
+            max: (0, 0.0),
         }
     }
 }
@@ -100,12 +101,15 @@ impl NodeDistribution {
                 itertools::MinMaxResult::MinMax(min, max) => (min, max),
                 _ => panic!("Node distribution needs to have at least two countables"),
             };
-            let node_lens = &gb.get_node_lens()[1..];
+            let node_lens = &gb.get_node_lens()[1..]
+                .iter()
+                .map(|x| (*x as f64).log10())
+                .collect::<Vec<f64>>();
             let (lens_min, lens_max) = match node_lens.iter().minmax() {
                 itertools::MinMaxResult::MinMax(min, max) => (min, max),
                 _ => panic!("Node distribution needs to have at least two countables"),
             };
-            let points = countables
+            let points: Vec<(u32, f64)> = countables
                 .iter()
                 .copied()
                 .zip(node_lens.iter().copied())

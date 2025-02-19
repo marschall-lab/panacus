@@ -144,7 +144,7 @@ for (let key in objects.datasets) {
         const marginTop = 20;
         const marginRight = 20;
         const marginBottom = 30 + radius;
-        const marginLeft = 40 + radius;
+        const marginLeft = 60 + radius;
 
         // Create the positional scales.
             const x = d3.scaleLinear()
@@ -200,8 +200,8 @@ for (let key in objects.datasets) {
                 .text("Coverage"));
 
         svg.append("g")
-            .attr("transform", `translate(${marginLeft - radius - 6},0)`)
-            .call(d3.axisLeft(y).ticks(null, ".1s"))
+            .attr("transform", `translate(${marginLeft - radius - 9},0)`)
+            .call(d3.axisLeft(y).ticks(null, ".1s").tickFormat((d, i) => d3.format(".1e")(Math.pow(10, d))))
             //.call(g => g.select(".domain").remove())
             .call(g => g.append("text")
                 .attr("x", 0 - radius - 10)
@@ -215,7 +215,7 @@ for (let key in objects.datasets) {
 
         var inner_svg = svg.append("svg")
             .attr("transform", `translate(${width - 350},0)`);
-        Legend(color, { given_svg: inner_svg });
+        Legend(color, { given_svg: inner_svg, tickFormat: (d) => Math.pow(10, d) });
 
         ctx.append(svg.node());
         console.timeEnd('hex');
