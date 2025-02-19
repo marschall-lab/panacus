@@ -342,6 +342,7 @@ impl ReportItem {
             Self::MultiBar { id, .. } => id.to_string(),
             Self::Table { id, .. } => id.to_string(),
             Self::Heatmap { id, .. } => id.to_string(),
+            Self::Hexbin { id, .. } => id.to_string(),
         }
     }
 
@@ -351,6 +352,7 @@ impl ReportItem {
             Self::MultiBar { .. } => "MultiBar".to_string(),
             Self::Table { .. } => "Table".to_string(),
             Self::Heatmap { name, .. } => name.to_string(),
+            Self::Hexbin { .. } => "Hexbin".to_string(),
         }
     }
 
