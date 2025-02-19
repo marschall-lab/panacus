@@ -28,6 +28,16 @@ class MultiBar {
     }
 }
 
+class Hexbin {
+    constructor(id, min, max, radius, bins) {
+        this.id = id;
+        this.min = min;
+        this.max = max;
+        this.radius = radius;
+        this.bins = bins;
+    }
+}
+
 class Heatmap {
     constructor(id, name, x_labels, y_labels, values) {
         this.id = id;

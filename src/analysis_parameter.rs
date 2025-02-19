@@ -57,6 +57,11 @@ pub enum AnalysisParameter {
         total: bool,
         order: Option<String>,
     },
+    NodeDistribution {
+        graph: String,
+        #[serde(default = "get_radius")]
+        radius: u32,
+    },
     Similarity {
         #[serde(default)]
         count_type: CountType,
@@ -115,6 +120,10 @@ impl Display for Grouping {
 
 fn get_true() -> bool {
     true
+}
+
+fn get_radius() -> u32 {
+    20
 }
 
 impl AnalysisParameter {
@@ -208,6 +217,14 @@ impl Ord for AnalysisParameter {
             },
             AnalysisParameter::Table { .. } => match other {
                 AnalysisParameter::Table { .. } => std::cmp::Ordering::Equal,
+                AnalysisParameter::Graph { .. }
+                | AnalysisParameter::Subset { .. }
+                //| AnalysisParameter::Grouping { .. }
+                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
+                _ => std::cmp::Ordering::Less,
+            },
+            AnalysisParameter::NodeDistribution { .. } => match other {
+                AnalysisParameter::NodeDistribution { .. } => std::cmp::Ordering::Equal,
                 AnalysisParameter::Graph { .. }
                 | AnalysisParameter::Subset { .. }
                 //| AnalysisParameter::Grouping { .. }

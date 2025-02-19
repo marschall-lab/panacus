@@ -87,6 +87,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::info::get_subcommand())
         .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand(commands::table::get_subcommand())
+        .subcommand(commands::node_distribution::get_subcommand())
         .subcommand(commands::similarity::get_subcommand())
         .subcommand_required(true)
         .arg(
@@ -139,6 +140,9 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     }
     if let Some(table) = commands::table::get_instructions(&args) {
         instructions.extend(table?);
+    }
+    if let Some(counts) = commands::node_distribution::get_instructions(&args) {
+        instructions.extend(counts?);
     }
     if let Some(similarity) = commands::similarity::get_instructions(&args) {
         instructions.extend(similarity?);
@@ -348,6 +352,11 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 reqs.extend(info.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(info)));
             }
+            c @ AnalysisParameter::NodeDistribution { .. } => {
+                let counts = analyses::node_distribution::NodeDistribution::from_parameter(c);
+                reqs.extend(counts.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(counts)));
+            }
             section @ _ => panic!(
                 "YAML section {:?} should not exist after preprocessing",
                 section
@@ -454,6 +463,35 @@ fn preprocess_instructions(
                     exclude,
                     grouping,
                 }
+            }
+            AnalysisParameter::NodeDistribution { graph, radius } => {
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::NodeDistribution {
+                        graph: new_name,
+                        radius,
+                    };
+                }
+                AnalysisParameter::NodeDistribution { graph, radius }
             }
             AnalysisParameter::Similarity {
                 graph,
@@ -725,6 +763,9 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             }
             ref t @ AnalysisParameter::Table { ref graph, .. } => {
                 insert_after_graph(t.clone(), graph, &mut current_instructions);
+            }
+            ref c @ AnalysisParameter::NodeDistribution { ref graph, .. } => {
+                insert_after_graph(c.clone(), graph, &mut current_instructions);
             }
             ref s @ AnalysisParameter::Similarity { ref graph, .. } => {
                 insert_after_graph(s.clone(), graph, &mut current_instructions);

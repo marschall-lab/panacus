@@ -244,6 +244,11 @@ impl GraphBroker {
         self.group_abacus.as_ref().unwrap()
     }
 
+    pub fn get_abacus_by_total(&self, count: CountType) -> &AbacusByTotal {
+        Self::check_and_error(self.total_abaci.as_ref(), "abacus_by_group");
+        &self.total_abaci.as_ref().unwrap()[&count]
+    }
+
     pub fn write_abacus_by_group<W: Write>(
         &self,
         total: bool,

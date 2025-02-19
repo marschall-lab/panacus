@@ -1,7 +1,7 @@
 pub mod growth;
 pub mod hist;
-// pub mod histgrowth;
 pub mod info;
+pub mod node_distribution;
 pub mod ordered_histgrowth;
 pub mod similarity;
 pub mod table;
@@ -36,7 +36,4 @@ pub enum InputRequirement {
     Hist,
     AbacusByGroup(CountType),
     Graph(String),
-    // Subset(String),
-    // Grouping(String),
-    // Exclude(String),
 }

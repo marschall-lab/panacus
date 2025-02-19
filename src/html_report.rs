@@ -1,4 +1,5 @@
 use std::{collections::HashMap, str::from_utf8};
+use std::{f64, fmt};
 
 use base64::{engine::general_purpose, Engine};
 use handlebars::{to_json, Handlebars, RenderError};
@@ -82,6 +83,9 @@ pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.m
 pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
 pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
 pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
+pub const D3_JS: &[u8] = include_bytes!("../etc/d3.v7.min.js");
+pub const D3_HEXBIN_JS: &[u8] = include_bytes!("../etc/d3-hexbin.v0.2.min.js");
+pub const D3_LEGEND_JS: &[u8] = include_bytes!("../etc/d3-legend.min.js");
 pub const CHART_JS_MATRIX: &[u8] = include_bytes!("../etc/chartjs-chart-matrix.min.js");
 pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
 pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.min.js");
@@ -230,6 +234,15 @@ impl AnalysisSection {
             String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
         );
         vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
+        vars.insert("d3_js", String::from_utf8_lossy(D3_JS).into_owned());
+        vars.insert(
+            "d3_hexbin_js",
+            String::from_utf8_lossy(D3_HEXBIN_JS).into_owned(),
+        );
+        vars.insert(
+            "d3_legend_js",
+            String::from_utf8_lossy(D3_LEGEND_JS).into_owned(),
+        );
         vars.insert(
             "chart_js_matrix",
             String::from_utf8_lossy(CHART_JS_MATRIX).into_owned(),
@@ -305,6 +318,13 @@ pub enum ReportItem {
         id: String,
         header: Vec<String>,
         values: Vec<Vec<String>>,
+    },
+    Hexbin {
+        id: String,
+        bins: Vec<Bin>,
+        min: (u32, f64),
+        max: (u32, f64),
+        radius: u32,
     },
     Heatmap {
         id: String,
@@ -440,6 +460,139 @@ impl ReportItem {
                     )]),
                 ))
             }
+            Self::Hexbin {
+                id,
+                bins,
+                min,
+                max,
+                radius,
+            } => {
+                if !registry.has_template("hexbin") {
+                    registry.register_template_file("hexbin", "./hbs/hexbin.hbs")?;
+                }
+                let mut js_object = format!(
+                    "new Hexbin('{}', [{}, {}], [{}, {}], {}, [",
+                    id, min.0, min.1, max.0, max.1, radius
+                );
+                for bin in bins {
+                    js_object.push_str(&format!(
+                        "{{ x: {}, y: {}, length: {} }}, ",
+                        bin.x, bin.y, bin.length
+                    ));
+                }
+                js_object.push_str("])");
+                let data = HashMap::from([("id".to_string(), to_json(&id))]);
+                Ok((
+                    registry.render("hexbin", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
+                ))
+            }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Bin {
+    pub length: f64,
+    pub x: f64,
+    pub y: f64,
+    pub real_x: f64,
+    pub real_y: f64,
+}
+
+impl fmt::Display for Bin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{x: {}, y: {}, length: {:?} }}",
+            self.x, self.y, self.length
+        )
+    }
+}
+
+struct CounterBin {
+    pub length: u64,
+    pub x: f64,
+    pub y: f64,
+    pub real_x: f64,
+    pub real_y: f64,
+}
+
+impl Bin {
+    pub fn hexbin(points: &Vec<(u32, f64)>, _radius: f64) -> Vec<Self> {
+        let x_domain = match points.iter().map(|el| el.0).minmax() {
+            itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
+            _ => panic!("Need at least two values for hexbining"),
+        };
+        let y_domain = match points.iter().map(|el| el.1).minmax() {
+            itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
+            _ => panic!("Need at least two values for hexbining"),
+        };
+        let mut bins_by_id: HashMap<String, CounterBin> = HashMap::new();
+        let radius = 20.0;
+        let (x_range, x_offset) = (928.0 - 20.0 - 82.0, 82.0);
+        let (y_range, y_offset) = (928.0 - 20.0 - 50.0, 928.0 - 50.0);
+        for point in points {
+            let px = (point.0 as f64 - x_domain.0) / (x_domain.1 - x_domain.0) * x_range + x_offset;
+            let px = px.round();
+
+            let py =
+                -(point.1 as f64 - y_domain.0) / (y_domain.1 - y_domain.0) * y_range + y_offset;
+            let py = py.round();
+
+            let dx = 2.0 * (f64::consts::PI / 3.0).sin() * radius;
+            let dy = 1.5 * radius;
+
+            let py = py / dy;
+            let mut pj = py.round() as i64;
+            let px = px / dx - (pj % 2) as f64 / 2.0;
+            let mut pi = px.round();
+            let py1 = py - pj as f64;
+
+            if py1.abs() * 3.0 > 1.0 {
+                let px1 = px - pi;
+                let pi2 = pi + (if px < py { -1.0 } else { 1.0 }) / 2.0;
+                let pj2 = pj as f64 + (if py < pj as f64 { -1.0 } else { 1.0 });
+                let px2 = px - pi2;
+                let py2 = py - pj2;
+                if px1.powi(2) + py1.powi(2) > px2.powi(2) + py2.powi(2) {
+                    pi = pi2 + (if (pj % 2) == 1 { 1.0 } else { -1.0 }) / 2.0;
+                    pj = pj2 as i64;
+                }
+            }
+
+            let id = format!("{}-{}", pi, pj);
+            if let Some(bin) = bins_by_id.get_mut(&id) {
+                bin.length += 1;
+            } else {
+                let x = (pi + (pj % 2) as f64 / 2.0) * dx;
+                let y = pj as f64 * dy;
+                let real_x = (x - x_offset) / x_range * (x_domain.1 - x_domain.0) + x_domain.0;
+                let real_y = -(y - y_offset) / y_range * (y_domain.1 - y_domain.0) + y_domain.0;
+                bins_by_id.insert(
+                    id,
+                    CounterBin {
+                        length: 1,
+                        x,
+                        y,
+                        real_x,
+                        real_y,
+                    },
+                );
+            }
+        }
+        bins_by_id
+            .into_values()
+            .map(|el| Self {
+                length: (el.length as f64).log10(),
+                x: el.x,
+                y: el.y,
+                real_x: el.real_x,
+                real_y: el.real_y,
+            })
+            .collect()
     }
 }

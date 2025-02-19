@@ -133,6 +133,92 @@ for (let key in objects.datasets) {
         if (m.log_toggle) {
             buildLogToggle(myChart, "bar-" + m.id);
         }
+    } else if (element instanceof Hexbin) {
+        console.time('hex');
+        let h = element;
+        var ctx = document.getElementById('chart-hexbin-' + h.id);
+        buildPlotDownload(myChart, h.id, fname);
+        const width = 928;
+        const height = width;
+        const radius = h.radius;
+        const marginTop = 20;
+        const marginRight = 20;
+        const marginBottom = 30 + radius;
+        const marginLeft = 60 + radius;
+
+        // Create the positional scales.
+            const x = d3.scaleLinear()
+            .domain([h.min[0], h.max[0]])
+            .range([marginLeft, width - marginRight]);
+
+        const y = d3.scaleLinear()
+            .domain([h.min[1], h.max[1]])
+            .rangeRound([height - marginBottom, marginTop]);
+
+        // Bin the data.
+        const hexbin = d3.hexbin()
+            .x(d => x(d["x"]))
+            .y(d => y(d["y"]))
+            .radius(radius * width / 928)
+            .extent([[marginLeft, marginTop], [width - marginRight, height - marginBottom]]);
+
+        // const bins = hexbin(h.bins);
+        const bins = h.bins;
+        const mbin = Math.max(...bins.map(v => v.length));
+        console.log(mbin);
+
+        // Create the color scale.
+            const color = d3.scaleSequential(d3.interpolateBuPu)
+            .domain([0, d3.max(bins, d => d.length)]);
+
+        // Create the container SVG.
+            const svg = d3.create("svg")
+            .attr("viewBox", [0, 0, width, height]);
+
+        // Append the scaled hexagons.
+            svg.append("g")
+            .attr("fill", "#ddd")
+            .attr("stroke", "black")
+            .selectAll("path")
+            .data(bins)
+            .enter().append("path")
+            .attr("transform", d => `translate(${d.x},${d.y})`)
+            .attr("d", hexbin.hexagon())
+            .attr("fill", bin => color(bin.length));
+
+        // Append the axes.
+            svg.append("g")
+            .attr("transform", `translate(0,${height - marginBottom + radius})`)
+            .call(d3.axisBottom(x).ticks(width / 80, ""))
+            //.call(g => g.select(".domain").remove())
+            .call(g => g.append("text")
+                .attr("x", width)
+                .attr("y", 28)
+                .attr("fill", "currentColor")
+                .attr("font-weight", "bold")
+                .attr("text-anchor", "end")
+                .text("Coverage"));
+
+        svg.append("g")
+            .attr("transform", `translate(${marginLeft - radius - 9},0)`)
+            .call(d3.axisLeft(y).ticks(null, ".1s").tickFormat((d, i) => d3.format(".1e")(Math.pow(10, d))))
+            //.call(g => g.select(".domain").remove())
+            .call(g => g.append("text")
+                .attr("x", 0 - radius - 10)
+                .attr("y", 0)
+                .attr("dy", ".71em")
+                .attr("fill", "currentColor")
+                .attr("font-weight", "bold")
+                .attr("text-anchor", "start")
+                .text("Length"));
+
+
+        var inner_svg = svg.append("svg")
+            .attr("transform", `translate(${width - 350},0)`);
+        Legend(color, { given_svg: inner_svg, tickFormat: (d) => Math.pow(10, d) });
+
+        ctx.append(svg.node());
+        console.timeEnd('hex');
     } else if (element instanceof Heatmap) {
         let h = element;
         var ctx = document.getElementById('chart-heatmap-' + h.id);
@@ -145,25 +231,10 @@ for (let key in objects.datasets) {
             datasets: [{
                 label: 'My Matrix',
                 data: data_points,
-                    //{x: 1, y: 1, v: 11},
-                    //{x: 1, y: 2, v: 12},
-                    //{x: 1, y: 3, v: 13},
-                    //{x: 2, y: 1, v: 21},
-                    //{x: 2, y: 2, v: 22},
-                    //{x: 2, y: 3, v: 23},
-                    //{x: 3, y: 1, v: 31},
-                    //{x: 3, y: 2, v: 32},
-                    //{x: 3, y: 3, v: 33}
                 backgroundColor(context) {
                     const value = context.dataset.data[context.dataIndex].v;
                     return getColor(value, 0.0);
                 },
-                //borderColor(context) {
-                //    const value = context.dataset.data[context.dataIndex].v;
-                //    const alpha = value;
-                //    return colorize(0, 100, 0, alpha);
-                //},
-                // borderWidth: 0,
                 width: ({chart}) => (chart.chartArea || {}).width / h.x_labels.length,
                 height: ({chart}) =>(chart.chartArea || {}).height / h.y_labels.length
             }]
@@ -228,11 +299,3 @@ for (let key in objects.tables) {
     let table = objects.tables[key];
     buildTableDownload(table, key, key + '_' + fname);
 }
-
-// var tabs = document.querySelectorAll('button[data-bs-toggle="tab"]')
-// tabs.forEach(function(tab) {
-//     tab.addEventListener('show.bs.tab', function (event) {
-//         document.querySelector(event.target.dataset.bsTarget).classList.remove('d-none');
-//         document.querySelector(event.relatedTarget.dataset.bsTarget).classList.add('d-none');
-//     });
-// });
