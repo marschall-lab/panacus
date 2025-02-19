@@ -12,8 +12,15 @@
       {{#if has_graph}}
       <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Download plot</button>
       <ul class="dropdown-menu">
+        {{#each plot}}
+        {{#if name}}
+        <li><a class="dropdown-item" href="#">{{name}} as svg</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-{{id}}">{{name}} as png</a></li>
+        {{else}}
         <li><a class="dropdown-item" href="#">As svg</a></li>
         <li><a class="dropdown-item" href="#" id="btn-download-plot-{{id}}">As png</a></li>
+        {{/if}}
+        {{/each}}
       </ul>
       {{/if}}
     </div>

@@ -234,7 +234,7 @@ impl Info {
         };
         if labels.len() <= 100 {
             ReportItem::Bar {
-                id: format!("info-{}-group", graph),
+                id: format!("info-{}-group-{}", graph, countable),
                 name: countable.to_string(),
                 x_label: "groups".to_string(),
                 y_label: format!("#{}s", countable),
@@ -245,7 +245,7 @@ impl Info {
         } else {
             let (labels, values) = Self::bin_values(values);
             ReportItem::Bar {
-                id: format!("info-{}-group", graph),
+                id: format!("info-{}-group-{}", graph, countable),
                 name: countable.to_string(),
                 x_label: "groups".to_string(),
                 y_label: format!("#{}s", countable),

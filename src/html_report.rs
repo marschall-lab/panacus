@@ -35,6 +35,17 @@ impl AnalysisSection {
             registry
                 .register_template_string("analysis_tab", from_utf8(ANALYSIS_TAB_HBS).unwrap())?;
         }
+        let plots = if self.items.len() > 1 {
+            self.items
+                .iter()
+                .map(|item| HashMap::from([("id", item.get_id()), ("name", item.get_name())]))
+                .collect()
+        } else {
+            vec![HashMap::from([
+                ("id", self.items[0].get_id()),
+                ("name", "".to_string()),
+            ])]
+        };
         let items = self
             .items
             .into_iter()
@@ -60,6 +71,7 @@ impl AnalysisSection {
             ("countable", to_json(&self.countable)),
             ("has_table", to_json(self.table.is_some())),
             ("has_graph", to_json(true)), // TODO: real check for graph
+            ("plot", to_json(plots)),
             ("items", to_json(items)),
         ]);
         Ok((registry.render("analysis_tab", &vars)?, js_objects))
@@ -304,6 +316,24 @@ pub enum ReportItem {
 }
 
 impl ReportItem {
+    fn get_id(&self) -> String {
+        match self {
+            Self::Bar { id, .. } => id.to_string(),
+            Self::MultiBar { id, .. } => id.to_string(),
+            Self::Table { id, .. } => id.to_string(),
+            Self::Heatmap { id, .. } => id.to_string(),
+        }
+    }
+
+    fn get_name(&self) -> String {
+        match self {
+            Self::Bar { name, .. } => name.to_string(),
+            Self::MultiBar { .. } => "MultiBar".to_string(),
+            Self::Table { .. } => "Table".to_string(),
+            Self::Heatmap { name, .. } => name.to_string(),
+        }
+    }
+
     fn into_html(self, registry: &mut Handlebars) -> RenderedHTML {
         match self {
             Self::Table { id, header, values } => {
