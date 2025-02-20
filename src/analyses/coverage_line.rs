@@ -74,13 +74,14 @@ impl Analysis for CoverageLine {
             .get_hists()
             .iter()
             .map(|(k, v)| {
-                let values: Vec<f32> = v
-                    .coverage
-                    .iter()
-                    .filter(|c| **c > 0)
-                    .map(|c| *c as f32)
-                    .skip(1)
-                    .collect();
+                let mut values: Vec<_> = v.coverage.clone();
+                while let Some(last) = values.pop() {
+                    if last != 0 {
+                        values.push(0);
+                        break;
+                    }
+                }
+                let values: Vec<f32> = values.into_iter().skip(1).map(|c| c as f32).collect();
                 AnalysisSection {
                     id: format!("{id_prefix}-{k}"),
                     analysis: "Coverage Line".to_string(),

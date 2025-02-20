@@ -145,6 +145,14 @@ for (let key in objects.datasets) {
                 borderColor: 'rgb(75, 192, 192)',
             }]
         };
+        var x_axis_type = 'linear';
+        var y_axis_type = 'linear';
+        if (l.log_x) {
+            x_axis_type = 'logarithmic';
+        }
+        if (l.log_y) {
+            y_axis_type = 'logarithmic';
+        }
         var myChart = new Chart(ctx, {
             type: 'line',
             data: data,
@@ -156,7 +164,7 @@ for (let key in objects.datasets) {
                             text: l.y_label,
                         },
                         beginAtZero: true,
-                        type: 'logarithmic',
+                        type: y_axis_type,
                         grid: {
                             color: '#FFFFFF',
                         },
@@ -173,7 +181,7 @@ for (let key in objects.datasets) {
                             maxRotation: 90,
                             minRotation: 65
                         },
-                        type: 'logarithmic',
+                        type: x_axis_type,
                     },
                 },
                 plugins: {
