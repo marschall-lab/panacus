@@ -99,6 +99,19 @@ pub enum AnalysisParameter {
         exclude: Option<String>,
         grouping: Option<Grouping>,
     },
+    CoverageLine {
+        name: Option<String>,
+
+        #[serde(default)]
+        count_type: CountType,
+        graph: String,
+
+        #[serde(default = "get_true")]
+        display: bool,
+
+        reference: String,
+        grouping: Option<Grouping>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
@@ -254,6 +267,15 @@ impl Ord for AnalysisParameter {
                 AnalysisParameter::Growth { hist: o_hist, .. } => hist.cmp(o_hist),
                 AnalysisParameter::Hist { .. } => std::cmp::Ordering::Less,
                 _ => std::cmp::Ordering::Greater,
+            },
+            AnalysisParameter::CoverageLine { .. } => match other {
+                AnalysisParameter::CoverageLine { .. } => std::cmp::Ordering::Equal,
+                AnalysisParameter::Graph { .. }
+                | AnalysisParameter::Subset { .. }
+                //| AnalysisParameter::Grouping { .. }
+                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
+                | AnalysisParameter::OrderedGrowth { .. } => std::cmp::Ordering::Greater,
+                _ => std::cmp::Ordering::Less,
             },
         }
     }

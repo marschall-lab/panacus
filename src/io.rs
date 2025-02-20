@@ -458,6 +458,14 @@ pub fn parse_threshold_file<R: Read>(data: &mut BufReader<R>) -> Result<Vec<Thre
 // }
 
 pub fn write_table(headers: &Vec<Vec<String>>, columns: &Vec<Vec<f64>>) -> Result<String, Error> {
+    write_table_with_start_index(headers, columns, 0)
+}
+
+pub fn write_table_with_start_index(
+    headers: &Vec<Vec<String>>,
+    columns: &Vec<Vec<f64>>,
+    start_index: usize,
+) -> Result<String, Error> {
     let n = headers.first().unwrap_or(&Vec::new()).len();
     let mut res = String::new();
     for i in 0..n {
@@ -471,7 +479,7 @@ pub fn write_table(headers: &Vec<Vec<String>>, columns: &Vec<Vec<f64>>) -> Resul
     }
     let n = columns.first().unwrap_or(&Vec::new()).len();
     for i in 0..n {
-        res.push_str(&i.to_string());
+        res.push_str(&(i + start_index).to_string());
         for j in 0..columns.len() {
             res.push_str(&format!("\t{:0}", columns[j][i].floor()));
         }

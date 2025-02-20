@@ -133,6 +133,59 @@ for (let key in objects.datasets) {
         if (m.log_toggle) {
             buildLogToggle(myChart, "bar-" + m.id);
         }
+    } else if (element instanceof Line) {
+        let l = element;
+        var ctx = document.getElementById('chart-line-' + l.id);
+        var data = {
+            labels: l.x_values,
+            datasets: [{
+                label: l.name,
+                data: l.y_values,
+                fill: false,
+                borderColor: 'rgb(75, 192, 192)',
+            }]
+        };
+        console.log(data);
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: data,
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: l.y_label,
+                        },
+                        beginAtZero: true,
+                        type: 'logarithmic',
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: l.x_label,
+                        },
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 65
+                        },
+                        type: 'logarithmic',
+                    },
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        buildPlotDownload(myChart, l.id, fname);
     } else if (element instanceof Hexbin) {
         console.time('hex');
         let h = element;

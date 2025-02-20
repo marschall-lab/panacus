@@ -149,8 +149,8 @@ impl GraphBroker {
         self
     }
 
-    pub fn exclude_coords(mut self, file_name: &str) -> Self {
-        self.abacus_aux_params.negative_list = file_name.to_owned();
+    pub fn exclude_coords(mut self, exclude: &str) -> Self {
+        self.abacus_aux_params.negative_list = exclude.to_owned();
         self
     }
 

@@ -1,3 +1,4 @@
+pub mod coverage_line;
 pub mod growth;
 pub mod hist;
 pub mod info;
