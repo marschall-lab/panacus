@@ -145,7 +145,6 @@ for (let key in objects.datasets) {
                 borderColor: 'rgb(75, 192, 192)',
             }]
         };
-        console.log(data);
         var myChart = new Chart(ctx, {
             type: 'line',
             data: data,
@@ -187,7 +186,6 @@ for (let key in objects.datasets) {
         });
         buildPlotDownload(myChart, l.id, fname);
     } else if (element instanceof Hexbin) {
-        console.time('hex');
         let h = element;
         var ctx = document.getElementById('chart-hexbin-' + h.id);
         buildPlotDownload(myChart, h.id, fname);
@@ -218,7 +216,6 @@ for (let key in objects.datasets) {
         // const bins = hexbin(h.bins);
         const bins = h.bins;
         const mbin = Math.max(...bins.map(v => v.length));
-        console.log(mbin);
 
         // Create the color scale.
             const color = d3.scaleSequential(d3.interpolateBuPu)
@@ -271,7 +268,6 @@ for (let key in objects.datasets) {
         Legend(color, { given_svg: inner_svg, tickFormat: (d) => Math.pow(10, d) });
 
         ctx.append(svg.node());
-        console.timeEnd('hex');
     } else if (element instanceof Heatmap) {
         let h = element;
         var ctx = document.getElementById('chart-heatmap-' + h.id);
