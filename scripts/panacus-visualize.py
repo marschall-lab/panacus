@@ -30,6 +30,11 @@ SUPPORTED_FILE_FORMATS = plt.gcf().canvas.get_supported_filetypes().keys()
 ids = pd.IndexSlice
 
 
+class colors:
+    WARNING = '\033[93m'
+    END_COLOR = '\033[0m'
+
+
 def read_csv(filename, comment='#', **kwargs):
     lines = "".join([line for line in filename
                      if not line.startswith(comment)])
@@ -195,6 +200,8 @@ def save_split_figures(ax, f, format, prefix):
 
 
 if __name__ == '__main__':
+    print(colors.WARNING + "WARNING: panacus-visualize is DEPRECATED and will soon be REMOVED. Please use the report command of panacus to generate plots." + colors.END_COLOR, file=stderr)
+
     description='''
     Visualize growth stats. Figures in given (output) format will be plotted to stdout, or optionally splitted into in individual files that start
     with a given prefix.
