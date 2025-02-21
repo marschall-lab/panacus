@@ -4,10 +4,12 @@ use std::io::{BufReader, BufWriter, Write};
 use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
 use std::mem::take;
+use std::path::Path;
 //use std::sync::{Arc, Mutex};
 
 /* external crate*/
 use itertools::Itertools;
+use regex::Regex;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::graph_broker::graph::{Edge, ItemId, Orientation};
@@ -60,18 +62,20 @@ impl GraphMask {
             params.groupby_sample,
             graph_storage,
         )?;
+        let paths = &graph_storage.path_segments;
         let include_coords = GraphMask::complement_with_group_assignments(
-            GraphMask::load_coord_list(&params.positive_list)?,
+            GraphMask::load_coord_list(&params.positive_list, paths)?,
             &groups,
         )?;
         let exclude_coords = GraphMask::complement_with_group_assignments(
-            GraphMask::load_coord_list(&params.negative_list)?,
+            GraphMask::load_coord_list(&params.negative_list, paths)?,
             &groups,
         )?;
 
         let order = if let Some(order) = &params.order {
             let maybe_order = GraphMask::complement_with_group_assignments(
-                GraphMask::load_coord_list(order)?,
+                GraphMask::load_coord_list_file(order)?, // It does not make sense to
+                // specify order with a regex
                 &groups,
             )?;
             if let Some(o) = &maybe_order {
@@ -196,16 +200,42 @@ impl GraphMask {
         }
     }
 
-    pub fn load_coord_list(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
-        Ok(if file_name.is_empty() {
+    pub fn load_coord_list_file(file_name: &str) -> Result<Option<Vec<PathSegment>>, Error> {
+        log::info!("loading coordinates from {}", file_name);
+        let mut data = BufReader::new(fs::File::open(file_name)?);
+        let use_block_info = true;
+        let coords = parse_bed_to_path_segments(&mut data, use_block_info);
+        log::debug!("loaded {} coordinates", coords.len());
+        Ok(Some(coords))
+    }
+
+    pub fn load_coord_list(
+        coord_text: &str,
+        paths: &Vec<PathSegment>,
+    ) -> Result<Option<Vec<PathSegment>>, Error> {
+        Ok(if coord_text.is_empty() {
             None
         } else {
-            log::info!("loading coordinates from {}", file_name);
-            let mut data = BufReader::new(fs::File::open(file_name)?);
-            let use_block_info = true;
-            let coords = parse_bed_to_path_segments(&mut data, use_block_info);
-            log::debug!("loaded {} coordinates", coords.len());
-            Some(coords)
+            if Path::new(coord_text).is_file() {
+                Self::load_coord_list_file(coord_text)?
+            } else if let Ok(re) = Regex::new(coord_text) {
+                log::info!("filtering paths based on regex {}", coord_text);
+                let coords = paths
+                    .iter()
+                    .filter(|path| re.is_match(&path.to_string()))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if coords.is_empty() {
+                    log::warn!("filtering with regex did not find any paths!");
+                }
+                Some(coords)
+            } else {
+                log::error!(
+                    "string {} is not valid! Neither as a file name nor as a regex",
+                    coord_text
+                );
+                panic!("Invalid file name");
+            }
         })
     }
 
@@ -1357,7 +1387,7 @@ s2#1#2\tg2";
     #[test]
     fn test_load_coord_list_none() -> Result<(), Error> {
         let expected = None;
-        let calculated = GraphMask::load_coord_list("")?;
+        let calculated = GraphMask::load_coord_list("", &Vec::new())?;
         assert_eq!(calculated, expected);
         Ok(())
     }
@@ -1371,7 +1401,7 @@ s2#1#2\tg2";
         let text = "s1#1#1\t0\t99
 s1#1#1\t25\t109";
         let (_file, file_name) = get_temporary_file_name_with_content(text)?;
-        let calculated = GraphMask::load_coord_list(&file_name)?;
+        let calculated = GraphMask::load_coord_list(&file_name, &Vec::new())?;
         assert_eq!(calculated, expected);
         Ok(())
     }

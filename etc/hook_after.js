@@ -133,8 +133,67 @@ for (let key in objects.datasets) {
         if (m.log_toggle) {
             buildLogToggle(myChart, "bar-" + m.id);
         }
+    } else if (element instanceof Line) {
+        let l = element;
+        var ctx = document.getElementById('chart-line-' + l.id);
+        var data = {
+            labels: l.x_values,
+            datasets: [{
+                label: l.name,
+                data: l.y_values,
+                fill: false,
+                borderColor: 'rgb(75, 192, 192)',
+            }]
+        };
+        var x_axis_type = 'linear';
+        var y_axis_type = 'linear';
+        if (l.log_x) {
+            x_axis_type = 'logarithmic';
+        }
+        if (l.log_y) {
+            y_axis_type = 'logarithmic';
+        }
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: data,
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: l.y_label,
+                        },
+                        beginAtZero: true,
+                        type: y_axis_type,
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: l.x_label,
+                        },
+                        grid: {
+                            color: '#FFFFFF',
+                        },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 65
+                        },
+                        type: x_axis_type,
+                    },
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: '#E5E4EE',
+                    }
+                }
+            },
+            plugins: [pluginCanvasBackgroundColor],
+        });
+        buildPlotDownload(myChart, l.id, fname);
     } else if (element instanceof Hexbin) {
-        console.time('hex');
         let h = element;
         var ctx = document.getElementById('chart-hexbin-' + h.id);
         buildPlotDownload(myChart, h.id, fname);
@@ -165,7 +224,6 @@ for (let key in objects.datasets) {
         // const bins = hexbin(h.bins);
         const bins = h.bins;
         const mbin = Math.max(...bins.map(v => v.length));
-        console.log(mbin);
 
         // Create the color scale.
             const color = d3.scaleSequential(d3.interpolateBuPu)
@@ -218,7 +276,6 @@ for (let key in objects.datasets) {
         Legend(color, { given_svg: inner_svg, tickFormat: (d) => Math.pow(10, d) });
 
         ctx.append(svg.node());
-        console.timeEnd('hex');
     } else if (element instanceof Heatmap) {
         let h = element;
         var ctx = document.getElementById('chart-heatmap-' + h.id);

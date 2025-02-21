@@ -115,7 +115,6 @@ impl NodeDistribution {
                 .zip(node_lens.iter().copied())
                 .collect();
             let bins = Bin::hexbin(&points, 0.1);
-            eprintln!("{:?}", bins.len());
             self.bins = bins;
             self.min = (*cov_min, *lens_min);
             self.max = (*cov_max, *lens_max);

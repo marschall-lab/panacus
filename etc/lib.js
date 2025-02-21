@@ -48,6 +48,19 @@ class Heatmap {
     }
 }
 
+class Line {
+    constructor(id, name, x_label, y_label, log_x, log_y, x_values, y_values) {
+        this.id = id;
+        this.name = name;
+        this.x_label = x_label;
+        this.y_label = y_label;
+        this.log_x = log_x;
+        this.log_y = log_y;
+        this.x_values = x_values;
+        this.y_values = y_values;
+    }
+}
+
 function buildPlotDownload(chart, obj, prefix) {
     document.getElementById('btn-download-plot-' + obj).onclick = function() {
         var a = document.createElement('a');

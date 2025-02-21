@@ -1,28 +1,30 @@
-use core::panic;
 use std::collections::HashSet;
 
-use crate::analysis_parameter::AnalysisParameter;
-use crate::html_report::ReportItem;
-use crate::{analyses::InputRequirement, io::write_table, util::CountType};
+use crate::{
+    analysis_parameter::AnalysisParameter,
+    html_report::{AnalysisSection, ReportItem},
+    io::write_table_with_start_index,
+    util::CountType,
+};
 
-use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
+use super::{Analysis, ConstructibleAnalysis, InputRequirement};
 
-pub struct Hist {
+pub struct CoverageLine {
     parameter: AnalysisParameter,
 }
 
-impl Analysis for Hist {
+impl Analysis for CoverageLine {
     fn get_type(&self) -> String {
-        "Hist".to_string()
+        "CoverageLine".to_string()
     }
 
     fn generate_table(
         &mut self,
         gb: Option<&crate::graph_broker::GraphBroker>,
     ) -> anyhow::Result<String> {
-        log::info!("reporting hist table");
+        log::info!("reporting coverage line table");
         if gb.is_none() {
-            panic!("Hist analysis needs a graph")
+            panic!("CoverageLine analysis needs a graph")
         }
         let gb = gb.unwrap();
         let mut res = String::new();
@@ -36,7 +38,7 @@ impl Analysis for Hist {
         ]];
         let mut output_columns = Vec::new();
         for h in gb.get_hists().values() {
-            output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+            output_columns.push(h.coverage.iter().map(|x| *x as f64).skip(1).collect());
             header_cols.push(vec![
                 "hist".to_string(),
                 h.count.to_string(),
@@ -44,51 +46,66 @@ impl Analysis for Hist {
                 String::new(),
             ])
         }
-        res.push_str(&write_table(&header_cols, &output_columns)?);
+        res.push_str(&write_table_with_start_index(
+            &header_cols,
+            &output_columns,
+            1,
+        )?);
         Ok(res)
     }
 
     fn generate_report_section(
         &mut self,
         gb: Option<&crate::graph_broker::GraphBroker>,
-    ) -> anyhow::Result<Vec<AnalysisSection>> {
+    ) -> anyhow::Result<Vec<crate::html_report::AnalysisSection>> {
         if gb.is_none() {
-            panic!("Hist analysis needs a graph")
+            panic!("CoverageLine analysis needs a graph")
         }
         let gb = gb.unwrap();
         let table = self.generate_table(Some(gb))?;
         let table = format!("`{}`", &table);
         let id_prefix = format!(
-            "cov-hist-{}",
+            "coverage-line-{}",
             self.get_run_name()
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
-        let histogram_tabs = gb
+        let coverage_line_tabs = gb
             .get_hists()
             .iter()
-            .map(|(k, v)| AnalysisSection {
-                id: format!("{id_prefix}-{k}"),
-                analysis: "Coverage Histogram".to_string(),
-                table: Some(table.clone()),
-                run_name: self.get_run_name(),
-                countable: k.to_string(),
-                items: vec![ReportItem::Bar {
+            .map(|(k, v)| {
+                let mut values: Vec<_> = v.coverage.clone();
+                while let Some(last) = values.pop() {
+                    if last != 0 {
+                        values.push(0);
+                        break;
+                    }
+                }
+                let values: Vec<f32> = values.into_iter().skip(1).map(|c| c as f32).collect();
+                AnalysisSection {
                     id: format!("{id_prefix}-{k}"),
-                    name: gb.get_fname(),
-                    x_label: "taxa".to_string(),
-                    y_label: format!("#{}s", k),
-                    labels: (0..v.coverage.len()).map(|s| s.to_string()).collect(),
-                    values: v.coverage.iter().map(|c| *c as f64).collect(),
-                    log_toggle: true,
-                }],
+                    analysis: "Coverage Line".to_string(),
+                    table: Some(table.clone()),
+                    run_name: self.get_run_name(),
+                    countable: k.to_string(),
+                    items: vec![ReportItem::Line {
+                        id: format!("{id_prefix}-{k}"),
+                        name: gb.get_fname(),
+                        x_label: "Allele count".to_string(),
+                        y_label: format!("#{}s", k),
+                        x_values: (1..=values.len()).map(|s| s as f32).collect(),
+                        y_values: values,
+                        log_x: true,
+                        log_y: true,
+                    }],
+                }
             })
             .collect::<Vec<_>>();
-        Ok(histogram_tabs)
+        Ok(coverage_line_tabs)
     }
 
-    fn get_graph_requirements(&self) -> HashSet<super::InputRequirement> {
-        if let AnalysisParameter::Hist { count_type, .. } = &self.parameter {
+    fn get_graph_requirements(&self) -> std::collections::HashSet<super::InputRequirement> {
+        if let AnalysisParameter::CoverageLine { count_type, .. } = &self.parameter {
             let mut req = HashSet::from([InputRequirement::Hist]);
             req.extend(Self::count_to_input_req(*count_type));
             req
@@ -98,13 +115,13 @@ impl Analysis for Hist {
     }
 }
 
-impl ConstructibleAnalysis for Hist {
+impl ConstructibleAnalysis for CoverageLine {
     fn from_parameter(parameter: AnalysisParameter) -> Self {
         Self { parameter }
     }
 }
 
-impl Hist {
+impl CoverageLine {
     fn count_to_input_req(count: CountType) -> HashSet<InputRequirement> {
         match count {
             CountType::Bp => HashSet::from([InputRequirement::Bp]),
@@ -120,29 +137,27 @@ impl Hist {
 
     fn get_run_name(&self) -> String {
         match &self.parameter {
-            AnalysisParameter::Hist {
-                name,
+            AnalysisParameter::CoverageLine {
                 graph,
-                subset,
-                exclude,
+                reference,
                 grouping,
+                name,
                 ..
             } => {
                 if name.is_some() {
                     return name.as_ref().unwrap().to_string();
                 }
                 format!(
-                    "{}-{}|{}\\{}",
+                    "{}-{}|{}",
                     graph,
                     match grouping.clone() {
                         Some(g) => g.to_string(),
                         None => "Ungrouped".to_string(),
                     },
-                    subset.clone().unwrap_or_default(),
-                    exclude.clone().unwrap_or_default()
+                    reference.clone().replace(['#', '\\', '/', '^', '"'], "_")
                 )
             }
-            _ => panic!("Hist analysis needs to contain hist parameter"),
+            _ => panic!("CoverageLine analysis needs to contain hist parameter"),
         }
     }
 }

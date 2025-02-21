@@ -100,6 +100,8 @@ pub const TABLE_HBS: &[u8] = include_bytes!("../hbs/table.hbs");
 pub const HEATMAP_HBS: &[u8] = include_bytes!("../hbs/heatmap.hbs");
 pub const ANALYSIS_TAB_HBS: &[u8] = include_bytes!("../hbs/analysis_tab.hbs");
 pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs");
+pub const HEXBIN_HBS: &[u8] = include_bytes!("../hbs/hexbin.hbs");
+pub const LINE_HBS: &[u8] = include_bytes!("../hbs/line.hbs");
 
 fn get_js_objects_string(objects: JsVars) -> String {
     let mut res = String::from("{");
@@ -333,6 +335,16 @@ pub enum ReportItem {
         y_labels: Vec<String>,
         values: Vec<Vec<f32>>,
     },
+    Line {
+        id: String,
+        name: String,
+        x_label: String,
+        y_label: String,
+        x_values: Vec<f32>,
+        y_values: Vec<f32>,
+        log_x: bool,
+        log_y: bool,
+    },
 }
 
 impl ReportItem {
@@ -343,6 +355,7 @@ impl ReportItem {
             Self::Table { id, .. } => id.to_string(),
             Self::Heatmap { id, .. } => id.to_string(),
             Self::Hexbin { id, .. } => id.to_string(),
+            Self::Line { id, .. } => id.to_string(),
         }
     }
 
@@ -353,6 +366,7 @@ impl ReportItem {
             Self::Table { .. } => "Table".to_string(),
             Self::Heatmap { name, .. } => name.to_string(),
             Self::Hexbin { .. } => "Hexbin".to_string(),
+            Self::Line { name, .. } => name.to_string(),
         }
     }
 
@@ -470,7 +484,7 @@ impl ReportItem {
                 radius,
             } => {
                 if !registry.has_template("hexbin") {
-                    registry.register_template_file("hexbin", "./hbs/hexbin.hbs")?;
+                    registry.register_template_string("hexbin", from_utf8(HEXBIN_HBS).unwrap())?;
                 }
                 let mut js_object = format!(
                     "new Hexbin('{}', [{}, {}], [{}, {}], {}, [",
@@ -486,6 +500,34 @@ impl ReportItem {
                 let data = HashMap::from([("id".to_string(), to_json(&id))]);
                 Ok((
                     registry.render("hexbin", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
+                ))
+            }
+            Self::Line {
+                id,
+                name,
+                x_values,
+                y_values,
+                log_x,
+                log_y,
+                x_label,
+                y_label,
+            } => {
+                if !registry.has_template("line") {
+                    registry.register_template_string("line", from_utf8(LINE_HBS).unwrap())?;
+                }
+
+                let js_object = format!(
+                    "new Line('{}', '{}', '{}', '{}', {}, {}, {:?}, {:?})",
+                    id, name, x_label, y_label, log_x, log_y, x_values, y_values
+                );
+
+                let data = HashMap::from([("id".to_string(), to_json(&id))]);
+                Ok((
+                    registry.render("line", &data)?,
                     HashMap::from([(
                         "datasets".to_string(),
                         HashMap::from([(id.clone(), js_object)]),

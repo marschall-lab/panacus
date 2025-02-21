@@ -218,6 +218,28 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                 reqs.extend(hist.get_graph_requirements());
                 tasks.push(Task::Analysis(Box::new(hist)));
             }
+            c @ AnalysisParameter::CoverageLine { .. } => {
+                if let AnalysisParameter::CoverageLine {
+                    reference,
+                    grouping,
+                    ..
+                } = &c
+                {
+                    let exclude = reference.clone();
+                    let grouping = grouping.to_owned();
+                    if exclude != current_exclude {
+                        tasks.push(Task::ExcludeChange(exclude.clone()));
+                        current_exclude = exclude;
+                    }
+                    if grouping != current_grouping {
+                        tasks.push(Task::GroupingChange(grouping.clone()));
+                        current_grouping = grouping;
+                    }
+                }
+                let coverage_line = analyses::coverage_line::CoverageLine::from_parameter(c);
+                reqs.extend(coverage_line.get_graph_requirements());
+                tasks.push(Task::Analysis(Box::new(coverage_line)));
+            }
             o @ AnalysisParameter::OrderedGrowth { .. } => {
                 if let AnalysisParameter::OrderedGrowth {
                     subset,
@@ -462,6 +484,53 @@ fn preprocess_instructions(
                     subset,
                     exclude,
                     grouping,
+                }
+            }
+            AnalysisParameter::CoverageLine {
+                graph,
+                display,
+                reference,
+                grouping,
+                count_type,
+                name,
+            } => {
+                if !graphs.contains_key(&graph[..]) {
+                    if !new_instructions
+                        .iter()
+                        .map(|i| match i {
+                            AnalysisParameter::Graph { file, .. } if file.to_owned() == graph => {
+                                true
+                            }
+                            _ => false,
+                        })
+                        .reduce(|acc, f| acc || f)
+                        .unwrap_or(false)
+                    {
+                        counter += 1;
+                        let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                        new_instructions.insert(AnalysisParameter::Graph {
+                            name: new_name.clone(),
+                            file: graph.clone(),
+                            nice: false,
+                        });
+                    }
+                    let new_name = format!("PANACUS_INTERNAL_GRAPH_{}", counter);
+                    return AnalysisParameter::CoverageLine {
+                        count_type,
+                        graph: new_name,
+                        display,
+                        reference,
+                        grouping,
+                        name,
+                    };
+                }
+                AnalysisParameter::CoverageLine {
+                    count_type,
+                    graph,
+                    display,
+                    reference,
+                    grouping,
+                    name,
                 }
             }
             AnalysisParameter::NodeDistribution { graph, radius } => {
@@ -769,6 +838,9 @@ fn sort_instructions(instructions: Vec<AnalysisParameter>) -> Vec<AnalysisParame
             }
             ref s @ AnalysisParameter::Similarity { ref graph, .. } => {
                 insert_after_graph(s.clone(), graph, &mut current_instructions);
+            }
+            ref c @ AnalysisParameter::CoverageLine { ref graph, .. } => {
+                insert_after_graph(c.clone(), graph, &mut current_instructions);
             }
             o => current_instructions.insert(0, o),
         }
