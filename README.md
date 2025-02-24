@@ -131,4 +131,4 @@ panacus-visualize -e output.tsv > output.pdf
 Examples can be found in the [examples directory](/examples/).
 
 ## Citation
-Parmigiani, L., Garrison, E., Stoye, J., Marschall, T. & Doerr, D. Panacus: fast and exact pangenome growth and core size estimation. Bionformatics, https://doi.org/10.1093/bioinformatics/btae720 (2024).
+Parmigiani, L., Garrison, E., Stoye, J., Marschall, T. & Doerr, D. Panacus: fast and exact pangenome growth and core size estimation. Bioinformatics, https://doi.org/10.1093/bioinformatics/btae720 (2024).
