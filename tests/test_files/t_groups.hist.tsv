@@ -1,0 +1,10 @@
+# target/debug/panacus hist ../simple_files/simple_graphs/t_groups.gfa
+panacus	hist
+count	node
+0	5
+1	0
+2	10
+3	0
+4	0
+5	0
+6	0
