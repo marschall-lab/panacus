@@ -8,8 +8,7 @@ use crate::{
     io::write_metadata_comments, util::CountType,
 };
 use core::panic;
-use std::collections::HashSet;
-use std::iter::FromIterator;
+use std::collections::{HashMap, HashSet};
 use std::usize;
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
@@ -117,53 +116,37 @@ impl Similarity {
 
     fn set_table(&mut self, gb: Option<&crate::graph_broker::GraphBroker>) {
         let gb = gb.as_ref().unwrap();
-        let c = &gb.get_abacus_by_group().r;
-        let r = &gb.get_abacus_by_group().c;
-        let tuples: Vec<(_, _)> = c.iter().map(|x| *x as usize).tuple_windows().collect();
+        let r = &gb.get_abacus_by_group().r;
+        let c = &gb.get_abacus_by_group().c;
         let mut labels = gb.get_abacus_by_group().groups.clone();
-        let sets: Vec<HashSet<_>> = tuples
-            .iter()
-            .map(|tuple| {
-                let set = HashSet::from_iter(r[tuple.0..tuple.1].iter().cloned());
-                set
-            })
-            .collect();
-        log::info!("Finished building sets");
-        let mut table: Vec<(usize, Vec<f32>)> = (0..(sets.len() - 1))
-            .into_par_iter()
-            .map(|i| {
-                let mut row = vec![0.0; tuples.len()];
-                row[i] = 1.0;
-                for j in (i + 1)..sets.len() {
-                    let score = if self.count != CountType::Bp {
-                        sets[i].intersection(&sets[j]).count() as f32
-                            / sets[i].union(&sets[j]).count() as f32
-                    } else {
-                        sets[i]
-                            .intersection(&sets[j])
-                            .map(|el| gb.get_node_lens()[*el as usize] as f32)
-                            .sum::<f32>()
-                            / sets[i]
-                                .union(&sets[j])
-                                .map(|el| gb.get_node_lens()[*el as usize] as f32)
-                                .sum::<f32>()
-                    };
-                    let score = if score == -0.0 { 0.0 } else { score }; // Prevent -0 being
-                                                                         // displayed
-                    row[j] = score;
+
+        let tuples: Vec<(_, _)> = r.iter().map(|x| *x as usize).tuple_windows().collect();
+
+        let mut path_similarities: HashMap<u128, usize> = HashMap::new();
+        let mut path_lens: HashMap<u64, usize> = HashMap::new();
+        for (index, tuple) in tuples.iter().enumerate() {
+            for x in &c[tuple.0..tuple.1] {
+                if self.count == CountType::Bp {
+                    *path_lens.entry(*x).or_insert(0) += gb.get_node_lens()[index] as usize;
+                } else {
+                    *path_lens.entry(*x).or_insert(0) += 1;
                 }
-                log::debug!("{}/{}", i, tuples.len());
-                (i, row)
-            })
-            .collect();
-        table.sort_by_key(|el| el.0);
-        let mut table: Vec<Vec<f32>> = table.into_iter().map(|(_, row)| row).collect();
-        let mut last_row = vec![0.0; tuples.len() - 1];
-        last_row.push(1.0);
-        table.push(last_row);
-        for i in 0..(table.len() - 1) {
-            for j in (i + 1)..table.len() {
-                table[j][i] = table[i][j];
+                for y in &c[tuple.0..tuple.1] {
+                    if self.count == CountType::Bp {
+                        *path_similarities.entry((*x as u128) << 64 | *y as u128).or_insert(0) += gb.get_node_lens()[index] as usize;
+                    } else {
+                        *path_similarities.entry((*x as u128) << 64 | *y as u128).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        let group_count = gb.get_group_count();
+        let mut table: Vec<Vec<f32>> = vec![vec![0.0; group_count]; group_count];
+        for i in 0..group_count {
+            for j in 0..group_count {
+                let intersection = path_similarities[&((i as u128) << 64 | j as u128)];
+                table[i][j] =  intersection as f32 / (path_lens[&(i as u64)] + path_lens[&(j as u64)] - intersection) as f32;
             }
         }
 
