@@ -116,11 +116,13 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     let mut instructions = Vec::new();
     let mut shall_write_html = false;
     let mut dry_run = false;
+    let mut json = false;
     if let Some(report) = commands::report::get_instructions(&args) {
         shall_write_html = true;
         instructions.extend(report?);
         if let Some(report_matches) = args.subcommand_matches("report") {
             dry_run = report_matches.get_flag("dry_run");
+            json = report_matches.get_flag("json");
         }
     }
     if let Some(hist) = commands::hist::get_instructions(&args) {
@@ -153,7 +155,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
 
     // ride on!
     if !dry_run {
-        execute_pipeline(instructions, &mut out, shall_write_html)?;
+        execute_pipeline(instructions, &mut out, shall_write_html, json)?;
     } else {
         println!("{:#?}", instructions);
     }
@@ -955,6 +957,7 @@ pub fn execute_pipeline<W: Write>(
     mut instructions: Vec<Task>,
     out: &mut std::io::BufWriter<W>,
     shall_write_html: bool,
+    json: bool,
 ) -> anyhow::Result<()> {
     if instructions.is_empty() {
         log::warn!("No instructions supplied");
@@ -1028,7 +1031,10 @@ pub fn execute_pipeline<W: Write>(
             }
         }
     }
-    if shall_write_html {
+    if json {
+        let json_text = serde_json::to_string(&report)?;
+        writeln!(out, "{json_text}")?;
+    } else if shall_write_html {
         let mut registry = handlebars::Handlebars::new();
         let report =
             AnalysisSection::generate_report(report, &mut registry, "<Placeholder Filename>")?;

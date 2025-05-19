@@ -19,6 +19,15 @@ pub fn get_subcommand() -> Command {
             .help(
                 "If set, no actual computation is done, only the planned computation will be shown",
             )])
+        .args(&[Arg::new("json")
+                .required(false)
+                .long("json")
+                .short('j')
+                .action(ArgAction::SetTrue)
+                .help(
+                    "Instead of an HTML report, a json result will be delivered. These can later be combined and rendered as a single HTML.",
+                )
+        ])
 }
 
 pub fn get_instructions(
