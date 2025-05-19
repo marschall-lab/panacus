@@ -124,29 +124,41 @@ impl Similarity {
 
         let mut path_similarities: HashMap<u128, usize> = HashMap::new();
         let mut path_lens: HashMap<u64, usize> = HashMap::new();
+        let node_lens = gb.get_node_lens();
         for (index, tuple) in tuples.iter().enumerate() {
+            let node_length = node_lens[index] as usize;
             for x in &c[tuple.0..tuple.1] {
                 if self.count == CountType::Bp {
-                    *path_lens.entry(*x).or_insert(0) += gb.get_node_lens()[index] as usize;
+                    *path_lens.entry(*x).or_insert(0) += node_length;
                 } else {
                     *path_lens.entry(*x).or_insert(0) += 1;
                 }
                 for y in &c[tuple.0..tuple.1] {
                     if self.count == CountType::Bp {
-                        *path_similarities.entry((*x as u128) << 64 | *y as u128).or_insert(0) += gb.get_node_lens()[index] as usize;
+                        *path_similarities
+                            .entry((*x as u128) << 64 | *y as u128)
+                            .or_insert(0) += node_length;
                     } else {
-                        *path_similarities.entry((*x as u128) << 64 | *y as u128).or_insert(0) += 1;
+                        *path_similarities
+                            .entry((*x as u128) << 64 | *y as u128)
+                            .or_insert(0) += 1;
                     }
                 }
             }
         }
 
+        eprintln!("path_lens: {:?}", path_lens);
+
         let group_count = gb.get_group_count();
         let mut table: Vec<Vec<f32>> = vec![vec![0.0; group_count]; group_count];
         for i in 0..group_count {
             for j in 0..group_count {
-                let intersection = path_similarities[&((i as u128) << 64 | j as u128)];
-                table[i][j] =  intersection as f32 / (path_lens[&(i as u64)] + path_lens[&(j as u64)] - intersection) as f32;
+                let intersection = path_similarities
+                    .get(&((i as u128) << 64 | j as u128))
+                    .copied()
+                    .unwrap_or_default();
+                table[i][j] = intersection as f32
+                    / (path_lens[&(i as u64)] + path_lens[&(j as u64)] - intersection) as f32;
             }
         }
 

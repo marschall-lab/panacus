@@ -178,7 +178,6 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
     let mut current_subset = None;
     let mut current_exclude = String::new();
     let mut current_grouping = None;
-    let mut current_abacus_csc = false;
     for instruction in instructions {
         match instruction {
             AnalysisParameter::Graph { nice, file, .. } => {
@@ -283,10 +282,6 @@ fn get_tasks(instructions: Vec<AnalysisParameter>) -> anyhow::Result<Vec<Task>> 
                     ..
                 } = &s
                 {
-                    if !current_abacus_csc {
-                        current_abacus_csc = true;
-                        tasks.push(Task::AbacusByGroupCSCChange);
-                    }
                     let subset = subset.to_owned();
                     let exclude = exclude.clone().unwrap_or_default();
                     let grouping = grouping.to_owned();
@@ -928,7 +923,6 @@ pub enum Task {
     ExcludeChange(String),
     GroupingChange(Option<Grouping>),
     OrderChange(Option<String>),
-    AbacusByGroupCSCChange,
 }
 
 impl Debug for Task {
@@ -943,7 +937,6 @@ impl Debug for Task {
             Self::OrderChange(order) => f.debug_tuple("OrderChange").field(&order).finish(),
             Self::SubsetChange(subset) => f.debug_tuple("SubsetChange").field(&subset).finish(),
             Self::ExcludeChange(exclude) => f.debug_tuple("ExcludeChange").field(&exclude).finish(),
-            Self::AbacusByGroupCSCChange => f.debug_tuple("AbacusByGroupCSCChange").finish(),
             Self::GroupingChange(grouping) => {
                 f.debug_tuple("GroupingChange").field(&grouping).finish()
             }
@@ -994,16 +987,6 @@ pub fn execute_pipeline<W: Write>(
                 gb = Some(
                     gb.expect("SubsetChange after Graph")
                         .include_coords(subset.as_ref().expect("Subset exists")),
-                );
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
-            }
-            Task::AbacusByGroupCSCChange => {
-                log::info!("Executing AbacusByGroup CSC change");
-                gb = Some(
-                    gb.expect("AbacusByGroupCSCChange after Graph")
-                        .with_csc_abacus(),
                 );
                 if is_next_analysis {
                     gb = Some(gb.expect("GraphBroker is some").finish()?);
