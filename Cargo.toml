@@ -32,6 +32,7 @@ serde_yaml = "0.9.21"
 serde = { version = "1.0", features = ["derive"] }
 memchr = "2.6.2"
 kodama = "0.3.0"
+serde_json = "1.0.140"
 
 [dev-dependencies]
 tempfile = "3.13"

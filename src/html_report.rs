@@ -5,6 +5,7 @@ use base64::{engine::general_purpose, Engine};
 use handlebars::{to_json, Handlebars, RenderError};
 
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use time::{macros::format_description, OffsetDateTime};
 
 use crate::util::to_id;
@@ -21,6 +22,7 @@ fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
     a
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AnalysisSection {
     pub analysis: String,
     pub run_name: String,
@@ -297,6 +299,7 @@ impl AnalysisSection {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ReportItem {
     Bar {
         id: String,
@@ -538,7 +541,7 @@ impl ReportItem {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bin {
     pub length: f64,
     pub x: f64,

@@ -139,7 +139,14 @@ impl Analysis for Growth {
                     x_label: "taxa".to_string(),
                     y_label: format!("#{}s", k),
                     labels: (1..v[0].len()).map(|i| i.to_string()).collect(),
-                    values: v.clone(),
+                    values: v
+                        .iter()
+                        .map(|row| {
+                            row.iter()
+                                .map(|el| if el.is_nan() { 0.0 } else { *el })
+                                .collect()
+                        })
+                        .collect(),
                     log_toggle: false,
                 }],
             })
