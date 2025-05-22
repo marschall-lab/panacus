@@ -17,3 +17,4 @@ etc/package.json
 **/*.yaml
 /*.svg
 /*.data
+/*.json

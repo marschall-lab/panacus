@@ -22,7 +22,7 @@ fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
     a
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AnalysisSection {
     pub analysis: String,
     pub run_name: String,
@@ -299,7 +299,7 @@ impl AnalysisSection {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ReportItem {
     Bar {
         id: String,

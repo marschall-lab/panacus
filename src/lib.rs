@@ -22,6 +22,13 @@ use clap::{Arg, ArgAction, ArgMatches, Command};
 use graph_broker::GraphBroker;
 use html_report::AnalysisSection;
 
+use serde::Deserialize;
+
+use std::error::Error;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
+
 #[macro_export]
 macro_rules! clap_enum_variants {
     // Credit: Johan Andersson (https://github.com/repi)
@@ -80,6 +87,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     // read parameters and store them in memory
     // let params = cli::read_params();
     let args = Command::new("panacus")
+        .subcommand(commands::render::get_subcommand())
         .subcommand(commands::report::get_subcommand())
         .subcommand(commands::hist::get_subcommand())
         .subcommand(commands::growth::get_subcommand())
@@ -117,6 +125,29 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
     let mut shall_write_html = false;
     let mut dry_run = false;
     let mut json = false;
+
+    if let Some(args) = args.subcommand_matches("render") {
+        let json_files: Vec<String> = args
+            .get_many::<String>("json_files")
+            .unwrap()
+            .cloned()
+            .collect();
+        let mut full_report = Vec::new();
+        for file_path in &json_files {
+            let file = File::open(file_path)?;
+            let reader = BufReader::new(file);
+
+            // Read the JSON contents of the file as an instance of `User`.
+            let report: Vec<AnalysisSection> = serde_json::from_reader(reader)?;
+            full_report.extend(report);
+        }
+        let mut registry = handlebars::Handlebars::new();
+        let report_text =
+            AnalysisSection::generate_report(full_report, &mut registry, &json_files[0])?;
+        writeln!(&mut out, "{report_text}")?;
+        return Ok(());
+    }
+
     if let Some(report) = commands::report::get_instructions(&args) {
         shall_write_html = true;
         instructions.extend(report?);
@@ -1032,7 +1063,7 @@ pub fn execute_pipeline<W: Write>(
         }
     }
     if json {
-        let json_text = serde_json::to_string(&report)?;
+        let json_text = serde_json::to_string_pretty(&report)?;
         writeln!(out, "{json_text}")?;
     } else if shall_write_html {
         let mut registry = handlebars::Handlebars::new();
