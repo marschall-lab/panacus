@@ -46,10 +46,6 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
         let parameters = vec![AnalysisParameter::Table {
             count_type: count,
             total,
-            graph,
-            subset,
-            exclude,
-            grouping,
             order,
         }];
         log::info!("{parameters:?}");

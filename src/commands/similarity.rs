@@ -48,9 +48,6 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
         let parameters = vec![AnalysisParameter::Similarity {
             count_type: count,
             graph,
-            subset,
-            exclude,
-            grouping,
             cluster_method,
         }];
         log::info!("{parameters:?}");

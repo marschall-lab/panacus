@@ -119,30 +119,6 @@ impl Hist {
     }
 
     fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::Hist {
-                name,
-                graph,
-                subset,
-                exclude,
-                grouping,
-                ..
-            } => {
-                if name.is_some() {
-                    return name.as_ref().unwrap().to_string();
-                }
-                format!(
-                    "{}-{}|{}\\{}",
-                    graph,
-                    match grouping.clone() {
-                        Some(g) => g.to_string(),
-                        None => "Ungrouped".to_string(),
-                    },
-                    subset.clone().unwrap_or_default(),
-                    exclude.clone().unwrap_or_default()
-                )
-            }
-            _ => panic!("Hist analysis needs to contain hist parameter"),
-        }
+        "default-hist-name".to_string()
     }
 }

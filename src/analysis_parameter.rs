@@ -1,116 +1,150 @@
+use std::collections::HashSet;
 use std::fmt;
+use std::fmt::Debug;
 use std::fmt::Display;
 use strum_macros::{EnumIter, EnumString, EnumVariantNames};
 
 use serde::{Deserialize, Serialize};
 
-use crate::util::CountType;
+use crate::analyses::ConstructibleAnalysis;
+use crate::analyses::{
+    coverage_line::CoverageLine, growth::Growth, info::Info, node_distribution::NodeDistribution,
+    ordered_histgrowth::OrderedHistgrowth, similarity::Similarity,
+};
+use crate::Analysis;
+use crate::{
+    analyses::{hist::Hist, InputRequirement},
+    util::CountType,
+};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
+macro_rules! get_analysis_task {
+    ($t:ty, $v:expr) => {{
+        let a = <$t>::from_parameter($v);
+        let reqs = a.get_graph_requirements();
+        (Task::Analysis(Box::new(a)), reqs)
+    }};
+}
+
+pub enum Task {
+    Analysis(Box<dyn Analysis>),
+    GraphChange(HashSet<InputRequirement>, bool),
+    SubsetChange(Option<String>),
+    ExcludeChange(String),
+    GroupingChange(Option<Grouping>),
+    OrderChange(Option<String>),
+    AbacusByGroupCSCChange,
+}
+
+impl Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Analysis(analysis) => write!(f, "Analysis {}", analysis.get_type()),
+            Self::GraphChange(reqs, nice) => f
+                .debug_tuple("GraphChange")
+                .field(&reqs)
+                .field(nice)
+                .finish(),
+            Self::OrderChange(order) => f.debug_tuple("OrderChange").field(&order).finish(),
+            Self::SubsetChange(subset) => f.debug_tuple("SubsetChange").field(&subset).finish(),
+            Self::ExcludeChange(exclude) => f.debug_tuple("ExcludeChange").field(&exclude).finish(),
+            Self::AbacusByGroupCSCChange => f.debug_tuple("AbacusByGroupCSCChange").finish(),
+            Self::GroupingChange(grouping) => {
+                f.debug_tuple("GroupingChange").field(&grouping).finish()
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
+pub struct AnalysisRun {
+    graph: String,
+    subset: String,
+    exclude: String,
+    grouping: Option<Grouping>,
+    nice: bool,
+    analyses: Vec<AnalysisParameter>,
+}
+
+impl AnalysisRun {
+    pub fn convert_to_tasks(mut runs: Vec<Self>) -> Vec<Task> {
+        runs.sort();
+        let mut tasks = Vec::new();
+        for i in 0..runs.len() {
+            if i == 0 {
+                let (current_tasks, mut input_req) = runs[i].to_tasks();
+                input_req.insert(InputRequirement::Graph(std::mem::take(&mut runs[i].graph)));
+                tasks.push(Task::GraphChange(input_req, runs[i].nice));
+                tasks.push(Task::SubsetChange(Some(std::mem::take(
+                    &mut runs[i].subset,
+                ))));
+                tasks.push(Task::ExcludeChange(std::mem::take(&mut runs[i].exclude)));
+                tasks.push(Task::GroupingChange(std::mem::take(&mut runs[i].grouping)));
+            } else {
+                unimplemented!("Haven't yet implemented multiple runs");
+            }
+        }
+        tasks
+    }
+
+    pub fn to_tasks(&mut self) -> (Vec<Task>, HashSet<InputRequirement>) {
+        let mut analyses = std::mem::take(&mut self.analyses);
+        analyses.sort();
+        let (tasks, requirements): (Vec<Task>, Vec<HashSet<InputRequirement>>) =
+            analyses.into_iter().map(|a| a.into_task()).unzip();
+        let requirements: HashSet<InputRequirement> =
+            requirements
+                .into_iter()
+                .fold(HashSet::new(), |mut acc, el| {
+                    acc.extend(el);
+                    acc
+                });
+        (tasks, requirements)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
 pub enum AnalysisParameter {
     Hist {
-        name: Option<String>,
-
         #[serde(default)]
         count_type: CountType,
-        graph: String,
-
-        #[serde(default = "get_true")]
-        display: bool,
-
-        subset: Option<String>,
-        exclude: Option<String>,
-        grouping: Option<Grouping>,
     },
     Growth {
-        name: Option<String>,
-
         coverage: Option<String>,
         quorum: Option<String>,
-
-        hist: String,
-
-        #[serde(default = "get_true")]
-        display: bool,
-
         #[serde(default)]
         add_hist: bool,
-    },
-    Subset {
-        name: String,
-        file: String,
-    },
-    Graph {
-        name: String,
-        file: String,
-        #[serde(default)]
-        nice: bool,
     },
     Table {
         #[serde(default)]
         count_type: CountType,
-        graph: String,
 
-        subset: Option<String>,
-        exclude: Option<String>,
-        grouping: Option<Grouping>,
         total: bool,
         order: Option<String>,
     },
     NodeDistribution {
-        graph: String,
         #[serde(default = "get_radius")]
         radius: u32,
+    },
+    Info,
+    OrderedGrowth {
+        coverage: Option<String>,
+        quorum: Option<String>,
+        order: Option<String>,
+
+        #[serde(default)]
+        count_type: CountType,
+    },
+    CoverageLine {
+        #[serde(default)]
+        count_type: CountType,
+        reference: String,
     },
     Similarity {
         #[serde(default)]
         count_type: CountType,
         graph: String,
-
-        subset: Option<String>,
-        exclude: Option<String>,
-        grouping: Option<Grouping>,
-
         #[serde(default)]
         cluster_method: ClusterMethod,
-    },
-    Info {
-        graph: String,
-        subset: Option<String>,
-        exclude: Option<String>,
-        grouping: Option<Grouping>,
-    },
-    OrderedGrowth {
-        name: Option<String>,
-
-        coverage: Option<String>,
-        quorum: Option<String>,
-
-        order: Option<String>,
-
-        #[serde(default)]
-        count_type: CountType,
-        graph: String,
-
-        #[serde(default = "get_true")]
-        display: bool,
-
-        subset: Option<String>,
-        exclude: Option<String>,
-        grouping: Option<Grouping>,
-    },
-    CoverageLine {
-        name: Option<String>,
-
-        #[serde(default)]
-        count_type: CountType,
-        graph: String,
-
-        #[serde(default = "get_true")]
-        display: bool,
-
-        reference: String,
-        grouping: Option<Grouping>,
     },
 }
 
@@ -131,152 +165,35 @@ impl Display for Grouping {
     }
 }
 
-fn get_true() -> bool {
-    true
-}
-
 fn get_radius() -> u32 {
     20
 }
 
 impl AnalysisParameter {
-    fn compare_hists(&self, other: &Self) -> std::cmp::Ordering {
+    pub fn into_task(self) -> (Task, HashSet<InputRequirement>) {
         match self {
-            AnalysisParameter::Hist {
-                name,
-                count_type,
-                graph,
-                display,
-                subset,
-                exclude,
-                grouping,
-            } => match other {
-                AnalysisParameter::Hist {
-                    name: o_name,
-                    count_type: o_count_type,
-                    graph: o_graph,
-                    display: o_display,
-                    subset: o_subset,
-                    exclude: o_exclude,
-                    grouping: o_grouping,
-                } => {
-                    if graph != o_graph {
-                        return graph.cmp(o_graph);
-                    } else if subset != o_subset {
-                        return subset.cmp(o_subset);
-                    } else if exclude != o_exclude {
-                        return exclude.cmp(o_exclude);
-                    } else if grouping != o_grouping {
-                        return grouping.cmp(o_grouping);
-                    } else if count_type != o_count_type {
-                        return count_type.cmp(o_count_type);
-                    } else if name != o_name {
-                        return name.cmp(o_name);
-                    } else if display != o_display {
-                        return display.cmp(o_display);
-                    } else {
-                        return std::cmp::Ordering::Equal;
-                    }
-                }
-                _ => panic!("Method only defined for hists"),
-            },
-            _ => panic!("Method only defined for hists"),
-        }
-    }
-}
-
-impl PartialOrd for AnalysisParameter {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for AnalysisParameter {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self {
-            AnalysisParameter::Hist { .. } => match other {
-                o @ AnalysisParameter::Hist { .. } => self.compare_hists(o),
-                _ => std::cmp::Ordering::Greater,
-            },
-            AnalysisParameter::Graph { name, .. } => match other {
-                AnalysisParameter::Graph { name: o_name, .. } => name.cmp(o_name),
-                _ => std::cmp::Ordering::Less,
-            },
-            AnalysisParameter::Subset { name, .. } => match other {
-                AnalysisParameter::Subset { name: o_name, .. } => name.cmp(o_name),
-                AnalysisParameter::Graph { .. } => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Less,
-            },
-            //AnalysisParameter::Grouping { name, .. } => match other {
-            //    AnalysisParameter::Grouping { name: o_name, .. } => name.cmp(o_name),
-            //    AnalysisParameter::Graph { .. } | AnalysisParameter::Subset { .. } => {
-            //        std::cmp::Ordering::Greater
-            //    }
-            //    _ => std::cmp::Ordering::Less,
-            //},
-            AnalysisParameter::Info {
-                graph,
-                subset,
-                exclude,
-                grouping,
-            } => match other {
-                AnalysisParameter::Info { graph: o_graph, subset: o_subset, exclude: o_exclude, grouping: o_grouping } => {
-                    graph.cmp(o_graph).then(subset.cmp(o_subset)).then(exclude.cmp(o_exclude)).then(grouping.cmp(o_grouping))
-                },
-                AnalysisParameter::Graph { .. }
-                //| AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Subset { .. } => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Less,
-            },
-            AnalysisParameter::Table { .. } => match other {
-                AnalysisParameter::Table { .. } => std::cmp::Ordering::Equal,
-                AnalysisParameter::Graph { .. }
-                | AnalysisParameter::Subset { .. }
-                //| AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Less,
-            },
-            AnalysisParameter::NodeDistribution { .. } => match other {
-                AnalysisParameter::NodeDistribution { .. } => std::cmp::Ordering::Equal,
-                AnalysisParameter::Graph { .. }
-                | AnalysisParameter::Subset { .. }
-                //| AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Less,
-            },
-            AnalysisParameter::Similarity { .. } => match other {
-                AnalysisParameter::Similarity { .. } => std::cmp::Ordering::Equal,
-                AnalysisParameter::Graph { .. }
-                | AnalysisParameter::Subset { .. }
-                //| AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
-                | AnalysisParameter::OrderedGrowth { .. } => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Less,
-            },
-            AnalysisParameter::OrderedGrowth { name, .. } => match other {
-                AnalysisParameter::OrderedGrowth { name: o_name, .. } => name.cmp(o_name),
-                AnalysisParameter::Graph { .. }
-                | AnalysisParameter::Subset { .. }
-                //| AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info { .. }
-                | AnalysisParameter::Table { .. } => std::cmp::Ordering::Greater,
-                | AnalysisParameter::Similarity { .. } => std::cmp::Ordering::Less,
-                _ => std::cmp::Ordering::Less,
-            },
-            AnalysisParameter::Growth { hist, .. } => match other {
-                AnalysisParameter::Growth { hist: o_hist, .. } => hist.cmp(o_hist),
-                AnalysisParameter::Hist { .. } => std::cmp::Ordering::Less,
-                _ => std::cmp::Ordering::Greater,
-            },
-            AnalysisParameter::CoverageLine { .. } => match other {
-                AnalysisParameter::CoverageLine { .. } => std::cmp::Ordering::Equal,
-                AnalysisParameter::Graph { .. }
-                | AnalysisParameter::Subset { .. }
-                //| AnalysisParameter::Grouping { .. }
-                | AnalysisParameter::Info { .. } => std::cmp::Ordering::Greater,
-                | AnalysisParameter::OrderedGrowth { .. } => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Less,
-            },
+            h @ Self::Hist { .. } => {
+                get_analysis_task!(Hist, h)
+            }
+            g @ Self::Growth { .. } => {
+                get_analysis_task!(Growth, g)
+            }
+            n @ Self::NodeDistribution { .. } => {
+                get_analysis_task!(NodeDistribution, n)
+            }
+            i @ Self::Info => {
+                get_analysis_task!(Info, i)
+            }
+            o @ Self::OrderedGrowth { .. } => {
+                get_analysis_task!(OrderedHistgrowth, o)
+            }
+            c @ Self::CoverageLine { .. } => {
+                get_analysis_task!(CoverageLine, c)
+            }
+            s @ Self::Similarity { .. } => {
+                get_analysis_task!(Similarity, s)
+            }
+            _ => unimplemented!("Not yet done other analyses"),
         }
     }
 }

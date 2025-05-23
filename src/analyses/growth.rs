@@ -168,15 +168,7 @@ impl Analysis for Growth {
     // }
 
     fn get_graph_requirements(&self) -> HashSet<super::InputRequirement> {
-        if let AnalysisParameter::Growth { hist, .. } = &self.parameter {
-            if Path::new(&hist).exists() {
-                HashSet::new()
-            } else {
-                HashSet::from([InputRequirement::Hist])
-            }
-        } else {
-            panic!("Growth should always contain growth parameter")
-        }
+        HashSet::from([InputRequirement::Hist])
     }
 }
 
@@ -191,15 +183,7 @@ impl ConstructibleAnalysis for Growth {
 
 impl Growth {
     fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::Growth { name, hist, .. } => {
-                if name.is_some() {
-                    return name.as_ref().unwrap().to_string();
-                }
-                format!("for hist {}", hist)
-            }
-            _ => panic!("Hist analysis needs to contain hist parameter"),
-        }
+        "default-growth-name".to_string()
     }
 
     fn set_inner(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<()> {
@@ -207,10 +191,7 @@ impl Growth {
             return Ok(());
         }
         if let AnalysisParameter::Growth {
-            coverage,
-            quorum,
-            hist,
-            ..
+            coverage, quorum, ..
         } = &self.parameter
         {
             let quorum = quorum.to_owned().unwrap_or("0".to_string());
@@ -218,24 +199,7 @@ impl Growth {
             let hist_aux = ThresholdContainer::parse_params(&quorum, &coverage)?;
 
             if gb.is_none() {
-                let hist_file = hist;
-                log::info!("loading coverage histogram from {}", hist_file);
-                let mut data = BufReader::new(fs::File::open(&hist_file)?);
-                let (coverages, comments) = parse_hists(&mut data)?;
-                let hists: Hists = coverages
-                    .into_iter()
-                    .map(|(count, coverage)| Hist { count, coverage })
-                    .collect();
-                let growths: Growths = hists
-                    .par_iter()
-                    .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
-                    .collect();
-                self.inner = Some(InnerGrowth {
-                    growths,
-                    comments,
-                    hist_aux,
-                    hists: Some(hists),
-                });
+                unimplemented!("Have not implemented growth without graph");
             } else {
                 let gb = gb.unwrap();
                 let growths: Growths = gb

@@ -40,15 +40,7 @@ pub fn get_instructions(
         } else {
             grouping.map(|g| Grouping::Custom(g))
         };
-        Some(Ok(vec![AnalysisParameter::Hist {
-            name: None,
-            count_type: count,
-            graph,
-            display: true,
-            subset,
-            exclude,
-            grouping,
-        }]))
+        Some(Ok(vec![AnalysisParameter::Hist { count_type: count }]))
     } else {
         None
     }

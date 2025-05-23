@@ -122,11 +122,6 @@ impl NodeDistribution {
     }
 
     fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::NodeDistribution { graph, radius } => {
-                format!("{}-{}", graph, radius)
-            }
-            _ => panic!("Counts analysis needs to contain counts parameter"),
-        }
+        "default-node-distribution-name".to_string()
     }
 }

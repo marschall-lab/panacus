@@ -33,12 +33,7 @@ pub fn get_instructions(
         } else {
             grouping.map(|g| Grouping::Custom(g))
         };
-        Some(Ok(vec![AnalysisParameter::Info {
-            graph,
-            subset,
-            exclude,
-            grouping,
-        }]))
+        Some(Ok(vec![AnalysisParameter::Info {}]))
     } else {
         None
     }

@@ -12,7 +12,6 @@ use crate::{
 use super::ConstructibleAnalysis;
 
 pub struct Info {
-    graph: String,
     graph_info: Option<GraphInfo>,
     path_info: Option<PathInfo>,
     group_info: Option<GroupInfo>,
@@ -51,7 +50,7 @@ impl Analysis for Info {
 
         let table = self.generate_table(gb)?;
         let table = format!("`{}`", &table);
-        let graph = self.graph.clone();
+        let graph = "default-info-graph-name".to_string();
         Ok(vec![
             AnalysisSection {
                 id: format!("info-{graph}-graph"),
@@ -117,10 +116,6 @@ impl Analysis for Info {
 impl ConstructibleAnalysis for Info {
     fn from_parameter(parameter: AnalysisParameter) -> Self {
         Self {
-            graph: match parameter {
-                AnalysisParameter::Info { graph, .. } => graph,
-                _ => panic!("Cannot construct Info Analysis from another parameter"),
-            },
             graph_info: None,
             path_info: None,
             group_info: None,

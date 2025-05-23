@@ -24,11 +24,8 @@ pub fn get_instructions(
         let quorum = args.get_one::<String>("quorum").cloned();
         let add_hist = args.get_flag("hist");
         Some(Ok(vec![AnalysisParameter::Growth {
-            name: None,
-            hist,
             coverage,
             quorum,
-            display: true,
             add_hist,
         }]))
     } else {

@@ -136,28 +136,6 @@ impl CoverageLine {
     }
 
     fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::CoverageLine {
-                graph,
-                reference,
-                grouping,
-                name,
-                ..
-            } => {
-                if name.is_some() {
-                    return name.as_ref().unwrap().to_string();
-                }
-                format!(
-                    "{}-{}|{}",
-                    graph,
-                    match grouping.clone() {
-                        Some(g) => g.to_string(),
-                        None => "Ungrouped".to_string(),
-                    },
-                    reference.clone().replace(['#', '\\', '/', '^', '"'], "_")
-                )
-            }
-            _ => panic!("CoverageLine analysis needs to contain hist parameter"),
-        }
+        "default-coverage-line-name".to_string()
     }
 }

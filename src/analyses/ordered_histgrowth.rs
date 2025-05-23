@@ -157,21 +157,7 @@ impl OrderedHistgrowth {
     }
 
     fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::OrderedGrowth {
-                name, count_type, ..
-            } => {
-                if name.is_some() {
-                    return name.as_ref().unwrap().to_string();
-                }
-                format!(
-                    "{}|{}",
-                    Self::truncate(&self.inner.as_ref().unwrap().graph),
-                    count_type
-                )
-            }
-            _ => panic!("Hist analysis needs to contain hist parameter"),
-        }
+        "default-ordered-histgrowth-name".to_string()
     }
 
     fn set_inner(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<()> {

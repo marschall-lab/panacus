@@ -49,21 +49,10 @@ pub fn get_instructions(
         let coverage = args.get_one::<String>("coverage").cloned();
         let quorum = args.get_one::<String>("quorum").cloned();
         let parameters = vec![
-            AnalysisParameter::Hist {
-                name: Some("command-hist".to_string()),
-                count_type: count,
-                graph,
-                display: true,
-                subset,
-                exclude,
-                grouping,
-            },
+            AnalysisParameter::Hist { count_type: count },
             AnalysisParameter::Growth {
-                name: None,
-                hist: "command-hist".to_string(),
                 coverage,
                 quorum,
-                display: true,
                 add_hist,
             },
         ];

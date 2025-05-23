@@ -190,27 +190,7 @@ impl Similarity {
     }
 
     fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::Similarity {
-                graph,
-                subset,
-                exclude,
-                grouping,
-                ..
-            } => {
-                format!(
-                    "{}-{}|{}\\{}",
-                    graph,
-                    match grouping.clone() {
-                        Some(g) => g.to_string(),
-                        None => "Ungrouped".to_string(),
-                    },
-                    subset.clone().unwrap_or_default(),
-                    exclude.clone().unwrap_or_default()
-                )
-            }
-            _ => panic!("Similarity analysis needs to contain similarity parameter"),
-        }
+        "default-similarity-name".to_string()
     }
 }
 

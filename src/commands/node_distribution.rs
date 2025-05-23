@@ -28,10 +28,7 @@ pub fn get_instructions(
             .get_one::<u32>("radius")
             .expect("node-distribution has radius")
             .to_owned();
-        Some(Ok(vec![AnalysisParameter::NodeDistribution {
-            graph,
-            radius,
-        }]))
+        Some(Ok(vec![AnalysisParameter::NodeDistribution { radius }]))
     } else {
         None
     }
