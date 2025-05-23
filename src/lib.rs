@@ -83,7 +83,7 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
         .subcommand(commands::report::get_subcommand())
         .subcommand(commands::hist::get_subcommand())
         .subcommand(commands::growth::get_subcommand())
-        .subcommand(commands::histgrowth::get_subcommand())
+        // .subcommand(commands::histgrowth::get_subcommand())
         .subcommand(commands::info::get_subcommand())
         .subcommand(commands::ordered_histgrowth::get_subcommand())
         .subcommand(commands::table::get_subcommand())
@@ -148,30 +148,30 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
             json = report_matches.get_flag("json");
         }
     }
-    // if let Some(hist) = commands::hist::get_instructions(&args) {
-    //     instructions.extend(hist?);
-    // }
-    // if let Some(growth) = commands::growth::get_instructions(&args) {
-    //     instructions.extend(growth?);
-    // }
+    if let Some(hist) = commands::hist::get_instructions(&args) {
+        instructions.extend(hist?);
+    }
+    if let Some(growth) = commands::growth::get_instructions(&args) {
+        instructions.extend(growth?);
+    }
     // if let Some(histgrowth) = commands::histgrowth::get_instructions(&args) {
     //     instructions.extend(histgrowth?);
     // }
-    // if let Some(info) = commands::info::get_instructions(&args) {
-    //     instructions.extend(info?);
-    // }
-    // if let Some(ordered_histgrowth) = commands::ordered_histgrowth::get_instructions(&args) {
-    //     instructions.extend(ordered_histgrowth?);
-    // }
+    if let Some(info) = commands::info::get_instructions(&args) {
+        instructions.extend(info?);
+    }
+    if let Some(ordered_histgrowth) = commands::ordered_histgrowth::get_instructions(&args) {
+        instructions.extend(ordered_histgrowth?);
+    }
     // if let Some(table) = commands::table::get_instructions(&args) {
     //     instructions.extend(table?);
     // }
-    // if let Some(counts) = commands::node_distribution::get_instructions(&args) {
-    //     instructions.extend(counts?);
-    // }
-    // if let Some(similarity) = commands::similarity::get_instructions(&args) {
-    //     instructions.extend(similarity?);
-    // }
+    if let Some(counts) = commands::node_distribution::get_instructions(&args) {
+        instructions.extend(counts?);
+    }
+    if let Some(similarity) = commands::similarity::get_instructions(&args) {
+        instructions.extend(similarity?);
+    }
 
     let instructions: Vec<Task> = get_tasks(instructions)?;
     log::info!("{:?}", instructions);
@@ -239,7 +239,11 @@ pub fn execute_pipeline<W: Write>(
             }
             Task::OrderChange(order) => {
                 log::info!("Executing order change: {:?}", order);
-                unimplemented!("Order Change is not yet implemented");
+                if let Some(order) = order.as_ref() {
+                    gb.change_order(order)?;
+                } else {
+                    gb.change_order("")?;
+                }
             }
             Task::AbacusByGroupCSCChange => {
                 log::info!("Executing AbacusByGroup CSC change");

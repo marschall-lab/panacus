@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::analyses::ConstructibleAnalysis;
 use crate::analyses::{
     coverage_line::CoverageLine, growth::Growth, info::Info, node_distribution::NodeDistribution,
-    ordered_histgrowth::OrderedHistgrowth, similarity::Similarity,
+    ordered_histgrowth::OrderedHistgrowth, similarity::Similarity, table::Table,
 };
 use crate::Analysis;
 use crate::{
@@ -21,7 +21,9 @@ macro_rules! get_analysis_task {
     ($t:ty, $v:expr) => {{
         let a = <$t>::from_parameter($v);
         let reqs = a.get_graph_requirements();
-        (Task::Analysis(Box::new(a)), reqs)
+        let mut tasks = Vec::new();
+        tasks.push(Task::Analysis(Box::new(a)));
+        (tasks, reqs)
     }};
 }
 
@@ -51,7 +53,7 @@ impl Debug for Task {
                 exclude,
                 grouping,
             } => f
-                .debug_tuple("GraphChange")
+                .debug_tuple("GraphStateChange")
                 .field(graph)
                 .field(subset)
                 .field(exclude)
@@ -68,33 +70,71 @@ impl Debug for Task {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
 pub struct AnalysisRun {
     graph: String,
+    #[serde(default)]
     subset: String,
+    #[serde(default)]
     exclude: String,
     grouping: Option<Grouping>,
+    #[serde(default)]
     nice: bool,
     analyses: Vec<AnalysisParameter>,
 }
 
 impl AnalysisRun {
+    pub fn new(
+        graph: String,
+        subset: String,
+        exclude: String,
+        grouping: Option<Grouping>,
+        nice: bool,
+        analyses: Vec<AnalysisParameter>,
+    ) -> Self {
+        Self {
+            graph,
+            subset,
+            exclude,
+            grouping,
+            nice,
+            analyses,
+        }
+    }
+    pub fn get_example() -> Self {
+        Self {
+            graph: "../simple_files/pggb/chr18.gfa".to_string(),
+            subset: String::new(),
+            exclude: String::new(),
+            grouping: Some(Grouping::Haplotype),
+            nice: true,
+            analyses: vec![
+                AnalysisParameter::Hist {
+                    count_type: CountType::Bp,
+                },
+                AnalysisParameter::Growth {
+                    coverage: Some("1,1,2".to_string()),
+                    quorum: Some("0,0.9,0".to_string()),
+                    add_hist: false,
+                },
+                AnalysisParameter::Info,
+                AnalysisParameter::NodeDistribution { radius: 20 },
+            ],
+        }
+    }
+
     pub fn convert_to_tasks(mut runs: Vec<Self>) -> Vec<Task> {
         runs.sort();
         let mut tasks = Vec::new();
         for i in 0..runs.len() {
-            if i == 0 {
-                let (current_tasks, mut input_req) = runs[i].to_tasks();
-                input_req.insert(InputRequirement::Graph(std::mem::take(&mut runs[i].graph)));
-                tasks.push(Task::GraphStateChange {
-                    graph: std::mem::take(&mut runs[i].graph),
-                    reqs: input_req,
-                    nice: runs[i].nice,
-                    subset: std::mem::take(&mut runs[i].subset),
-                    exclude: std::mem::take(&mut runs[i].exclude),
-                    grouping: std::mem::take(&mut runs[i].grouping),
-                });
-                tasks.extend(current_tasks);
-            } else {
-                unimplemented!("Haven't yet implemented multiple runs");
-            }
+            let (current_tasks, mut input_req) = runs[i].to_tasks();
+            input_req.insert(InputRequirement::Graph(runs[i].graph.clone()));
+            tasks.push(Task::GraphStateChange {
+                graph: std::mem::take(&mut runs[i].graph),
+                reqs: input_req,
+                nice: runs[i].nice,
+                subset: std::mem::take(&mut runs[i].subset),
+                exclude: std::mem::take(&mut runs[i].exclude),
+                grouping: std::mem::take(&mut runs[i].grouping),
+            });
+            tasks.extend(current_tasks);
         }
         tasks
     }
@@ -102,8 +142,9 @@ impl AnalysisRun {
     pub fn to_tasks(&mut self) -> (Vec<Task>, HashSet<InputRequirement>) {
         let mut analyses = std::mem::take(&mut self.analyses);
         analyses.sort();
-        let (tasks, requirements): (Vec<Task>, Vec<HashSet<InputRequirement>>) =
-            analyses.into_iter().map(|a| a.into_task()).unzip();
+        let (tasks, requirements): (Vec<Vec<Task>>, Vec<HashSet<InputRequirement>>) =
+            analyses.into_iter().map(|a| a.into_tasks()).unzip();
+        let tasks: Vec<Task> = tasks.into_iter().flatten().collect();
         let requirements: HashSet<InputRequirement> =
             requirements
                 .into_iter()
@@ -182,7 +223,7 @@ fn get_radius() -> u32 {
 }
 
 impl AnalysisParameter {
-    pub fn into_task(self) -> (Task, HashSet<InputRequirement>) {
+    pub fn into_tasks(self) -> (Vec<Task>, HashSet<InputRequirement>) {
         match self {
             h @ Self::Hist { .. } => {
                 get_analysis_task!(Hist, h)
@@ -196,8 +237,11 @@ impl AnalysisParameter {
             i @ Self::Info => {
                 get_analysis_task!(Info, i)
             }
-            o @ Self::OrderedGrowth { .. } => {
-                get_analysis_task!(OrderedHistgrowth, o)
+            ref o @ Self::OrderedGrowth { ref order, .. } => {
+                let mut tasks = vec![Task::OrderChange(order.clone())];
+                let (ordered_task, reqs) = get_analysis_task!(OrderedHistgrowth, o.clone());
+                tasks.extend(ordered_task);
+                (tasks, reqs)
             }
             c @ Self::CoverageLine { .. } => {
                 get_analysis_task!(CoverageLine, c)
@@ -205,7 +249,9 @@ impl AnalysisParameter {
             s @ Self::Similarity { .. } => {
                 get_analysis_task!(Similarity, s)
             }
-            _ => unimplemented!("Not yet done other analyses"),
+            t @ Self::Table { .. } => {
+                get_analysis_task!(Table, t)
+            }
         }
     }
 }

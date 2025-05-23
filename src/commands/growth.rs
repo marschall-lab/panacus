@@ -1,12 +1,17 @@
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analysis_parameter::AnalysisParameter;
+use crate::analysis_parameter::{AnalysisParameter, AnalysisRun, Grouping};
 
 pub fn get_subcommand() -> Command {
     Command::new("growth")
         .about("Calculate growth curve from coverage histogram")
         .args(&[
-            arg!(hist_file: <HIST_FILE> "Coverage histogram as tab-separated value (tsv) file"),
+            arg!(gfa_file: <GFA_FILE> "graph in GFA1 format, accepts also compressed (.gz) file"),
+            arg!(-s --subset <FILE> "Produce counts by subsetting the graph to a given list of paths (1-column list) or path coordinates (3- or 12-column BED file)"),
+            arg!(-e --exclude <FILE> "Exclude bp/node/edge in growth count that intersect with paths (1-column list) or path coordinates (3- or 12-column BED-file) provided by the given file; all intersecting bp/node/edge will be exluded also in other paths not part of the given list"),
+            arg!(-g --groupby <FILE> "Merge counts from paths by path-group mapping from given tab-separated two-column file"),
+            arg!(-H --"groupby-haplotype" "Merge counts from paths belonging to same haplotype"),
+            arg!(-S --"groupby-sample" "Merge counts from paths belonging to same sample"),
             arg!(-a --hist "Also include histogram in output"),
             Arg::new("coverage").help("Ignore all countables with a coverage lower than the specified threshold. The coverage of a countable corresponds to the number of path/walk that contain it. Repeated appearances of a countable in the same path/walk are counted as one. You can pass a comma-separated list of coverage thresholds, each one will produce a separated growth curve (e.g., --coverage 2,3). Use --quorum to set a threshold in conjunction with each coverage (e.g., --quorum 0.5,0.9)")
             .short('l').long("coverage").default_value("1"),
@@ -15,19 +20,44 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(
-    args: &ArgMatches,
-) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
+pub fn get_instructions(args: &ArgMatches) -> Option<Result<Vec<AnalysisRun>, anyhow::Error>> {
     if let Some(args) = args.subcommand_matches("growth") {
-        let hist = args.get_one::<String>("hist_file").expect("").to_owned();
+        // let hist = args.get_one::<String>("hist_file").expect("").to_owned();
         let coverage = args.get_one::<String>("coverage").cloned();
         let quorum = args.get_one::<String>("quorum").cloned();
         let add_hist = args.get_flag("hist");
-        Some(Ok(vec![AnalysisParameter::Growth {
-            coverage,
-            quorum,
-            add_hist,
-        }]))
+        let graph = args
+            .get_one::<String>("gfa_file")
+            .expect("hist subcommand has gfa file")
+            .to_owned();
+        let subset = args
+            .get_one::<String>("subset")
+            .cloned()
+            .unwrap_or_default();
+        let exclude = args
+            .get_one::<String>("exclude")
+            .cloned()
+            .unwrap_or_default();
+        let grouping = args.get_one::<String>("groupby").cloned();
+        let grouping = if args.get_flag("groupby-sample") {
+            Some(Grouping::Sample)
+        } else if args.get_flag("groupby-haplotype") {
+            Some(Grouping::Haplotype)
+        } else {
+            grouping.map(|g| Grouping::Custom(g))
+        };
+        Some(Ok(vec![AnalysisRun::new(
+            graph,
+            subset,
+            exclude,
+            grouping,
+            false,
+            vec![AnalysisParameter::Growth {
+                coverage,
+                quorum,
+                add_hist,
+            }],
+        )]))
     } else {
         None
     }

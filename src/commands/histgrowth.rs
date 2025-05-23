@@ -4,6 +4,7 @@ use clap::{arg, Arg, ArgMatches, Command};
 use crate::analysis_parameter::AnalysisParameter;
 use crate::util::CountType;
 
+#[allow(dead_code)]
 pub fn get_subcommand() -> Command {
     Command::new("histgrowth")
         .about("Run hist and growth. Return the growth curve")
@@ -23,6 +24,7 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
+#[allow(dead_code)]
 pub fn get_instructions(
     args: &ArgMatches,
 ) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {

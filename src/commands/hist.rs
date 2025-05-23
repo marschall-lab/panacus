@@ -1,7 +1,7 @@
 use crate::clap_enum_variants;
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analysis_parameter::{AnalysisParameter, Grouping};
+use crate::analysis_parameter::{AnalysisParameter, AnalysisRun, Grouping};
 use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
@@ -18,20 +18,24 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(
-    args: &ArgMatches,
-) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
+pub fn get_instructions(args: &ArgMatches) -> Option<Result<Vec<AnalysisRun>, anyhow::Error>> {
     if let Some(args) = args.subcommand_matches("hist") {
-        let graph = args
-            .get_one::<String>("gfa_file")
-            .expect("hist subcommand has gfa file")
-            .to_owned();
         let count = args
             .get_one::<CountType>("count")
             .expect("hist subcommand has count type")
             .to_owned();
-        let subset = args.get_one::<String>("subset").cloned();
-        let exclude = args.get_one::<String>("exclude").cloned();
+        let graph = args
+            .get_one::<String>("gfa_file")
+            .expect("hist subcommand has gfa file")
+            .to_owned();
+        let subset = args
+            .get_one::<String>("subset")
+            .cloned()
+            .unwrap_or_default();
+        let exclude = args
+            .get_one::<String>("exclude")
+            .cloned()
+            .unwrap_or_default();
         let grouping = args.get_one::<String>("groupby").cloned();
         let grouping = if args.get_flag("groupby-sample") {
             Some(Grouping::Sample)
@@ -40,7 +44,14 @@ pub fn get_instructions(
         } else {
             grouping.map(|g| Grouping::Custom(g))
         };
-        Some(Ok(vec![AnalysisParameter::Hist { count_type: count }]))
+        Some(Ok(vec![AnalysisRun::new(
+            graph,
+            subset,
+            exclude,
+            grouping,
+            false,
+            vec![AnalysisParameter::Hist { count_type: count }],
+        )]))
     } else {
         None
     }

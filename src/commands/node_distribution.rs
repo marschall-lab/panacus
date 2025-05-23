@@ -1,6 +1,6 @@
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analysis_parameter::AnalysisParameter;
+use crate::analysis_parameter::{AnalysisParameter, AnalysisRun};
 
 pub fn get_subcommand() -> Command {
     Command::new("node-distribution")
@@ -16,19 +16,26 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(
-    args: &ArgMatches,
-) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
+pub fn get_instructions(args: &ArgMatches) -> Option<Result<Vec<AnalysisRun>, anyhow::Error>> {
     if let Some(args) = args.subcommand_matches("node-distribution") {
-        // let graph = args
-        //     .get_one::<String>("gfa_file")
-        //     .expect("info subcommand has gfa file")
-        //     .to_owned();
+        let graph = args
+            .get_one::<String>("gfa_file")
+            .expect("info subcommand has gfa file")
+            .to_owned();
         let radius = args
             .get_one::<u32>("radius")
             .expect("node-distribution has radius")
             .to_owned();
-        Some(Ok(vec![AnalysisParameter::NodeDistribution { radius }]))
+        let parameters = vec![AnalysisRun::new(
+            graph,
+            "".to_string(),
+            "".to_string(),
+            None,
+            false,
+            vec![AnalysisParameter::NodeDistribution { radius }],
+        )];
+        log::info!("{parameters:?}");
+        Some(Ok(parameters))
     } else {
         None
     }

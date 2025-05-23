@@ -114,7 +114,7 @@ impl Analysis for Info {
 }
 
 impl ConstructibleAnalysis for Info {
-    fn from_parameter(parameter: AnalysisParameter) -> Self {
+    fn from_parameter(_parameter: AnalysisParameter) -> Self {
         Self {
             graph_info: None,
             path_info: None,

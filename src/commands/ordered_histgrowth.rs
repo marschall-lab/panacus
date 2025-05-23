@@ -2,7 +2,7 @@ use crate::clap_enum_variants_no_all;
 use clap::{arg, Arg, ArgMatches, Command};
 use strum::VariantNames;
 
-use crate::analysis_parameter::AnalysisParameter;
+use crate::analysis_parameter::{AnalysisParameter, AnalysisRun, Grouping};
 use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
@@ -24,7 +24,7 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<AnalysisParameter>>> {
+pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<AnalysisRun>>> {
     if let Some(args) = args.subcommand_matches("ordered-histgrowth") {
         let count = args
             .get_one::<CountType>("count")
@@ -33,12 +33,39 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
         let order = args.get_one::<String>("order").cloned();
         let coverage = args.get_one::<String>("coverage").cloned();
         let quorum = args.get_one::<String>("quorum").cloned();
-        let parameters = vec![AnalysisParameter::OrderedGrowth {
-            coverage,
-            quorum,
-            count_type: count,
-            order,
-        }];
+        let graph = args
+            .get_one::<String>("gfa_file")
+            .expect("hist subcommand has gfa file")
+            .to_owned();
+        let subset = args
+            .get_one::<String>("subset")
+            .cloned()
+            .unwrap_or_default();
+        let exclude = args
+            .get_one::<String>("exclude")
+            .cloned()
+            .unwrap_or_default();
+        let grouping = args.get_one::<String>("groupby").cloned();
+        let grouping = if args.get_flag("groupby-sample") {
+            Some(Grouping::Sample)
+        } else if args.get_flag("groupby-haplotype") {
+            Some(Grouping::Haplotype)
+        } else {
+            grouping.map(|g| Grouping::Custom(g))
+        };
+        let parameters = vec![AnalysisRun::new(
+            graph,
+            subset,
+            exclude,
+            grouping,
+            false,
+            vec![AnalysisParameter::OrderedGrowth {
+                coverage,
+                quorum,
+                count_type: count,
+                order,
+            }],
+        )];
         log::info!("{parameters:?}");
         Some(Ok(parameters))
     } else {

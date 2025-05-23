@@ -114,6 +114,11 @@ impl GraphBroker {
         }
     }
 
+    pub fn change_order(&mut self, order: &str) -> Result<(), Error> {
+        self.with_order(order);
+        self.finish()
+    }
+
     fn from_gfa(input_requirements: &HashSet<Req>, nice: bool) -> Self {
         let count_type = if Self::contains_at_least_two(input_requirements) {
             CountType::All
@@ -182,9 +187,8 @@ impl GraphBroker {
         self.abacus_aux_params.negative_list = exclude.to_owned();
     }
 
-    pub fn with_order(mut self, file_name: &str) -> Self {
+    fn with_order(&mut self, file_name: &str) {
         self.abacus_aux_params.order = Some(file_name.to_owned());
-        self
     }
 
     pub fn with_csc_abacus(mut self) -> Self {
@@ -216,6 +220,23 @@ impl GraphBroker {
             }
         }
         Ok(())
+    }
+
+    pub fn get_run_name(&self) -> String {
+        if let Some(state) = self.state.as_ref() {
+            if state.grouping.is_some() {
+                format!(
+                    "{}-{}-{}",
+                    state.graph,
+                    state.subset,
+                    state.grouping.as_ref().unwrap()
+                )
+            } else {
+                format!("{}-{}", state.graph, state.subset)
+            }
+        } else {
+            panic!("Cannot generate a run name without a graph");
+        }
     }
 
     pub fn get_degree(&self) -> &Vec<u32> {
