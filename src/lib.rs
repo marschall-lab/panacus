@@ -9,25 +9,17 @@ mod util;
 
 use env_logger::Builder;
 use log::LevelFilter;
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    io::Write,
-};
+use std::{fmt::Debug, io::Write};
 use thiserror::Error;
 
-use analyses::{Analysis, ConstructibleAnalysis, InputRequirement};
-use analysis_parameter::{AnalysisParameter, AnalysisRun, Grouping, Task};
+use analyses::Analysis;
+use analysis_parameter::{AnalysisRun, Task};
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use graph_broker::{GraphBroker, GraphState};
 use html_report::AnalysisSection;
 
-use serde::Deserialize;
-
-use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
 
 #[macro_export]
 macro_rules! clap_enum_variants {

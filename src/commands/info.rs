@@ -1,6 +1,6 @@
 use clap::{arg, ArgMatches, Command};
 
-use crate::analysis_parameter::{AnalysisParameter, Grouping};
+use crate::analysis_parameter::AnalysisParameter;
 
 pub fn get_subcommand() -> Command {
     Command::new("info")

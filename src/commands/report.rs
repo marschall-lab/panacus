@@ -3,7 +3,7 @@ use std::io::BufReader;
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
-use crate::analysis_parameter::{AnalysisParameter, AnalysisRun};
+use crate::analysis_parameter::AnalysisRun;
 
 pub fn get_subcommand() -> Command {
     Command::new("report")

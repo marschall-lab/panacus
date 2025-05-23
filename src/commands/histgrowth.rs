@@ -1,7 +1,7 @@
 use crate::clap_enum_variants;
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analysis_parameter::{AnalysisParameter, Grouping};
+use crate::analysis_parameter::AnalysisParameter;
 use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {

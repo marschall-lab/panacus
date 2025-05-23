@@ -2,7 +2,7 @@ use crate::clap_enum_variants_no_all;
 use clap::{arg, Arg, ArgMatches, Command};
 use strum::VariantNames;
 
-use crate::analysis_parameter::{AnalysisParameter, ClusterMethod, Grouping};
+use crate::analysis_parameter::{AnalysisParameter, ClusterMethod};
 use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {

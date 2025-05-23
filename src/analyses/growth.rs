@@ -1,16 +1,12 @@
 use core::{panic, str};
-use std::path::Path;
-use std::{collections::HashSet, fs, io::BufReader};
+use std::collections::HashSet;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::{GraphBroker, Hist, ThresholdContainer};
 use crate::html_report::ReportItem;
-use crate::{
-    io::{parse_hists, write_table},
-    util::CountType,
-};
+use crate::{io::write_table, util::CountType};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis, InputRequirement};
 
