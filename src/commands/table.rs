@@ -21,28 +21,28 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<AnalysisParameter>>> {
+pub fn _get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<AnalysisParameter>>> {
     if let Some(args) = args.subcommand_matches("table") {
-        let graph = args
-            .get_one::<String>("gfa_file")
-            .expect("ordered-histgrowth has gfa file")
-            .to_owned();
+        // let graph = args
+        //     .get_one::<String>("gfa_file")
+        //     .expect("ordered-histgrowth has gfa file")
+        //     .to_owned();
         let count = args
             .get_one::<CountType>("count")
             .expect("hist subcommand has count type")
             .to_owned();
         let total = args.get_flag("total");
         let order = args.get_one::<String>("order").cloned();
-        let subset = args.get_one::<String>("subset").cloned();
-        let exclude = args.get_one::<String>("exclude").cloned();
-        let grouping = args.get_one::<String>("groupby").cloned();
-        let grouping = if args.get_flag("groupby-sample") {
-            Some(Grouping::Sample)
-        } else if args.get_flag("groupby-haplotype") {
-            Some(Grouping::Haplotype)
-        } else {
-            grouping.map(|g| Grouping::Custom(g))
-        };
+        // let subset = args.get_one::<String>("subset").cloned();
+        // let exclude = args.get_one::<String>("exclude").cloned();
+        // let grouping = args.get_one::<String>("groupby").cloned();
+        // let grouping = if args.get_flag("groupby-sample") {
+        //     Some(Grouping::Sample)
+        // } else if args.get_flag("groupby-haplotype") {
+        //     Some(Grouping::Haplotype)
+        // } else {
+        //     grouping.map(|g| Grouping::Custom(g))
+        // };
         let parameters = vec![AnalysisParameter::Table {
             count_type: count,
             total,

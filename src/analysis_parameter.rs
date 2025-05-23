@@ -27,10 +27,14 @@ macro_rules! get_analysis_task {
 
 pub enum Task {
     Analysis(Box<dyn Analysis>),
-    GraphChange(HashSet<InputRequirement>, bool),
-    SubsetChange(Option<String>),
-    ExcludeChange(String),
-    GroupingChange(Option<Grouping>),
+    GraphStateChange {
+        graph: String,
+        reqs: HashSet<InputRequirement>,
+        nice: bool,
+        subset: String,
+        exclude: String,
+        grouping: Option<Grouping>,
+    },
     OrderChange(Option<String>),
     AbacusByGroupCSCChange,
 }
@@ -39,18 +43,24 @@ impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Analysis(analysis) => write!(f, "Analysis {}", analysis.get_type()),
-            Self::GraphChange(reqs, nice) => f
+            Self::GraphStateChange {
+                graph,
+                reqs,
+                nice,
+                subset,
+                exclude,
+                grouping,
+            } => f
                 .debug_tuple("GraphChange")
+                .field(graph)
+                .field(subset)
+                .field(exclude)
+                .field(grouping)
                 .field(&reqs)
                 .field(nice)
                 .finish(),
             Self::OrderChange(order) => f.debug_tuple("OrderChange").field(&order).finish(),
-            Self::SubsetChange(subset) => f.debug_tuple("SubsetChange").field(&subset).finish(),
-            Self::ExcludeChange(exclude) => f.debug_tuple("ExcludeChange").field(&exclude).finish(),
             Self::AbacusByGroupCSCChange => f.debug_tuple("AbacusByGroupCSCChange").finish(),
-            Self::GroupingChange(grouping) => {
-                f.debug_tuple("GroupingChange").field(&grouping).finish()
-            }
         }
     }
 }
@@ -73,12 +83,15 @@ impl AnalysisRun {
             if i == 0 {
                 let (current_tasks, mut input_req) = runs[i].to_tasks();
                 input_req.insert(InputRequirement::Graph(std::mem::take(&mut runs[i].graph)));
-                tasks.push(Task::GraphChange(input_req, runs[i].nice));
-                tasks.push(Task::SubsetChange(Some(std::mem::take(
-                    &mut runs[i].subset,
-                ))));
-                tasks.push(Task::ExcludeChange(std::mem::take(&mut runs[i].exclude)));
-                tasks.push(Task::GroupingChange(std::mem::take(&mut runs[i].grouping)));
+                tasks.push(Task::GraphStateChange {
+                    graph: std::mem::take(&mut runs[i].graph),
+                    reqs: input_req,
+                    nice: runs[i].nice,
+                    subset: std::mem::take(&mut runs[i].subset),
+                    exclude: std::mem::take(&mut runs[i].exclude),
+                    grouping: std::mem::take(&mut runs[i].grouping),
+                });
+                tasks.extend(current_tasks);
             } else {
                 unimplemented!("Haven't yet implemented multiple runs");
             }
@@ -142,7 +155,6 @@ pub enum AnalysisParameter {
     Similarity {
         #[serde(default)]
         count_type: CountType,
-        graph: String,
         #[serde(default)]
         cluster_method: ClusterMethod,
     },

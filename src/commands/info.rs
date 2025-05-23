@@ -18,21 +18,21 @@ pub fn get_subcommand() -> Command {
 pub fn get_instructions(
     args: &ArgMatches,
 ) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
-    if let Some(args) = args.subcommand_matches("info") {
-        let graph = args
-            .get_one::<String>("gfa_file")
-            .expect("info subcommand has gfa file")
-            .to_owned();
-        let subset = args.get_one::<String>("subset").cloned();
-        let exclude = args.get_one::<String>("exclude").cloned();
-        let grouping = args.get_one::<String>("groupby").cloned();
-        let grouping = if args.get_flag("groupby-sample") {
-            Some(Grouping::Sample)
-        } else if args.get_flag("groupby-haplotype") {
-            Some(Grouping::Haplotype)
-        } else {
-            grouping.map(|g| Grouping::Custom(g))
-        };
+    if let Some(_args) = args.subcommand_matches("info") {
+        // let graph = args
+        //     .get_one::<String>("gfa_file")
+        //     .expect("info subcommand has gfa file")
+        //     .to_owned();
+        // let subset = args.get_one::<String>("subset").cloned();
+        // let exclude = args.get_one::<String>("exclude").cloned();
+        // let grouping = args.get_one::<String>("groupby").cloned();
+        // let grouping = if args.get_flag("groupby-sample") {
+        //     Some(Grouping::Sample)
+        // } else if args.get_flag("groupby-haplotype") {
+        //     Some(Grouping::Haplotype)
+        // } else {
+        //     grouping.map(|g| Grouping::Custom(g))
+        // };
         Some(Ok(vec![AnalysisParameter::Info {}]))
     } else {
         None

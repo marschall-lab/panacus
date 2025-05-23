@@ -20,10 +20,10 @@ pub fn get_instructions(
     args: &ArgMatches,
 ) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
     if let Some(args) = args.subcommand_matches("node-distribution") {
-        let graph = args
-            .get_one::<String>("gfa_file")
-            .expect("info subcommand has gfa file")
-            .to_owned();
+        // let graph = args
+        //     .get_one::<String>("gfa_file")
+        //     .expect("info subcommand has gfa file")
+        //     .to_owned();
         let radius = args
             .get_one::<u32>("radius")
             .expect("node-distribution has radius")

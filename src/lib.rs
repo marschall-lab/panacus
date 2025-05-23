@@ -19,7 +19,7 @@ use thiserror::Error;
 use analyses::{Analysis, ConstructibleAnalysis, InputRequirement};
 use analysis_parameter::{AnalysisParameter, AnalysisRun, Grouping, Task};
 use clap::{Arg, ArgAction, ArgMatches, Command};
-use graph_broker::GraphBroker;
+use graph_broker::{GraphBroker, GraphState};
 use html_report::AnalysisSection;
 
 use serde::Deserialize;
@@ -218,70 +218,40 @@ pub fn execute_pipeline<W: Write>(
         return Ok(());
     }
     let mut report = Vec::new();
-    let mut gb = match instructions[0] {
-        _ => None,
-    };
+    let mut gb = GraphBroker::new();
     for index in 0..instructions.len() {
-        let is_next_analysis =
-            instructions.len() > index + 1 && matches!(instructions[index + 1], Task::Analysis(..));
         match &mut instructions[index] {
             Task::Analysis(analysis) => {
                 log::info!("Executing Analysis: {}", analysis.get_type());
-                report.extend(analysis.generate_report_section(gb.as_ref())?);
+                report.extend(analysis.generate_report_section(Some(&gb))?);
             }
-            Task::GraphChange(input_reqs, nice) => {
-                log::info!("Executing graph change: {:?}", input_reqs);
-                gb = Some(GraphBroker::from_gfa(&input_reqs, *nice));
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
+            Task::GraphStateChange {
+                graph,
+                subset,
+                exclude,
+                grouping,
+                nice,
+                reqs,
+            } => {
+                log::info!("Executing graph change: {:?}", reqs);
+                gb.change_graph_state(
+                    GraphState {
+                        graph: graph.to_string(),
+                        subset: subset.to_string(),
+                        exclude: exclude.to_string(),
+                        grouping: grouping.clone(),
+                    },
+                    &reqs,
+                    *nice,
+                )?;
             }
             Task::OrderChange(order) => {
                 log::info!("Executing order change: {:?}", order);
-                gb = Some(
-                    gb.expect("OrderChange after Graph")
-                        .with_order(order.as_ref().expect("Order exists")),
-                );
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
-            }
-            Task::SubsetChange(subset) => {
-                log::info!("Executing subset change: {:?}", subset);
-                gb = Some(
-                    gb.expect("SubsetChange after Graph")
-                        .include_coords(subset.as_ref().expect("Subset exists")),
-                );
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
+                unimplemented!("Order Change is not yet implemented");
             }
             Task::AbacusByGroupCSCChange => {
                 log::info!("Executing AbacusByGroup CSC change");
-                gb = Some(
-                    gb.expect("AbacusByGroupCSCChange after Graph")
-                        .with_csc_abacus(),
-                );
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
-            }
-            Task::ExcludeChange(exclude) => {
-                log::info!("Executing exclude change: {}", exclude);
-                gb = Some(
-                    gb.expect("ExcludeChange after Graph")
-                        .exclude_coords(exclude),
-                );
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
-            }
-            Task::GroupingChange(grouping) => {
-                log::info!("Executing grouping change: {:?}", grouping);
-                gb = Some(gb.expect("GroupingChange after Graph").with_group(grouping));
-                if is_next_analysis {
-                    gb = Some(gb.expect("GraphBroker is some").finish()?);
-                }
+                unimplemented!("CSC Change is not yet implemented");
             }
         }
     }
@@ -295,7 +265,7 @@ pub fn execute_pipeline<W: Write>(
         writeln!(out, "{report}")?;
     } else {
         if let Task::Analysis(analysis) = instructions.last_mut().unwrap() {
-            let table = analysis.generate_table(gb.as_ref())?;
+            let table = analysis.generate_table(Some(&gb))?;
             writeln!(out, "{table}")?;
         }
     }
