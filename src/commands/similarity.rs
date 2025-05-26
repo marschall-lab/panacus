@@ -2,7 +2,7 @@ use crate::clap_enum_variants_no_all;
 use clap::{arg, Arg, ArgMatches, Command};
 use strum::VariantNames;
 
-use crate::analysis_parameter::{AnalysisParameter, ClusterMethod, Grouping};
+use crate::analysis_parameter::{AnalysisParameter, AnalysisRun, ClusterMethod, Grouping};
 use crate::util::CountType;
 
 pub fn get_subcommand() -> Command {
@@ -21,7 +21,7 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<AnalysisParameter>>> {
+pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<AnalysisRun>>> {
     if let Some(args) = args.subcommand_matches("similarity") {
         let graph = args
             .get_one::<String>("gfa_file")
@@ -35,8 +35,14 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
             .get_one::<ClusterMethod>("cluster_method")
             .expect("hist subcommand has count type")
             .to_owned();
-        let subset = args.get_one::<String>("subset").cloned();
-        let exclude = args.get_one::<String>("exclude").cloned();
+        let subset = args
+            .get_one::<String>("subset")
+            .cloned()
+            .unwrap_or_default();
+        let exclude = args
+            .get_one::<String>("exclude")
+            .cloned()
+            .unwrap_or_default();
         let grouping = args.get_one::<String>("groupby").cloned();
         let grouping = if args.get_flag("groupby-sample") {
             Some(Grouping::Sample)
@@ -45,15 +51,18 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
         } else {
             grouping.map(|g| Grouping::Custom(g))
         };
-        let parameters = vec![AnalysisParameter::Similarity {
-            count_type: count,
+        let parameters = vec![AnalysisRun::new(
             graph,
             subset,
             exclude,
             grouping,
-            cluster_method,
-        }];
-        log::info!("{parameters:?}");
+            false,
+            vec![AnalysisParameter::Similarity {
+                count_type: count,
+                cluster_method,
+            }],
+        )];
+        // log::info!("{parameters:?}");
         Some(Ok(parameters))
     } else {
         None

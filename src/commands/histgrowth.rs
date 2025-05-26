@@ -1,9 +1,10 @@
 use crate::clap_enum_variants;
 use clap::{arg, Arg, ArgMatches, Command};
 
-use crate::analysis_parameter::{AnalysisParameter, Grouping};
+use crate::analysis_parameter::AnalysisParameter;
 use crate::util::CountType;
 
+#[allow(dead_code)]
 pub fn get_subcommand() -> Command {
     Command::new("histgrowth")
         .about("Run hist and growth. Return the growth curve")
@@ -23,47 +24,37 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
+#[allow(dead_code)]
 pub fn get_instructions(
     args: &ArgMatches,
 ) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
     if let Some(args) = args.subcommand_matches("histgrowth") {
-        let graph = args
-            .get_one::<String>("gfa_file")
-            .expect("hist subcommand has gfa file")
-            .to_owned();
+        // let graph = args
+        //     .get_one::<String>("gfa_file")
+        //     .expect("hist subcommand has gfa file")
+        //     .to_owned();
         let count = args
             .get_one::<CountType>("count")
             .expect("hist subcommand has count type")
             .to_owned();
         let add_hist = args.get_flag("hist");
-        let subset = args.get_one::<String>("subset").cloned();
-        let exclude = args.get_one::<String>("exclude").cloned();
-        let grouping = args.get_one::<String>("groupby").cloned();
-        let grouping = if args.get_flag("groupby-sample") {
-            Some(Grouping::Sample)
-        } else if args.get_flag("groupby-haplotype") {
-            Some(Grouping::Haplotype)
-        } else {
-            grouping.map(|g| Grouping::Custom(g))
-        };
+        // let subset = args.get_one::<String>("subset").cloned();
+        // let exclude = args.get_one::<String>("exclude").cloned();
+        // let grouping = args.get_one::<String>("groupby").cloned();
+        // let grouping = if args.get_flag("groupby-sample") {
+        //     Some(Grouping::Sample)
+        // } else if args.get_flag("groupby-haplotype") {
+        //     Some(Grouping::Haplotype)
+        // } else {
+        //     grouping.map(|g| Grouping::Custom(g))
+        // };
         let coverage = args.get_one::<String>("coverage").cloned();
         let quorum = args.get_one::<String>("quorum").cloned();
         let parameters = vec![
-            AnalysisParameter::Hist {
-                name: Some("command-hist".to_string()),
-                count_type: count,
-                graph,
-                display: true,
-                subset,
-                exclude,
-                grouping,
-            },
+            AnalysisParameter::Hist { count_type: count },
             AnalysisParameter::Growth {
-                name: None,
-                hist: "command-hist".to_string(),
                 coverage,
                 quorum,
-                display: true,
                 add_hist,
             },
         ];

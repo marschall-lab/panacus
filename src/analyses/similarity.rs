@@ -3,6 +3,7 @@ use kodama::{linkage, Dendrogram};
 use rayon::iter::IntoParallelIterator;
 use rayon::prelude::*;
 
+use crate::graph_broker::GraphBroker;
 use crate::{
     analyses::InputRequirement, analysis_parameter::AnalysisParameter, html_report::ReportItem,
     io::write_metadata_comments, util::CountType,
@@ -65,7 +66,7 @@ impl Analysis for Similarity {
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "sim-heat-{}",
-            self.get_run_name()
+            self.get_run_name(gb)
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -73,7 +74,7 @@ impl Analysis for Similarity {
             id: format!("{id_prefix}-{k}"),
             analysis: "Similarity Heatmap".to_string(),
             table: Some(table.clone()),
-            run_name: self.get_run_name(),
+            run_name: self.get_run_name(gb),
             countable: k.to_string(),
             items: vec![ReportItem::Heatmap {
                 id: format!("{id_prefix}-{k}"),
@@ -189,28 +190,8 @@ impl Similarity {
         self.labels = Some(labels);
     }
 
-    fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::Similarity {
-                graph,
-                subset,
-                exclude,
-                grouping,
-                ..
-            } => {
-                format!(
-                    "{}-{}|{}\\{}",
-                    graph,
-                    match grouping.clone() {
-                        Some(g) => g.to_string(),
-                        None => "Ungrouped".to_string(),
-                    },
-                    subset.clone().unwrap_or_default(),
-                    exclude.clone().unwrap_or_default()
-                )
-            }
-            _ => panic!("Similarity analysis needs to contain similarity parameter"),
-        }
+    fn get_run_name(&self, gb: &GraphBroker) -> String {
+        format!("{}-similarity", gb.get_run_name())
     }
 }
 

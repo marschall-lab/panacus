@@ -2,6 +2,7 @@ use core::panic;
 use std::collections::HashSet;
 
 use crate::analysis_parameter::AnalysisParameter;
+use crate::graph_broker::GraphBroker;
 use crate::html_report::ReportItem;
 use crate::{analyses::InputRequirement, io::write_table, util::CountType};
 
@@ -60,7 +61,7 @@ impl Analysis for Hist {
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "cov-hist-{}",
-            self.get_run_name()
+            self.get_run_name(gb)
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -71,7 +72,7 @@ impl Analysis for Hist {
                 id: format!("{id_prefix}-{k}"),
                 analysis: "Coverage Histogram".to_string(),
                 table: Some(table.clone()),
-                run_name: self.get_run_name(),
+                run_name: self.get_run_name(gb),
                 countable: k.to_string(),
                 items: vec![ReportItem::Bar {
                     id: format!("{id_prefix}-{k}"),
@@ -118,31 +119,7 @@ impl Hist {
         }
     }
 
-    fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::Hist {
-                name,
-                graph,
-                subset,
-                exclude,
-                grouping,
-                ..
-            } => {
-                if name.is_some() {
-                    return name.as_ref().unwrap().to_string();
-                }
-                format!(
-                    "{}-{}|{}\\{}",
-                    graph,
-                    match grouping.clone() {
-                        Some(g) => g.to_string(),
-                        None => "Ungrouped".to_string(),
-                    },
-                    subset.clone().unwrap_or_default(),
-                    exclude.clone().unwrap_or_default()
-                )
-            }
-            _ => panic!("Hist analysis needs to contain hist parameter"),
-        }
+    fn get_run_name(&self, gb: &GraphBroker) -> String {
+        format!("{}-hist", gb.get_run_name())
     }
 }

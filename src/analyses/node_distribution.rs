@@ -53,7 +53,7 @@ impl Analysis for NodeDistribution {
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "node-dist-{}",
-            self.get_run_name()
+            self.get_run_name(gb.expect("Node Distribution should be called with a graph"))
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -68,7 +68,8 @@ impl Analysis for NodeDistribution {
             id: format!("{}-{}", id_prefix, CountType::Node.to_string()),
             analysis: "Node distribution".to_string(),
             table: Some(table),
-            run_name: self.get_run_name(),
+            run_name: self
+                .get_run_name(gb.expect("Node Distribution should be called with a graph")),
             countable: CountType::Node.to_string(),
             items: vec![ReportItem::Hexbin {
                 id: format!("{id_prefix}-{}", CountType::Node),
@@ -121,12 +122,7 @@ impl NodeDistribution {
         }
     }
 
-    fn get_run_name(&self) -> String {
-        match &self.parameter {
-            AnalysisParameter::NodeDistribution { graph, radius } => {
-                format!("{}-{}", graph, radius)
-            }
-            _ => panic!("Counts analysis needs to contain counts parameter"),
-        }
+    fn get_run_name(&self, gb: &GraphBroker) -> String {
+        format!("{}-nodedistribution", gb.get_run_name())
     }
 }

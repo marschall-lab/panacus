@@ -28,8 +28,17 @@ pub use graph::PathSegment;
 pub use hist::Hist;
 pub use hist::ThresholdContainer;
 
+#[derive(Debug, Clone, Default)]
+pub struct GraphState {
+    pub graph: String,
+    pub subset: String,
+    pub exclude: String,
+    pub grouping: Option<Grouping>,
+}
+
 #[derive(Debug, Clone)]
 pub struct GraphBroker {
+    state: Option<GraphState>,
     // GraphStorage
     graph_aux: Option<GraphStorage>,
 
@@ -52,6 +61,7 @@ pub struct GraphBroker {
 impl GraphBroker {
     pub fn new() -> Self {
         GraphBroker {
+            state: None,
             graph_aux: None,
             abacus_aux_params: GraphMaskParameters::default(),
             abacus_aux: None,
@@ -80,7 +90,50 @@ impl GraphBroker {
         }
     }
 
-    pub fn from_gfa(input_requirements: &HashSet<Req>, nice: bool) -> Self {
+    pub fn change_graph_state(
+        &mut self,
+        state: GraphState,
+        input_requirements: &HashSet<Req>,
+        nice: bool,
+    ) -> Result<(), Error> {
+        if self.state.is_some() {
+            let prev_state = std::mem::take(&mut self.state).unwrap();
+            if prev_state.graph != state.graph {
+                *self = Self::from_gfa(input_requirements, nice);
+            }
+            if prev_state.subset != state.subset {
+                self.include_coords(&state.subset);
+            }
+            if prev_state.exclude != state.exclude {
+                self.exclude_coords(&state.exclude);
+            }
+            if prev_state.grouping != state.grouping {
+                self.with_group(&state.grouping);
+            }
+            self.finish()?;
+        } else {
+            *self = Self::from_gfa(input_requirements, nice);
+            if !state.subset.is_empty() {
+                self.include_coords(&state.subset);
+            }
+            if !state.exclude.is_empty() {
+                self.exclude_coords(&state.exclude);
+            }
+            if state.grouping.is_some() {
+                self.with_group(&state.grouping);
+            }
+            self.finish()?;
+        }
+        self.state = Some(state);
+        Ok(())
+    }
+
+    pub fn change_order(&mut self, order: &str) -> Result<(), Error> {
+        self.with_order(order);
+        self.finish()
+    }
+
+    fn from_gfa(input_requirements: &HashSet<Req>, nice: bool) -> Self {
         let count_type = if Self::contains_at_least_two(input_requirements) {
             CountType::All
         } else if input_requirements.contains(&Req::Node) {
@@ -102,6 +155,7 @@ impl GraphBroker {
         };
         let graph_aux = Some(GraphStorage::from_gfa(gfa_file, nice, count_type));
         GraphBroker {
+            state: None,
             graph_aux,
             abacus_aux_params: GraphMaskParameters::default(),
             abacus_aux: None,
@@ -117,46 +171,38 @@ impl GraphBroker {
         }
     }
 
-    pub fn with_group(self, grouping: &Option<Grouping>) -> Self {
+    fn with_group(&mut self, grouping: &Option<Grouping>) {
         if let Some(grouping) = grouping {
             match grouping {
                 Grouping::Sample => self.with_sample_group(),
                 Grouping::Haplotype => self.with_haplo_group(),
                 Grouping::Custom(file_name) => self.with_custom_group(file_name),
-            }
-        } else {
-            self
+            };
         }
     }
 
-    pub fn with_custom_group(mut self, file_name: &str) -> Self {
+    fn with_custom_group(&mut self, file_name: &str) {
         self.abacus_aux_params.groupby = file_name.to_owned();
-        self
     }
 
-    pub fn with_haplo_group(mut self) -> Self {
+    fn with_haplo_group(&mut self) {
         self.abacus_aux_params.groupby_haplotype = true;
-        self
     }
 
-    pub fn with_sample_group(mut self) -> Self {
+    fn with_sample_group(&mut self) {
         self.abacus_aux_params.groupby_sample = true;
-        self
     }
 
-    pub fn include_coords(mut self, file_name: &str) -> Self {
+    fn include_coords(&mut self, file_name: &str) {
         self.abacus_aux_params.positive_list = file_name.to_owned();
-        self
     }
 
-    pub fn exclude_coords(mut self, exclude: &str) -> Self {
+    fn exclude_coords(&mut self, exclude: &str) {
         self.abacus_aux_params.negative_list = exclude.to_owned();
-        self
     }
 
-    pub fn with_order(mut self, file_name: &str) -> Self {
+    fn with_order(&mut self, file_name: &str) {
         self.abacus_aux_params.order = Some(file_name.to_owned());
-        self
     }
 
     pub fn with_csc_abacus(mut self) -> Self {
@@ -164,29 +210,47 @@ impl GraphBroker {
         self
     }
 
-    pub fn finish(self) -> Result<Self, Error> {
-        let mut gb = self.set_abacus_aux()?.set_abaci_by_total();
-        if gb.input_requirements.contains(&Req::Hist) {
-            gb = gb.set_hists();
+    fn finish(&mut self) -> Result<(), Error> {
+        self.set_abacus_aux()?;
+        self.set_abaci_by_total();
+        if self.input_requirements.contains(&Req::Hist) {
+            self.set_hists();
         }
         let mut has_already_used_abacus = false;
-        for req in gb.input_requirements.clone() {
+        for req in self.input_requirements.clone() {
             match req {
                 Req::AbacusByGroup(count) => {
                     if has_already_used_abacus {
                         panic!("Panacus is currently not able to have multiple Abaci By Group for different countables. Please run panacus either multiple times or wait for the planned pipelining feature");
                     }
-                    if gb.csc_abacus {
-                        gb = gb.set_abacus_by_group_csc(count)?;
+                    if self.csc_abacus {
+                        self.set_abacus_by_group_csc(count)?;
                     } else {
-                        gb = gb.set_abacus_by_group(count)?;
+                        self.set_abacus_by_group(count)?;
                     }
                     has_already_used_abacus = true;
                 }
                 _ => continue,
             }
         }
-        Ok(gb)
+        Ok(())
+    }
+
+    pub fn get_run_name(&self) -> String {
+        if let Some(state) = self.state.as_ref() {
+            if state.grouping.is_some() {
+                format!(
+                    "{}-{}-{}",
+                    state.graph,
+                    state.subset,
+                    state.grouping.as_ref().unwrap()
+                )
+            } else {
+                format!("{}-{}", state.graph, state.subset)
+            }
+        } else {
+            panic!("Cannot generate a run name without a graph");
+        }
     }
 
     pub fn get_degree(&self) -> &Vec<u32> {
@@ -261,15 +325,15 @@ impl GraphBroker {
             .to_tsv(total, out, self.graph_aux.as_ref().unwrap())
     }
 
-    fn set_abacus_aux(mut self) -> Result<Self, Error> {
+    fn set_abacus_aux(&mut self) -> Result<(), Error> {
         self.abacus_aux = Some(GraphMask::from_datamgr(
             &self.abacus_aux_params,
             self.graph_aux.as_ref().unwrap(),
         )?);
-        Ok(self)
+        Ok(())
     }
 
-    fn set_hists(mut self) -> Self {
+    fn set_hists(&mut self) {
         let mut hists = HashMap::new();
         for (k, v) in self.total_abaci.as_ref().unwrap() {
             hists.insert(
@@ -278,7 +342,6 @@ impl GraphBroker {
             );
         }
         self.hists = Some(hists);
-        self
     }
 
     fn check_and_error<T>(value: Option<T>, type_of_value: &str) {
@@ -291,13 +354,13 @@ impl GraphBroker {
         }
     }
 
-    fn set_abacus_by_group_csc(self, count: CountType) -> Result<Self, Error> {
-        let mut res = self.set_abacus_by_group(count)?;
-        res.group_abacus.as_mut().unwrap().to_csc();
-        Ok(res)
+    fn set_abacus_by_group_csc(&mut self, count: CountType) -> Result<(), Error> {
+        self.set_abacus_by_group(count)?;
+        self.group_abacus.as_mut().unwrap().to_csc();
+        Ok(())
     }
 
-    fn set_abacus_by_group(mut self, count: CountType) -> Result<Self, Error> {
+    fn set_abacus_by_group(&mut self, count: CountType) -> Result<(), Error> {
         // let mut abaci_by_group = HashMap::new();
         let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
         let abacus = AbacusByGroup::from_gfa(
@@ -309,10 +372,10 @@ impl GraphBroker {
         )?;
         // abaci_by_group.insert(self.count_type, abacus);
         self.group_abacus = Some(abacus);
-        Ok(self)
+        Ok(())
     }
 
-    fn set_abaci_by_total(mut self) -> Self {
+    fn set_abaci_by_total(&mut self) {
         let count_types_not_edge = if self.count_type == CountType::All {
             vec![CountType::Node, CountType::Bp]
         } else if self.count_type != CountType::Edge {
@@ -354,39 +417,6 @@ impl GraphBroker {
             );
             abaci.insert(CountType::Edge, edge_abacus.pop().unwrap());
         }
-        //if let CountType::All = self.count_type {
-        //    for count_type in CountType::iter() {
-        //        if let CountType::All = count_type {
-        //        } else {
-        //            let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-        //            let (abacus, path_lens) = AbacusByTotal::from_gfa(
-        //                &mut data,
-        //                self.abacus_aux.as_ref().unwrap(),
-        //                self.graph_aux.as_ref().unwrap(),
-        //                count_type,
-        //            );
-        //            if count_type == CountType::Node
-        //                && self.input_requirements.contains(&Req::PathLens)
-        //            {
-        //                self.path_lens = Some(path_lens);
-        //            }
-        //            abaci.insert(count_type, abacus);
-        //        }
-        //    }
-        //} else {
-        //    let mut data = bufreader_from_compressed_gfa(&self.gfa_file);
-        //    let (abacus, path_lens) = AbacusByTotal::from_gfa(
-        //        &mut data,
-        //        self.abacus_aux.as_ref().unwrap(),
-        //        self.graph_aux.as_ref().unwrap(),
-        //        self.count_type,
-        //    );
-        //    if self.input_requirements.contains(&Req::PathLens) {
-        //        self.path_lens = Some(path_lens);
-        //    }
-        //    abaci.insert(self.count_type, abacus);
-        //}
         self.total_abaci = Some(abaci);
-        self
     }
 }

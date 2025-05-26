@@ -1,6 +1,6 @@
 use clap::{arg, ArgMatches, Command};
 
-use crate::analysis_parameter::{AnalysisParameter, Grouping};
+use crate::analysis_parameter::{AnalysisParameter, AnalysisRun, Grouping};
 
 pub fn get_subcommand() -> Command {
     Command::new("info")
@@ -15,16 +15,20 @@ pub fn get_subcommand() -> Command {
         ])
 }
 
-pub fn get_instructions(
-    args: &ArgMatches,
-) -> Option<Result<Vec<AnalysisParameter>, anyhow::Error>> {
-    if let Some(args) = args.subcommand_matches("info") {
+pub fn get_instructions(args: &ArgMatches) -> Option<Result<Vec<AnalysisRun>, anyhow::Error>> {
+    if let Some(_args) = args.subcommand_matches("info") {
         let graph = args
             .get_one::<String>("gfa_file")
             .expect("info subcommand has gfa file")
             .to_owned();
-        let subset = args.get_one::<String>("subset").cloned();
-        let exclude = args.get_one::<String>("exclude").cloned();
+        let subset = args
+            .get_one::<String>("subset")
+            .cloned()
+            .unwrap_or_default();
+        let exclude = args
+            .get_one::<String>("exclude")
+            .cloned()
+            .unwrap_or_default();
         let grouping = args.get_one::<String>("groupby").cloned();
         let grouping = if args.get_flag("groupby-sample") {
             Some(Grouping::Sample)
@@ -33,12 +37,16 @@ pub fn get_instructions(
         } else {
             grouping.map(|g| Grouping::Custom(g))
         };
-        Some(Ok(vec![AnalysisParameter::Info {
+        let parameters = vec![AnalysisRun::new(
             graph,
             subset,
             exclude,
             grouping,
-        }]))
+            false,
+            vec![AnalysisParameter::Info],
+        )];
+        log::info!("{parameters:?}");
+        Some(Ok(parameters))
     } else {
         None
     }

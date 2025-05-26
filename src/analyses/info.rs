@@ -12,7 +12,6 @@ use crate::{
 use super::ConstructibleAnalysis;
 
 pub struct Info {
-    graph: String,
     graph_info: Option<GraphInfo>,
     path_info: Option<PathInfo>,
     group_info: Option<GroupInfo>,
@@ -51,12 +50,16 @@ impl Analysis for Info {
 
         let table = self.generate_table(gb)?;
         let table = format!("`{}`", &table);
-        let graph = self.graph.clone();
+        let run_name = self.get_run_name(gb.expect("Info should be called with a graph"));
+        let safe_run_name = run_name
+            .clone()
+            .to_lowercase()
+            .replace(&[' ', '|', '\\'], "-");
         Ok(vec![
             AnalysisSection {
-                id: format!("info-{graph}-graph"),
+                id: format!("{safe_run_name}-graph"),
                 analysis: "Pangenome Info".to_string(),
-                run_name: graph.clone(),
+                run_name: run_name.clone(),
                 countable: "Graph Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::Table {
@@ -66,9 +69,9 @@ impl Analysis for Info {
                 }],
             },
             AnalysisSection {
-                id: format!("info-{graph}-node"),
+                id: format!("{safe_run_name}-node"),
                 analysis: "Pangenome Info".to_string(),
-                run_name: graph.clone(),
+                run_name: run_name.clone(),
                 countable: "Node Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::Table {
@@ -78,9 +81,9 @@ impl Analysis for Info {
                 }],
             },
             AnalysisSection {
-                id: format!("info-{graph}-path"),
+                id: format!("{safe_run_name}-path"),
                 analysis: "Pangenome Info".to_string(),
-                run_name: graph.clone(),
+                run_name: run_name.clone(),
                 countable: "Path Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::Table {
@@ -90,14 +93,14 @@ impl Analysis for Info {
                 }],
             },
             AnalysisSection {
-                id: format!("info-{graph}-group"),
+                id: format!("{safe_run_name}-group"),
                 analysis: "Pangenome Info".to_string(),
-                run_name: graph.clone(),
+                run_name: run_name.clone(),
                 countable: "Group Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![
-                    self.get_group_bar(&graph, "node"),
-                    self.get_group_bar(&graph, "bp"),
+                    self.get_group_bar(&run_name, "node"),
+                    self.get_group_bar(&run_name, "bp"),
                 ],
             },
         ])
@@ -115,12 +118,8 @@ impl Analysis for Info {
 }
 
 impl ConstructibleAnalysis for Info {
-    fn from_parameter(parameter: AnalysisParameter) -> Self {
+    fn from_parameter(_parameter: AnalysisParameter) -> Self {
         Self {
-            graph: match parameter {
-                AnalysisParameter::Info { graph, .. } => graph,
-                _ => panic!("Cannot construct Info Analysis from another parameter"),
-            },
             graph_info: None,
             path_info: None,
             group_info: None,
@@ -133,6 +132,10 @@ impl Info {
         self.graph_info = Some(GraphInfo::from(gb));
         self.path_info = Some(PathInfo::from(gb));
         self.group_info = Some(GroupInfo::from(gb));
+    }
+
+    fn get_run_name(&self, gb: &GraphBroker) -> String {
+        format!("{}-info", gb.get_run_name())
     }
 
     fn get_graph_table(&self) -> (Vec<String>, Vec<Vec<String>>) {
