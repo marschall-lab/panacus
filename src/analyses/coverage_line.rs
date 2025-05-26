@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     analysis_parameter::AnalysisParameter,
+    graph_broker::GraphBroker,
     html_report::{AnalysisSection, ReportItem},
     io::write_table_with_start_index,
     util::CountType,
@@ -66,7 +67,7 @@ impl Analysis for CoverageLine {
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "coverage-line-{}",
-            self.get_run_name()
+            self.get_run_name(gb)
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -86,7 +87,7 @@ impl Analysis for CoverageLine {
                     id: format!("{id_prefix}-{k}"),
                     analysis: "Coverage Line".to_string(),
                     table: Some(table.clone()),
-                    run_name: self.get_run_name(),
+                    run_name: self.get_run_name(gb),
                     countable: k.to_string(),
                     items: vec![ReportItem::Line {
                         id: format!("{id_prefix}-{k}"),
@@ -135,7 +136,7 @@ impl CoverageLine {
         }
     }
 
-    fn get_run_name(&self) -> String {
-        "default-coverage-line-name".to_string()
+    fn get_run_name(&self, gb: &GraphBroker) -> String {
+        format!("{}-coverageline", gb.get_run_name())
     }
 }

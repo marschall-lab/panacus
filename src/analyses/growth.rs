@@ -117,7 +117,7 @@ impl Analysis for Growth {
         let growths = &self.inner.as_ref().unwrap().growths;
         let id_prefix = format!(
             "pan-growth-{}",
-            self.get_run_name()
+            self.get_run_name(dm.expect("Growth should be called with a graph"))
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -126,7 +126,7 @@ impl Analysis for Growth {
             .map(|(k, v)| AnalysisSection {
                 id: format!("{id_prefix}-{k}"),
                 analysis: "Pangenome Growth".to_string(),
-                run_name: self.get_run_name(),
+                run_name: self.get_run_name(dm.expect("Growth should be called with a graph")),
                 countable: k.to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::MultiBar {
@@ -178,8 +178,8 @@ impl ConstructibleAnalysis for Growth {
 }
 
 impl Growth {
-    fn get_run_name(&self) -> String {
-        "default-growth-name".to_string()
+    fn get_run_name(&self, gb: &GraphBroker) -> String {
+        format!("{}-growth", gb.get_run_name())
     }
 
     fn set_inner(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<()> {

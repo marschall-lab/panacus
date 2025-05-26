@@ -28,7 +28,7 @@ pub use graph::PathSegment;
 pub use hist::Hist;
 pub use hist::ThresholdContainer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GraphState {
     pub graph: String,
     pub subset: String,
@@ -96,7 +96,22 @@ impl GraphBroker {
         input_requirements: &HashSet<Req>,
         nice: bool,
     ) -> Result<(), Error> {
-        if self.state.is_none() {
+        if self.state.is_some() {
+            let prev_state = std::mem::take(&mut self.state).unwrap();
+            if prev_state.graph != state.graph {
+                *self = Self::from_gfa(input_requirements, nice);
+            }
+            if prev_state.subset != state.subset {
+                self.include_coords(&state.subset);
+            }
+            if prev_state.exclude != state.exclude {
+                self.exclude_coords(&state.exclude);
+            }
+            if prev_state.grouping != state.grouping {
+                self.with_group(&state.grouping);
+            }
+            self.finish()?;
+        } else {
             *self = Self::from_gfa(input_requirements, nice);
             if !state.subset.is_empty() {
                 self.include_coords(&state.subset);
@@ -108,10 +123,9 @@ impl GraphBroker {
                 self.with_group(&state.grouping);
             }
             self.finish()?;
-            Ok(())
-        } else {
-            unimplemented!("Fancy graph state changes are not yet implemented");
         }
+        self.state = Some(state);
+        Ok(())
     }
 
     pub fn change_order(&mut self, order: &str) -> Result<(), Error> {
