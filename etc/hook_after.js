@@ -21,61 +21,195 @@ const pluginCanvasBackgroundColor = {
   }
 }
 
+// Adapted from https://github.com/vega/vega-embed/
+function post_to_vega_editor(window, data) {
+    const url = 'https://vega.github.io/editor/';
+    console.log("Opening url: " + url);
+    const editor = window.open(url);
+    const wait = 10000;
+    const step = 250;
+    const {origin} = new URL(url);
+
+    let count = ~~(wait / step);
+
+    function listen(evt) {
+        if (evt.source === editor) {
+            count = 0;
+            window.removeEventListener('message', listen, false);
+        }
+    }
+    window.addEventListener('message', listen, false);
+
+    function send() {
+        if (count <= 0) {
+            return;
+        }
+        editor.postMessage(data, origin);
+        setTimeout(send, step);
+        count -= 1;
+    }
+    setTimeout(send, step);
+}
+
 for (let key in objects.datasets) {
     let element = objects.datasets[key];
     if (element instanceof Bar) {
         let h = element;
         var ctx = document.getElementById('chart-bar-' + h.id);
-        var myChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: h.labels,
-                datasets: [{
-                    label: h.name,
-                    data: h.values,
-                    borderWidth: 1,
-                    backgroundColor: PCOLORS[0],
-                    borderColor: '#FFFFFF'
-                }]
+        var id = 'chart-bar-' + h.id;
+        var data = {};
+        if (h.ordinal) {
+            data.values = h.data.values.map(d => ({
+                ...d,
+                label: Number(d.label)
+            }));
+        } else {
+            data.values = h.data.values;
+        }
+        if (h.log_toggle) {
+            data.values = data.values.filter((el) => el.value > 0);
+        }
+        var yourVlSpec = {
+            $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+            description: 'A simple bar chart with embedded data.',
+            width: 1000,
+            "autosize": {
+                "type": "fit",
+                "contains": "padding"
             },
-            options: {
-                scales: {
-                    y: {
-                        title: {
-                            display: true,
-                            text: h.y_label,
-                        },
-                        beginAtZero: true,
-                        grid: {
-                            color: '#FFFFFF',
+            height: 350,
+            // data: h.data,
+            data,
+            layer: [
+                {
+                    "params": [
+                        {
+                            "name": "hover",
+                            "select": {"type": "point", "on": "pointerover", "clear": "pointerout"}
                         }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: h.x_label,
+                    ],
+                    "mark": {"type": "bar", "color": "#eee", "tooltip": true},
+                    "encoding": {
+                        x: {field: 'label', type: 'nominal', "axis": {"labelAngle": 65}, title: h.x_label},
+                        "opacity": {
+                            "condition": {"test": {"param": "hover", "empty": false}, "value": 0.5},
+                            "value": 0
                         },
-                        grid: {
-                            color: '#FFFFFF',
-                        },
-                        ticks: {
-                            maxRotation: 90,
-                            minRotation: 65
-                        }
+                        "detail": [{field: 'value', type: 'quantitative', title: h.y_label}]
+                    }
+                },
+                {
+                    mark: 'bar',
+                    encoding: {
+                        x: {field: 'label', type: h.ordinal ? 'ordinal' : 'nominal', "axis": {"labelAngle": 65}, title: h.x_label},
+                        y: {field: 'value', title: h.y_label},
                     },
                 },
-                plugins: {
-                    customCanvasBackgroundColor: {
-                        color: '#E5E4EE',
-                    }
-                }
-            },
-            plugins: [pluginCanvasBackgroundColor],
-        });
-        buildPlotDownload(myChart, h.id, fname);
-        if (h.log_toggle) {
-            buildLogToggle(myChart, "bar-" + h.id);
+            ]
+        };
+
+        function render(scaleType) {
+            const copied_spec = JSON.parse(JSON.stringify(yourVlSpec)); // deep copy
+            console.log(copied_spec);
+            if (scaleType == "log") {
+                copied_spec.layer[1].encoding.y.scale = { type: "log", domainMin: 1 }; // set scale type
+                copied_spec.layer[1].encoding.y2 = { datum: 1 }; // set scale type
+            } else {
+                copied_spec.layer[1].encoding.y.scale = { type: "linear" }; // set scale type
+                copied_spec.layer[1].encoding.y2 = {}; // set scale type
+            }
+            vegaEmbed(`#${CSS.escape(id)}`, copied_spec).then(({ view, spec, vgSpec }) => {
+                // Export PNG
+                document.getElementById('btn-download-plot-png-' + h.id).addEventListener('click', () => {
+                    view.toImageURL('png').then(url => {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'visualization.png';
+                        a.click();
+                    });
+                });
+
+                // Export SVG
+                document.getElementById('btn-download-plot-svg-' + h.id).addEventListener('click', () => {
+                    view.toImageURL('svg').then(url => {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'visualization.svg';
+                        a.click();
+                    });
+                });
+
+                // Open in Vega Editor
+                console.log('btn-download-plot-vega-editor-' + h.id);
+                document.getElementById('btn-download-plot-vega-editor-' + h.id).addEventListener('click', () => {
+                    post_to_vega_editor(window, {
+                        mode: 'vega-lite',
+                        spec: JSON.stringify(spec, null, 2),
+                        renderer: undefined,
+                        config: undefined,
+                    });
+                });
+            });
         }
+
+        if (h.log_toggle) {
+            document.getElementById('btn-logscale-plot-bar-' + h.id).addEventListener('change', (event) => {
+                if (event.currentTarget.checked) {
+                    render("log");
+                } else {
+                    render("linear");
+                }
+            });
+        }
+
+        render("linear");
+        // var myChart = new Chart(ctx, {
+        //     type: 'bar',
+        //     data: {
+        //         labels: h.labels,
+        //         datasets: [{
+        //             label: h.name,
+        //             data: h.values,
+        //             borderWidth: 1,
+        //             backgroundColor: PCOLORS[0],
+        //             borderColor: '#FFFFFF'
+        //         }]
+        //     },
+        //     options: {
+        //         scales: {
+        //             y: {
+        //                 title: {
+        //                     display: true,
+        //                     text: h.y_label,
+        //                 },
+        //                 beginAtZero: true,
+        //                 grid: {
+        //                     color: '#FFFFFF',
+        //                 }
+        //             },
+        //             x: {
+        //                 title: {
+        //                     display: true,
+        //                     text: h.x_label,
+        //                 },
+        //                 grid: {
+        //                     color: '#FFFFFF',
+        //                 },
+        //                 ticks: {
+        //                     maxRotation: 90,
+        //                     minRotation: 65
+        //                 }
+        //             },
+        //         },
+        //         plugins: {
+        //             customCanvasBackgroundColor: {
+        //                 color: '#E5E4EE',
+        //             }
+        //         }
+        //     },
+        //     plugins: [pluginCanvasBackgroundColor],
+        // });
+        // buildPlotDownload(myChart, h.id, fname);
     } else if (element instanceof MultiBar) {
         let m = element;
         var ctx = document.getElementById('chart-bar-' + m.id);
@@ -129,7 +263,7 @@ for (let key in objects.datasets) {
             },
             plugins: [pluginCanvasBackgroundColor],
         });
-        buildPlotDownload(myChart, m.id, fname);
+        // buildPlotDownload(myChart, m.id, fname);
         if (m.log_toggle) {
             buildLogToggle(myChart, "bar-" + m.id);
         }
@@ -192,11 +326,11 @@ for (let key in objects.datasets) {
             },
             plugins: [pluginCanvasBackgroundColor],
         });
-        buildPlotDownload(myChart, l.id, fname);
+        // buildPlotDownload(myChart, l.id, fname);
     } else if (element instanceof Hexbin) {
         let h = element;
         var ctx = document.getElementById('chart-hexbin-' + h.id);
-        buildPlotDownload(myChart, h.id, fname);
+        // buildPlotDownload(myChart, h.id, fname);
         const width = 928;
         const height = width;
         const radius = h.radius;
@@ -347,7 +481,7 @@ for (let key in objects.datasets) {
             },
             plugins: [pluginCanvasBackgroundColor],
         });
-        buildPlotDownload(myChart, h.id, fname);
+        // buildPlotDownload(myChart, h.id, fname);
         buildColorSlider(myChart, h.id);
     }
 }
