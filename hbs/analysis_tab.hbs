@@ -14,11 +14,13 @@
       <ul class="dropdown-menu">
         {{#each plot}}
         {{#if name}}
-        <li><a class="dropdown-item" href="#">{{name}} as svg</a></li>
-        <li><a class="dropdown-item" href="#" id="btn-download-plot-{{id}}">{{name}} as png</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-svg-{{id}}">{{name}} as svg</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-png-{{id}}">{{name}} as png</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-vega-editor-{{id}}">Open {{name}} in Vega Editor</a></li>
         {{else}}
-        <li><a class="dropdown-item" href="#">As svg</a></li>
-        <li><a class="dropdown-item" href="#" id="btn-download-plot-{{id}}">As png</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-svg-{{id}}">As svg</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-png-{{id}}">As png</a></li>
+        <li><a class="dropdown-item" href="#" id="btn-download-plot-vega-editor-{{id}}">Open in Vega Editor</a></li>
         {{/if}}
         {{/each}}
       </ul>

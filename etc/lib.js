@@ -5,14 +5,14 @@
 const PCOLORS = ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4'];
 
 class Bar {
-    constructor(id, name, x_label, y_label, labels, values, log_toggle) {
+    constructor(id, name, x_label, y_label, data, log_toggle, ordinal) {
         this.id = id;
         this.name = name;
         this.x_label = x_label;
         this.y_label = y_label;
-        this.labels = labels;
-        this.values = values;
+        this.data = data;
         this.log_toggle = log_toggle;
+        this.ordinal = ordinal;
     }
 }
 

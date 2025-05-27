@@ -13,6 +13,33 @@ use crate::util::to_id;
 type JsVars = HashMap<String, HashMap<String, String>>;
 type RenderedHTML = Result<(String, JsVars), RenderError>;
 
+pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.min.js");
+pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
+pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
+pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
+pub const D3_JS: &[u8] = include_bytes!("../etc/d3.v7.min.js");
+pub const D3_HEXBIN_JS: &[u8] = include_bytes!("../etc/d3-hexbin.v0.2.min.js");
+pub const D3_LEGEND_JS: &[u8] = include_bytes!("../etc/d3-legend.min.js");
+pub const CHART_JS_MATRIX: &[u8] = include_bytes!("../etc/chartjs-chart-matrix.min.js");
+pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
+pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.js");
+pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.js");
+pub const PANACUS_LOGO: &[u8] = include_bytes!("../etc/panacus-illustration-small.png");
+pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
+pub const VEGA: &[u8] = include_bytes!("../etc/vega@6.0.0.min.js");
+pub const VEGA_EMBED: &[u8] = include_bytes!("../etc/vega-embed@6.29.0.min.js");
+pub const VEGA_LITE: &[u8] = include_bytes!("../etc/vega-lite@6.1.0.min.js");
+
+pub const REPORT_HBS: &[u8] = include_bytes!("../hbs/report.hbs");
+pub const BAR_HBS: &[u8] = include_bytes!("../hbs/bar.hbs");
+pub const TREE_HBS: &[u8] = include_bytes!("../hbs/tree.hbs");
+pub const TABLE_HBS: &[u8] = include_bytes!("../hbs/table.hbs");
+pub const HEATMAP_HBS: &[u8] = include_bytes!("../hbs/heatmap.hbs");
+pub const ANALYSIS_TAB_HBS: &[u8] = include_bytes!("../hbs/analysis_tab.hbs");
+pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs");
+pub const HEXBIN_HBS: &[u8] = include_bytes!("../hbs/hexbin.hbs");
+pub const LINE_HBS: &[u8] = include_bytes!("../hbs/line.hbs");
+
 fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
     for (k, v) in b {
         if let Some(x) = a.get_mut(&k) {
@@ -80,30 +107,6 @@ impl AnalysisSection {
         Ok((registry.render("analysis_tab", &vars)?, js_objects))
     }
 }
-
-pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.min.js");
-pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
-pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
-pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
-pub const D3_JS: &[u8] = include_bytes!("../etc/d3.v7.min.js");
-pub const D3_HEXBIN_JS: &[u8] = include_bytes!("../etc/d3-hexbin.v0.2.min.js");
-pub const D3_LEGEND_JS: &[u8] = include_bytes!("../etc/d3-legend.min.js");
-pub const CHART_JS_MATRIX: &[u8] = include_bytes!("../etc/chartjs-chart-matrix.min.js");
-pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
-pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.min.js");
-pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.min.js");
-pub const PANACUS_LOGO: &[u8] = include_bytes!("../etc/panacus-illustration-small.png");
-pub const SYMBOLS_SVG: &[u8] = include_bytes!("../etc/symbols.svg");
-
-pub const REPORT_HBS: &[u8] = include_bytes!("../hbs/report.hbs");
-pub const BAR_HBS: &[u8] = include_bytes!("../hbs/bar.hbs");
-pub const TREE_HBS: &[u8] = include_bytes!("../hbs/tree.hbs");
-pub const TABLE_HBS: &[u8] = include_bytes!("../hbs/table.hbs");
-pub const HEATMAP_HBS: &[u8] = include_bytes!("../hbs/heatmap.hbs");
-pub const ANALYSIS_TAB_HBS: &[u8] = include_bytes!("../hbs/analysis_tab.hbs");
-pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs");
-pub const HEXBIN_HBS: &[u8] = include_bytes!("../hbs/hexbin.hbs");
-pub const LINE_HBS: &[u8] = include_bytes!("../hbs/line.hbs");
 
 fn get_js_objects_string(objects: JsVars) -> String {
     let mut res = String::from("{");
@@ -238,6 +241,12 @@ impl AnalysisSection {
             String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
         );
         vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
+        vars.insert("vega", String::from_utf8_lossy(VEGA).into_owned());
+        vars.insert(
+            "vega_embed",
+            String::from_utf8_lossy(VEGA_EMBED).into_owned(),
+        );
+        vars.insert("vega_lite", String::from_utf8_lossy(VEGA_LITE).into_owned());
         vars.insert("d3_js", String::from_utf8_lossy(D3_JS).into_owned());
         vars.insert(
             "d3_hexbin_js",
@@ -435,10 +444,23 @@ impl ReportItem {
                 if !registry.has_template("bar") {
                     registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
+                let ordinal = labels.iter().all(|l| l.parse::<f64>().is_ok());
+                let data: Vec<String> = labels
+                    .into_iter()
+                    .zip(values.into_iter())
+                    .map(|(l, v)| format!("{{ 'label': '{}', 'value': {} }}", l, v))
+                    .collect();
+                let mut data_text = "{'values': [".to_string();
+                for datum in data {
+                    data_text.push_str(&datum);
+                    data_text.push_str(", ");
+                }
+                data_text.push_str("]}");
                 let js_object = format!(
-                    "new Bar('{}', '{}', '{}', '{}', {:?}, {:?}, {})",
-                    id, name, x_label, y_label, labels, values, log_toggle
+                    "new Bar('{}', '{}', '{}', '{}', {}, {}, {})",
+                    id, name, x_label, y_label, data_text, log_toggle, ordinal
                 );
+                eprintln!("{}", js_object);
                 let data = HashMap::from([
                     ("id".to_string(), to_json(&id)),
                     ("log_toggle".to_string(), to_json(log_toggle)),
