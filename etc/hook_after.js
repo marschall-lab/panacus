@@ -55,9 +55,9 @@ for (let key in objects.datasets) {
     let element = objects.datasets[key];
     if (element instanceof Bar) {
         let h = element;
-        var ctx = document.getElementById('chart-bar-' + h.id);
-        var id = 'chart-bar-' + h.id;
-        var data = {};
+        let ctx = document.getElementById('chart-bar-' + h.id);
+        let id = 'chart-bar-' + h.id;
+        let data = {};
         if (h.ordinal) {
             data.values = h.data.values.map(d => ({
                 ...d,
@@ -69,7 +69,7 @@ for (let key in objects.datasets) {
         if (h.log_toggle) {
             data.values = data.values.filter((el) => el.value > 0);
         }
-        var yourVlSpec = {
+        let yourVlSpec = {
             $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
             description: 'A simple bar chart with embedded data.',
             width: 1000,
@@ -108,61 +108,75 @@ for (let key in objects.datasets) {
             ]
         };
 
-        function render(scaleType) {
-            const copied_spec = JSON.parse(JSON.stringify(yourVlSpec)); // deep copy
+        function render(scaleType, thisId, vlSpec, add_listeners) {
+            const copied_spec = JSON.parse(JSON.stringify(vlSpec)); // deep copy
             console.log(copied_spec);
             if (scaleType == "log") {
                 copied_spec.layer[1].encoding.y.scale = { type: "log", domainMin: 1 }; // set scale type
                 copied_spec.layer[1].encoding.y2 = { datum: 1 }; // set scale type
             } else {
                 copied_spec.layer[1].encoding.y.scale = { type: "linear" }; // set scale type
-                copied_spec.layer[1].encoding.y2 = {}; // set scale type
+                if ('y2' in copied_spec.layer[1].encoding) {
+                    delete copied_spec.layer[1].encoding[y2]; // set scale type
+                }
             }
-            vegaEmbed(`#${CSS.escape(id)}`, copied_spec).then(({ view, spec, vgSpec }) => {
-                // Export PNG
-                document.getElementById('btn-download-plot-png-' + h.id).addEventListener('click', () => {
-                    view.toImageURL('png').then(url => {
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'visualization.png';
-                        a.click();
+            vegaEmbed(`#${CSS.escape(thisId)}`, copied_spec).then(({ view, spec, vgSpec }) => {
+                if (add_listeners) {
+                    // Export PNG
+                    let png_button = document.getElementById('btn-download-plot-png-' + h.id);
+                    console.log(png_button)
+                    png_button.addEventListener('click', () => {
+                        view.toImageURL('png').then(url => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'visualization.png';
+                            a.click();
+                        });
                     });
-                });
 
-                // Export SVG
-                document.getElementById('btn-download-plot-svg-' + h.id).addEventListener('click', () => {
-                    view.toImageURL('svg').then(url => {
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'visualization.svg';
-                        a.click();
+                    // Export SVG
+                    let svg_button = document.getElementById('btn-download-plot-svg-' + h.id);
+                    svg_button.removeEventListener('click', svg_button);
+                    svg_button.addEventListener('click', function svg_button() {
+                        view.toImageURL('svg').then(url => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'visualization.svg';
+                            a.click();
+                        });
                     });
-                });
 
-                // Open in Vega Editor
-                console.log('btn-download-plot-vega-editor-' + h.id);
-                document.getElementById('btn-download-plot-vega-editor-' + h.id).addEventListener('click', () => {
-                    post_to_vega_editor(window, {
-                        mode: 'vega-lite',
-                        spec: JSON.stringify(spec, null, 2),
-                        renderer: undefined,
-                        config: undefined,
+                    // Open in Vega Editor
+                    let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + h.id);
+                    vega_editor_button.addEventListener('click', () => {
+                        post_to_vega_editor(window, {
+                            mode: 'vega-lite',
+                            spec: JSON.stringify(spec, null, 2),
+                            renderer: undefined,
+                            config: undefined,
+                        });
                     });
-                });
+                }
             });
         }
 
         if (h.log_toggle) {
             document.getElementById('btn-logscale-plot-bar-' + h.id).addEventListener('change', (event) => {
+                console.log(id);
+                console.log(yourVlSpec);
                 if (event.currentTarget.checked) {
-                    render("log");
+                    render("log", id, yourVlSpec, false);
                 } else {
-                    render("linear");
+                    render("linear", id, yourVlSpec, false);
                 }
             });
         }
 
-        render("linear");
+        if (document.getElementById('btn-logscale-plot-bar-' + h.id).checked) {
+            render("log", id, yourVlSpec, true);
+        } else {
+            render("linear", id, yourVlSpec, true);
+        }
         // var myChart = new Chart(ctx, {
         //     type: 'bar',
         //     data: {
