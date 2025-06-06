@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use itertools::multizip;
 use itertools::Itertools;
 
 use crate::{
     analysis_parameter::AnalysisParameter,
-    graph_broker::GraphBroker,
+    graph_broker::{GraphBroker, ItemId},
     html_report::{AnalysisSection, Bin, ReportItem},
     util::CountType,
 };
@@ -32,10 +33,7 @@ impl Analysis for NodeDistribution {
         }
         let mut result = "Bin\tCoverage\tLog-Length\tLog-Size\n".to_string();
         for (i, bin) in self.bins.iter().enumerate() {
-            result.push_str(&format!(
-                "{}\t{}\t{}\t{}\n",
-                i, bin.real_x, bin.real_y, bin.length
-            ));
+            result.push_str(&format!("{}\t{}\t{}\t{}\n", i, bin.x, bin.y, bin.size));
         }
         Ok(result)
     }
@@ -74,9 +72,6 @@ impl Analysis for NodeDistribution {
             items: vec![ReportItem::Hexbin {
                 id: format!("{id_prefix}-{}", CountType::Node),
                 bins: self.bins.clone(),
-                min: self.min,
-                max: self.max,
-                radius,
             }],
         }];
         Ok(tab)
@@ -102,6 +97,7 @@ impl NodeDistribution {
                 itertools::MinMaxResult::MinMax(min, max) => (min, max),
                 _ => panic!("Node distribution needs to have at least two countables"),
             };
+            let node_ids = gb.get_nodes().to_owned();
             let node_lens = &gb.get_node_lens()[1..]
                 .iter()
                 .map(|x| (*x as f64).log10())
@@ -115,7 +111,13 @@ impl NodeDistribution {
                 .copied()
                 .zip(node_lens.iter().copied())
                 .collect();
-            let bins = Bin::hexbin(&points, 0.1);
+            let points: Vec<(ItemId, u32, f64)> = multizip((
+                node_ids,
+                countables.into_iter().copied(),
+                node_lens.into_iter().copied(),
+            ))
+            .collect();
+            let bins = Bin::hexbin(&points, 15, 9);
             self.bins = bins;
             self.min = (*cov_min, *lens_min);
             self.max = (*cov_max, *lens_max);

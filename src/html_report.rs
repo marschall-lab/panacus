@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::{collections::HashMap, str::from_utf8};
 use std::{f64, fmt};
 
@@ -8,6 +9,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use time::{macros::format_description, OffsetDateTime};
 
+use crate::graph_broker::ItemId;
 use crate::util::to_id;
 
 type JsVars = HashMap<String, HashMap<String, String>>;
@@ -336,9 +338,6 @@ pub enum ReportItem {
     Hexbin {
         id: String,
         bins: Vec<Bin>,
-        min: (u32, f64),
-        max: (u32, f64),
-        radius: u32,
     },
     Heatmap {
         id: String,
@@ -485,9 +484,19 @@ impl ReportItem {
                 if !registry.has_template("bar") {
                     registry.register_template_string("bar", from_utf8(BAR_HBS).unwrap())?;
                 }
+                let data_text = (0..labels.len())
+                    .cartesian_product(0..names.len())
+                    .map(|(l, n)| {
+                        format!(
+                            "{{'label': {}, 'name': '{}', 'value': {}}}",
+                            labels[l], names[n], values[n][l]
+                        )
+                    })
+                    .join(",");
+                let data_text = format!("{{'values': [{}]}}", data_text);
                 let js_object = format!(
-                    "new MultiBar('{}', {:?}, '{}', '{}', {:?}, {:?}, {})",
-                    id, names, x_label, y_label, labels, values, log_toggle
+                    "new MultiBar('{}', '{}', '{}', {}, {})",
+                    id, x_label, y_label, log_toggle, data_text
                 );
                 let data = HashMap::from([
                     ("id".to_string(), to_json(&id)),
@@ -501,25 +510,24 @@ impl ReportItem {
                     )]),
                 ))
             }
-            Self::Hexbin {
-                id,
-                bins,
-                min,
-                max,
-                radius,
-            } => {
+            Self::Hexbin { id, bins } => {
                 if !registry.has_template("hexbin") {
                     registry.register_template_string("hexbin", from_utf8(HEXBIN_HBS).unwrap())?;
                 }
-                let mut js_object = format!(
-                    "new Hexbin('{}', [{}, {}], [{}, {}], {}, [",
-                    id, min.0, min.1, max.0, max.1, radius
-                );
-                for bin in bins {
+                let mut js_object = format!("new Hexbin('{}', {{'values': [", id,);
+                for (_i, bin) in bins.iter().enumerate() {
                     js_object.push_str(&format!(
-                        "{{ x: {}, y: {}, length: {} }}, ",
-                        bin.x, bin.y, bin.length
+                        "{{ coverage: {}, length: {}, size: {} }}, ",
+                        bin.x, bin.y, bin.size,
                     ));
+                }
+                js_object.push_str("]}, [");
+                for (_i, bin) in bins.into_iter().enumerate() {
+                    js_object.push_str(&format!("[",));
+                    for node in bin.content {
+                        js_object.push_str(&format!("{},", node.0,));
+                    }
+                    js_object.push_str("],");
                 }
                 js_object.push_str("])");
                 let data = HashMap::from([("id".to_string(), to_json(&id))]);
@@ -545,9 +553,20 @@ impl ReportItem {
                     registry.register_template_string("line", from_utf8(LINE_HBS).unwrap())?;
                 }
 
+                let data: Vec<String> = x_values
+                    .into_iter()
+                    .zip(y_values.into_iter())
+                    .map(|(l, v)| format!("{{ 'x': '{}', 'y': {} }}", l, v))
+                    .collect();
+                let mut data_text = "{'values': [".to_string();
+                for datum in data {
+                    data_text.push_str(&datum);
+                    data_text.push_str(", ");
+                }
+                data_text.push_str("]}");
                 let js_object = format!(
-                    "new Line('{}', '{}', '{}', '{}', {}, {}, {:?}, {:?})",
-                    id, name, x_label, y_label, log_x, log_y, x_values, y_values
+                    "new Line('{}', '{}', '{}', '{}', {}, {}, {})",
+                    id, name, x_label, y_label, log_x, log_y, data_text
                 );
 
                 let data = HashMap::from([("id".to_string(), to_json(&id))]);
@@ -565,19 +584,18 @@ impl ReportItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bin {
-    pub length: f64,
+    pub size: u64,
     pub x: f64,
     pub y: f64,
-    pub real_x: f64,
-    pub real_y: f64,
+    pub content: Vec<ItemId>,
 }
 
 impl fmt::Display for Bin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{x: {}, y: {}, length: {:?} }}",
-            self.x, self.y, self.length
+            "{{x: {}, y: {}, size: {:?} }}",
+            self.x, self.y, self.size
         )
     }
 }
@@ -591,77 +609,78 @@ struct CounterBin {
 }
 
 impl Bin {
-    pub fn hexbin(points: &Vec<(u32, f64)>, _radius: f64) -> Vec<Self> {
-        let x_domain = match points.iter().map(|el| el.0).minmax() {
-            itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
-            _ => panic!("Need at least two values for hexbining"),
-        };
-        let y_domain = match points.iter().map(|el| el.1).minmax() {
-            itertools::MinMaxResult::MinMax(a, b) => (a as f64, b as f64),
-            _ => panic!("Need at least two values for hexbining"),
-        };
-        let mut bins_by_id: HashMap<String, CounterBin> = HashMap::new();
-        let radius = 20.0;
-        let (x_range, x_offset) = (928.0 - 20.0 - 82.0, 82.0);
-        let (y_range, y_offset) = (928.0 - 20.0 - 50.0, 928.0 - 50.0);
+    pub fn hexbin(points: &Vec<(ItemId, u32, f64)>, nx: u32, ny: u32) -> Vec<Self> {
+        let max_coverage = points
+            .iter()
+            .map(|(_i, c, _l)| *c)
+            .max()
+            .expect("At least one point");
+        let max_length = points.iter().map(|(_i, _c, l)| *l).fold(0. / 0., f64::max);
+        let dx = max_coverage as f64 / (nx - 1) as f64;
+        let t = dx as f64 / 3f64.sqrt();
+        let dy = max_length / (ny - 1) as f64;
+        // eprintln!("max c: {}, dx: {}, t: {}, dy: {}", max_coverage, dx, t, dy);
+        let mut bins: HashMap<(bool, i64, i64), Self> = HashMap::new();
         for point in points {
-            let px = (point.0 as f64 - x_domain.0) / (x_domain.1 - x_domain.0) * x_range + x_offset;
-            let px = px.round();
+            // Calculate positions in both grids
+            let mut black_x = (point.1 as f64 / dx).floor() * dx;
+            let mut black_y = (point.2 / dy).floor() * dy;
+            let mut green_x = ((point.1 as f64 - dx / 2.0) / dx).floor() * dx + dx / 2.0;
+            let mut green_y = ((point.2 - dy / 2.0) / dy).floor() * dy + dy / 2.0;
 
-            let py =
-                -(point.1 as f64 - y_domain.0) / (y_domain.1 - y_domain.0) * y_range + y_offset;
-            let py = py.round();
+            // eprintln!("point: {:?}, black: {:?}, green: {:?}", point, (black_x, black_y), (green_x, green_y));
 
-            let dx = 2.0 * (f64::consts::PI / 3.0).sin() * radius;
-            let dy = 1.5 * radius;
-
-            let py = py / dy;
-            let mut pj = py.round() as i64;
-            let px = px / dx - (pj % 2) as f64 / 2.0;
-            let mut pi = px.round();
-            let py1 = py - pj as f64;
-
-            if py1.abs() * 3.0 > 1.0 {
-                let px1 = px - pi;
-                let pi2 = pi + (if px < py { -1.0 } else { 1.0 }) / 2.0;
-                let pj2 = pj as f64 + (if py < pj as f64 { -1.0 } else { 1.0 });
-                let px2 = px - pi2;
-                let py2 = py - pj2;
-                if px1.powi(2) + py1.powi(2) > px2.powi(2) + py2.powi(2) {
-                    pi = pi2 + (if (pj % 2) == 1 { 1.0 } else { -1.0 }) / 2.0;
-                    pj = pj2 as i64;
-                }
+            if black_x < green_x {
+                black_x += dx;
+            } else {
+                green_x += dx;
             }
 
-            let id = format!("{}-{}", pi, pj);
-            if let Some(bin) = bins_by_id.get_mut(&id) {
-                bin.length += 1;
+            if black_y < green_y {
+                black_y += dy;
             } else {
-                let x = (pi + (pj % 2) as f64 / 2.0) * dx;
-                let y = pj as f64 * dy;
-                let real_x = (x - x_offset) / x_range * (x_domain.1 - x_domain.0) + x_domain.0;
-                let real_y = -(y - y_offset) / y_range * (y_domain.1 - y_domain.0) + y_domain.0;
-                bins_by_id.insert(
-                    id,
-                    CounterBin {
-                        length: 1,
-                        x,
-                        y,
-                        real_x,
-                        real_y,
-                    },
-                );
+                green_y += dy;
+            }
+
+            // eprintln!("\tpoint: {:?}, black: {:?}, green: {:?}", point, (black_x, black_y), (green_x, green_y));
+
+            if Self::distance(point.1 as f64, point.2, black_x, black_y)
+                < Self::distance(point.1 as f64, point.2, green_x, green_y)
+            {
+                bins.entry((false, (black_x / dx) as i64, (black_y / dy) as i64))
+                    .or_insert(Self {
+                        x: black_x as f64,
+                        y: black_y as f64,
+                        size: 0,
+                        content: Vec::new(),
+                    })
+                    .content
+                    .push(point.0);
+            } else {
+                // eprintln!("\t\tGreen one");
+                bins.entry((
+                    true,
+                    ((green_x - dx / 2.0) / dx) as i64,
+                    ((green_y - dy / 2.0) / dy) as i64,
+                ))
+                .or_insert(Self {
+                    x: green_x as f64,
+                    y: green_y as f64,
+                    size: 0,
+                    content: Vec::new(),
+                })
+                .content
+                .push(point.0);
             }
         }
-        bins_by_id
-            .into_values()
-            .map(|el| Self {
-                length: (el.length as f64).log10(),
-                x: el.x,
-                y: el.y,
-                real_x: el.real_x,
-                real_y: el.real_y,
-            })
-            .collect()
+        let mut bins: Vec<Bin> = bins.into_values().collect();
+        for bin in &mut bins {
+            bin.size = bin.content.len() as u64;
+        }
+        bins
+    }
+
+    fn distance(x1: f64, y1: f64, x2: f64, y2: f64) -> f64 {
+        (((x1 - x2).powf(2.0) + (y1 - y2).powf(2.0)) as f64).sqrt()
     }
 }
