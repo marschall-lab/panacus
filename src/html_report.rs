@@ -408,10 +408,18 @@ impl ReportItem {
                     registry
                         .register_template_string("heatmap", from_utf8(HEATMAP_HBS).unwrap())?;
                 }
-                let js_object = format!(
-                    "new Heatmap('{}', '{}', {:?}, {:?}, {:?})",
-                    id, name, x_labels, y_labels, values,
-                );
+                let mut data_set = "{ 'values': [".to_string();
+                for (row_i, row) in values.iter().enumerate() {
+                    for (col_i, cell) in row.iter().enumerate() {
+                        data_set.push_str(&format!(
+                            "{{ x: '{}', y: '{}', value: {} }},",
+                            x_labels[row_i], y_labels[col_i], cell
+                        ));
+                    }
+                }
+                data_set.push_str("]}");
+                let js_object = format!("new Heatmap('{}', '{}', {})", id, name, data_set,);
+                eprintln!("{}", data_set);
                 let max_scale = format!(
                     "{:.2}",
                     values

@@ -35,12 +35,10 @@ class Hexbin {
 }
 
 class Heatmap {
-    constructor(id, name, x_labels, y_labels, values) {
+    constructor(id, name, data_set) {
         this.id = id;
         this.name = name;
-        this.x_labels = x_labels;
-        this.y_labels = y_labels;
-        this.values = values;
+        this.data_set = data_set;
     }
 }
 

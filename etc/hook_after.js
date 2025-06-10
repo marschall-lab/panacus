@@ -203,6 +203,9 @@ for (let key in objects.datasets) {
                         "color": {
                             "field": "name",
                             "type": "nominal",
+                            "scale": {
+                                "range": ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4']
+                            }
                         },
                     },
                 },
@@ -456,77 +459,76 @@ for (let key in objects.datasets) {
 
     } else if (element instanceof Heatmap) {
         let h = element;
-        var ctx = document.getElementById('chart-heatmap-' + h.id);
-        const data_points = h.values.map(function(e, i) {
-            return e.map(function(f, j) {
-                return {x: i, y: j, v: f, x_label: h.x_labels[i], y_label: h.y_labels[j]};
-            });
-        }).flat();
-        const data = {
-            datasets: [{
-                label: 'My Matrix',
-                data: data_points,
-                backgroundColor(context) {
-                    const value = context.dataset.data[context.dataIndex].v;
-                    return getColor(value, 0.0);
-                },
-                width: ({chart}) => (chart.chartArea || {}).width / h.x_labels.length,
-                height: ({chart}) =>(chart.chartArea || {}).height / h.y_labels.length
-            }]
-        };
-        var myChart = new Chart(ctx, {
-            type: 'matrix',
-            data: data,
-            options: {
-                aspectRatio: 1,
-                plugins: {
-                    legend: false,
-                    tooltip: {
-                        callbacks: {
-                            title() {
-                                return '';
-                            },
-                            label(context) {
-                                const v = context.dataset.data[context.dataIndex];
-                                return [v.x_label + ' - ', v.y_label + ':', v.v];
-                            }
-                        }
-                    },
-                    customCanvasBackgroundColor: {
-                        color: '#E5E4EE',
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            stepSize: 1,
-                            callback: ((context, index) => {
-                                return h.x_labels[context];
-                            })
-                        },
-                        grid: {
-                            display: false
-                        },
-                        position: 'top',
-                    },
-                    y: {
-                        offset: true,
-                        ticks: {
-                            stepSize: 1,
-                            callback: ((context, index) => {
-                                return h.y_labels[context];
-                            })
-                        },
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
-            },
-            plugins: [pluginCanvasBackgroundColor],
-        });
+        let thisId = 'chart-heatmap-' + h.id;
         // buildPlotDownload(myChart, h.id, fname);
-        buildColorSlider(myChart, h.id);
+        console.log(h.data_set);
+        let mySpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+            "description": "Punchcard Visualization like on Github. The day on y-axis uses a custom order from Monday to Sunday.  The sort property supports both full day names (e.g., 'Monday') and their three letter initials (e.g., 'mon') -- both of which are case insensitive.",
+            "data": h.data_set,
+            "width": 800,
+            "height": 800,
+            "mark": {
+                "type": "rect",
+                "tooltip": true,
+            },
+            "encoding": {
+                "y": {
+                    "field": "y",
+                    "type": "ordinal",
+                    "sort": null,
+                },
+                "x": {
+                    "field": "x",
+                    "type": "ordinal",
+                    "sort": null,
+                },
+                "color": {
+                    "field": "value",
+                    "type": "quantitative",
+                    "scale": {"range": ["darkred", "white"], "interpolate": "cubehelix", "domainMax": 1.0}
+                },
+            }
+        };
+
+        let opt = {
+            "actions": false,
+        };
+        vegaEmbed(`#${CSS.escape(thisId)}`, mySpec, opt).then(({ view, spec, vgSpec }) => {
+            // Export PNG
+            let png_button = document.getElementById('btn-download-plot-png-' + h.id);
+            png_button.addEventListener('click', () => {
+                view.toImageURL('png').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.png';
+                    a.click();
+                });
+            });
+
+            // Export SVG
+            let svg_button = document.getElementById('btn-download-plot-svg-' + h.id);
+            svg_button.removeEventListener('click', svg_button);
+            svg_button.addEventListener('click', function svg_button() {
+                view.toImageURL('svg').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.svg';
+                    a.click();
+                });
+            });
+
+            // Open in Vega Editor
+            let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + h.id);
+            vega_editor_button.addEventListener('click', () => {
+                post_to_vega_editor(window, {
+                    mode: 'vega-lite',
+                    spec: JSON.stringify(spec, null, 2),
+                    renderer: undefined,
+                    config: undefined,
+                });
+            });
+        });
     }
 }
 
