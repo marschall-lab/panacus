@@ -179,7 +179,6 @@ for (let key in objects.datasets) {
         let m = element;
         var ctx = document.getElementById('chart-bar-' + m.id);
         let id = 'chart-bar-' + m.id;
-        console.log(m.data);
         let yourVlSpec = {
             $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
             description: 'A simple bar chart with embedded data.',
@@ -402,7 +401,6 @@ for (let key in objects.datasets) {
             "actions": false,
         };
         vegaEmbed(`#${CSS.escape(thisId)}`, mySpec, opt).then(({ view, spec, vgSpec }) => {
-            console.log(view);
             let list_button = document.getElementById('btn-download-node-list-' + h.id);
             list_button.addEventListener('click', () => {
                 let ids = new Array();
@@ -412,7 +410,6 @@ for (let key in objects.datasets) {
                 let table = "";
                 ids.forEach((id) => {
                     h.bin_content[id - 1].forEach((dataPoint) => {
-                        console.log("\t" + dataPoint);
                         table += dataPoint + "\t" + id + "\n";
                     });
                 });
@@ -461,7 +458,6 @@ for (let key in objects.datasets) {
         let h = element;
         let thisId = 'chart-heatmap-' + h.id;
         // buildPlotDownload(myChart, h.id, fname);
-        console.log(h.data_set);
         let mySpec = {
             "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
             "description": "Punchcard Visualization like on Github. The day on y-axis uses a custom order from Monday to Sunday.  The sort property supports both full day names (e.g., 'Monday') and their three letter initials (e.g., 'mon') -- both of which are case insensitive.",

@@ -1,4 +1,3 @@
-use std::hash::Hash;
 use std::{collections::HashMap, str::from_utf8};
 use std::{f64, fmt};
 
@@ -18,11 +17,6 @@ type RenderedHTML = Result<(String, JsVars), RenderError>;
 pub const BOOTSTRAP_COLOR_MODES_JS: &[u8] = include_bytes!("../etc/color-modes.min.js");
 pub const BOOTSTRAP_CSS: &[u8] = include_bytes!("../etc/bootstrap.min.css");
 pub const BOOTSTRAP_JS: &[u8] = include_bytes!("../etc/bootstrap.bundle.min.js");
-pub const CHART_JS: &[u8] = include_bytes!("../etc/chart.js");
-pub const D3_JS: &[u8] = include_bytes!("../etc/d3.v7.min.js");
-pub const D3_HEXBIN_JS: &[u8] = include_bytes!("../etc/d3-hexbin.v0.2.min.js");
-pub const D3_LEGEND_JS: &[u8] = include_bytes!("../etc/d3-legend.min.js");
-pub const CHART_JS_MATRIX: &[u8] = include_bytes!("../etc/chartjs-chart-matrix.min.js");
 pub const CUSTOM_CSS: &[u8] = include_bytes!("../etc/custom.css");
 pub const CUSTOM_LIB_JS: &[u8] = include_bytes!("../etc/lib.js");
 pub const HOOK_AFTER_JS: &[u8] = include_bytes!("../etc/hook_after.js");
@@ -242,26 +236,12 @@ impl AnalysisSection {
             "bootstrap_js",
             String::from_utf8_lossy(BOOTSTRAP_JS).into_owned(),
         );
-        vars.insert("chart_js", String::from_utf8_lossy(CHART_JS).into_owned());
         vars.insert("vega", String::from_utf8_lossy(VEGA).into_owned());
         vars.insert(
             "vega_embed",
             String::from_utf8_lossy(VEGA_EMBED).into_owned(),
         );
         vars.insert("vega_lite", String::from_utf8_lossy(VEGA_LITE).into_owned());
-        vars.insert("d3_js", String::from_utf8_lossy(D3_JS).into_owned());
-        vars.insert(
-            "d3_hexbin_js",
-            String::from_utf8_lossy(D3_HEXBIN_JS).into_owned(),
-        );
-        vars.insert(
-            "d3_legend_js",
-            String::from_utf8_lossy(D3_LEGEND_JS).into_owned(),
-        );
-        vars.insert(
-            "chart_js_matrix",
-            String::from_utf8_lossy(CHART_JS_MATRIX).into_owned(),
-        );
         vars.insert(
             "custom_css",
             String::from_utf8_lossy(CUSTOM_CSS).into_owned(),
