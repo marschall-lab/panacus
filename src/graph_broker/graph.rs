@@ -11,6 +11,7 @@ use std::str::{self, FromStr};
 use crate::io::bufreader_from_compressed_gfa;
 use crate::util::*;
 use crate::util::{CountType, ItemIdSize};
+use serde::{Deserialize, Serialize};
 
 static PATHID_PANSN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^([^#]+)(#[^#]+)?(#[^#].*)?$").unwrap());
@@ -81,7 +82,9 @@ impl PartialEq<u8> for Orientation {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct ItemId(pub ItemIdSize);
 
 impl fmt::Display for ItemId {

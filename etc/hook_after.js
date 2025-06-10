@@ -21,334 +21,510 @@ const pluginCanvasBackgroundColor = {
   }
 }
 
+// Adapted from https://github.com/vega/vega-embed/
+function post_to_vega_editor(window, data) {
+    const url = 'https://vega.github.io/editor/';
+    const editor = window.open(url);
+    const wait = 10000;
+    const step = 250;
+    const {origin} = new URL(url);
+
+    let count = ~~(wait / step);
+
+    function listen(evt) {
+        if (evt.source === editor) {
+            count = 0;
+            window.removeEventListener('message', listen, false);
+        }
+    }
+    window.addEventListener('message', listen, false);
+
+    function send() {
+        if (count <= 0) {
+            return;
+        }
+        editor.postMessage(data, origin);
+        setTimeout(send, step);
+        count -= 1;
+    }
+    setTimeout(send, step);
+}
+
 for (let key in objects.datasets) {
     let element = objects.datasets[key];
     if (element instanceof Bar) {
         let h = element;
-        var ctx = document.getElementById('chart-bar-' + h.id);
-        var myChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: h.labels,
-                datasets: [{
-                    label: h.name,
-                    data: h.values,
-                    borderWidth: 1,
-                    backgroundColor: PCOLORS[0],
-                    borderColor: '#FFFFFF'
-                }]
+        let ctx = document.getElementById('chart-bar-' + h.id);
+        let id = 'chart-bar-' + h.id;
+        let data = {};
+        if (h.ordinal) {
+            data.values = h.data.values.map(d => ({
+                ...d,
+                label: Number(d.label)
+            }));
+        } else {
+            data.values = h.data.values;
+        }
+        if (h.log_toggle) {
+            data.values = data.values.filter((el) => el.value > 0);
+        }
+        let yourVlSpec = {
+            $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+            description: 'A simple bar chart with embedded data.',
+            width: 1000,
+            "autosize": {
+                "type": "fit",
+                "contains": "padding"
             },
-            options: {
-                scales: {
-                    y: {
-                        title: {
-                            display: true,
-                            text: h.y_label,
-                        },
-                        beginAtZero: true,
-                        grid: {
-                            color: '#FFFFFF',
+            height: 350,
+            // data: h.data,
+            data,
+            layer: [
+                {
+                    "params": [
+                        {
+                            "name": "hover",
+                            "select": {"type": "point", "on": "pointerover", "clear": "pointerout"}
                         }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: h.x_label,
+                    ],
+                    "mark": {"type": "bar", "color": "#eee", "tooltip": true},
+                    "encoding": {
+                        x: {field: 'label', type: 'nominal', "axis": {"labelAngle": 65}, title: h.x_label},
+                        "opacity": {
+                            "condition": {"test": {"param": "hover", "empty": false}, "value": 0.5},
+                            "value": 0
                         },
-                        grid: {
-                            color: '#FFFFFF',
-                        },
-                        ticks: {
-                            maxRotation: 90,
-                            minRotation: 65
-                        }
+                        "detail": [{field: 'value', type: 'quantitative', title: h.y_label}]
+                    }
+                },
+                {
+                    mark: 'bar',
+                    encoding: {
+                        x: {field: 'label', type: h.ordinal ? 'ordinal' : 'nominal', "axis": {"labelAngle": 65}, title: h.x_label},
+                        y: {field: 'value', title: h.y_label},
                     },
                 },
-                plugins: {
-                    customCanvasBackgroundColor: {
-                        color: '#E5E4EE',
-                    }
+            ]
+        };
+
+        function render(scaleType, thisId, vlSpec, add_listeners) {
+            const copied_spec = JSON.parse(JSON.stringify(vlSpec)); // deep copy
+            if (scaleType == "log") {
+                copied_spec.layer[1].encoding.y.scale = { type: "log", domainMin: 1 }; // set scale type
+                copied_spec.layer[1].encoding.y2 = { datum: 1 }; // set scale type
+            } else {
+                copied_spec.layer[1].encoding.y.scale = { type: "linear" }; // set scale type
+                if ('y2' in copied_spec.layer[1].encoding) {
+                    delete copied_spec.layer[1].encoding[y2]; // set scale type
                 }
-            },
-            plugins: [pluginCanvasBackgroundColor],
-        });
-        buildPlotDownload(myChart, h.id, fname);
+            }
+            let opt = {
+                "actions": false,
+            };
+            vegaEmbed(`#${CSS.escape(thisId)}`, copied_spec, opt).then(({ view, spec, vgSpec }) => {
+                if (add_listeners) {
+                    // Export PNG
+                    let png_button = document.getElementById('btn-download-plot-png-' + h.id);
+                    png_button.addEventListener('click', () => {
+                        view.toImageURL('png').then(url => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'visualization.png';
+                            a.click();
+                        });
+                    });
+
+                    // Export SVG
+                    let svg_button = document.getElementById('btn-download-plot-svg-' + h.id);
+                    svg_button.removeEventListener('click', svg_button);
+                    svg_button.addEventListener('click', function svg_button() {
+                        view.toImageURL('svg').then(url => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'visualization.svg';
+                            a.click();
+                        });
+                    });
+
+                    // Open in Vega Editor
+                    let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + h.id);
+                    vega_editor_button.addEventListener('click', () => {
+                        post_to_vega_editor(window, {
+                            mode: 'vega-lite',
+                            spec: JSON.stringify(spec, null, 2),
+                            renderer: undefined,
+                            config: undefined,
+                        });
+                    });
+                }
+            });
+        }
+
         if (h.log_toggle) {
-            buildLogToggle(myChart, "bar-" + h.id);
+            document.getElementById('btn-logscale-plot-bar-' + h.id).addEventListener('change', (event) => {
+                if (event.currentTarget.checked) {
+                    render("log", id, yourVlSpec, false);
+                } else {
+                    render("linear", id, yourVlSpec, false);
+                }
+            });
+        }
+
+        if (document.getElementById('btn-logscale-plot-bar-' + h.id).checked) {
+            render("log", id, yourVlSpec, true);
+        } else {
+            render("linear", id, yourVlSpec, true);
         }
     } else if (element instanceof MultiBar) {
         let m = element;
         var ctx = document.getElementById('chart-bar-' + m.id);
-        var myChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: m.labels,
-                datasets: Array.from(m.values.entries()).reverse().map(function([i, v]) {
-                    return {
-                        label: m.names[i],
-                        data: v,
-                        borderWidth: 1,
-                        backgroundColor: PCOLORS[i % PCOLORS.length],
-                        borderColor: '#FFFFFF'
-                    };
-                }),
+        let id = 'chart-bar-' + m.id;
+        let yourVlSpec = {
+            $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+            description: 'A simple bar chart with embedded data.',
+            width: 1000,
+            "autosize": {
+                "type": "fit",
+                "contains": "padding"
             },
-            options: {
-                scales: {
-                    y: {
-                        title: {
-                            display: true,
-                            text: m.y_label,
+            height: 350,
+            data: m.data,
+            layer: [
+                {
+                    mark: {"type": 'bar', "tooltip": {"content": "data"}},
+                    encoding: {
+                        x: {field: 'label', type: 'ordinal', title: m.x_label},
+                        "y": {
+                            "aggregate": "sum", "field": "value",
+                            "title": m.y_label,
+                            "stack": null
                         },
-                        beginAtZero: true,
-                        grid: {
-                            color: '#FFFFFF',
+                        "color": {
+                            "field": "name",
+                            "type": "nominal",
+                            "scale": {
+                                "range": ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4']
+                            }
                         },
-                        stacked: false,
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: m.x_label,
-                        },
-                        grid: {
-                            color: '#FFFFFF',
-                        },
-                        ticks: {
-                            maxRotation: 90,
-                            minRotation: 65
-                        },
-                        stacked: true,
                     },
                 },
-                plugins: {
-                    customCanvasBackgroundColor: {
-                        color: '#E5E4EE',
-                    }
+            ]
+        };
+
+        function render(scaleType, thisId, vlSpec, add_listeners) {
+            const copied_spec = JSON.parse(JSON.stringify(vlSpec)); // deep copy
+            if (scaleType == "log") {
+                copied_spec.layer[0].encoding.y.scale = { type: "log", domainMin: 1 }; // set scale type
+                copied_spec.layer[0].encoding.y2 = { datum: 1 }; // set scale type
+            } else {
+                copied_spec.layer[0].encoding.y.scale = { type: "linear" }; // set scale type
+                if ('y2' in copied_spec.layer[0].encoding) {
+                    delete copied_spec.layer[0].encoding[y2]; // set scale type
                 }
-            },
-            plugins: [pluginCanvasBackgroundColor],
-        });
-        buildPlotDownload(myChart, m.id, fname);
-        if (m.log_toggle) {
-            buildLogToggle(myChart, "bar-" + m.id);
+            }
+            let opt = {
+                "actions": false,
+            };
+            vegaEmbed(`#${CSS.escape(thisId)}`, copied_spec, opt).then(({ view, spec, vgSpec }) => {
+                if (add_listeners) {
+                    // Export PNG
+                    let png_button = document.getElementById('btn-download-plot-png-' + m.id);
+                    png_button.addEventListener('click', () => {
+                        view.toImageURL('png').then(url => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'visualization.png';
+                            a.click();
+                        });
+                    });
+
+                    // Export SVG
+                    let svg_button = document.getElementById('btn-download-plot-svg-' + m.id);
+                    svg_button.removeEventListener('click', svg_button);
+                    svg_button.addEventListener('click', function svg_button() {
+                        view.toImageURL('svg').then(url => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'visualization.svg';
+                            a.click();
+                        });
+                    });
+
+                    // Open in Vega Editor
+                    let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + m.id);
+                    vega_editor_button.addEventListener('click', () => {
+                        post_to_vega_editor(window, {
+                            mode: 'vega-lite',
+                            spec: JSON.stringify(spec, null, 2),
+                            renderer: undefined,
+                            config: undefined,
+                        });
+                    });
+                }
+            });
         }
+
+        render("linear", id, yourVlSpec, true);
     } else if (element instanceof Line) {
         let l = element;
-        var ctx = document.getElementById('chart-line-' + l.id);
-        var data = {
-            labels: l.x_values,
-            datasets: [{
-                label: l.name,
-                data: l.y_values,
-                fill: false,
-                borderColor: 'rgb(75, 192, 192)',
-            }]
+        let thisId = 'chart-line-' + l.id;
+        let mySpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+            "description": "Stock prices of 5 Tech Companies over Time.",
+            "data": l.data,
+            "width": 1000,
+            "height": 400,
+            "layer": [
+                {
+                    "mark": {
+                        "type": "line",
+                        "point": {
+                            "filled": false,
+                            "fill": "white"
+                        },
+                        "tooltip": true,
+                    },
+                    "encoding": {
+                        "x": {"field": "x", "type": "quantitative", "title": l.x_label},
+                        "y": {"field": "y", "type": "quantitative", "title": l.y_label},
+                    }
+                }
+            ]
         };
-        var x_axis_type = 'linear';
-        var y_axis_type = 'linear';
+
         if (l.log_x) {
-            x_axis_type = 'logarithmic';
+            mySpec.layer[0].encoding.x.scale = { type: "log", nice: false }; // set scale type
+            // mySpec.layer[1].encoding.x.scale = { type: "log", nice: false }; // set scale type
+            if (!("transform" in mySpec)) {
+                mySpec.transform = [];
+            }
+            mySpec.transform.push({"filter": "datum.x > 0"});
         }
         if (l.log_y) {
-            y_axis_type = 'logarithmic';
+            mySpec.layer[0].encoding.y.scale = { type: "log", nice: false }; // set scale type
+            // mySpec.layer[1].encoding.y.scale = { type: "log", nice: false }; // set scale type
+            if (!("transform" in mySpec)) {
+                mySpec.transform = [];
+            }
+            mySpec.transform.push({"filter": "datum.y > 0"});
         }
-        var myChart = new Chart(ctx, {
-            type: 'line',
-            data: data,
-            options: {
-                scales: {
-                    y: {
-                        title: {
-                            display: true,
-                            text: l.y_label,
-                        },
-                        beginAtZero: true,
-                        type: y_axis_type,
-                        grid: {
-                            color: '#FFFFFF',
-                        },
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: l.x_label,
-                        },
-                        grid: {
-                            color: '#FFFFFF',
-                        },
-                        ticks: {
-                            maxRotation: 90,
-                            minRotation: 65
-                        },
-                        type: x_axis_type,
-                    },
-                },
-                plugins: {
-                    customCanvasBackgroundColor: {
-                        color: '#E5E4EE',
-                    }
-                }
-            },
-            plugins: [pluginCanvasBackgroundColor],
+        let opt = {
+            "actions": false,
+        };
+        vegaEmbed(`#${CSS.escape(thisId)}`, mySpec, opt).then(({ view, spec, vgSpec }) => {
+            // Export PNG
+            let png_button = document.getElementById('btn-download-plot-png-' + l.id);
+            png_button.addEventListener('click', () => {
+                view.toImageURL('png').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.png';
+                    a.click();
+                });
+            });
+
+            // Export SVG
+            let svg_button = document.getElementById('btn-download-plot-svg-' + l.id);
+            svg_button.removeEventListener('click', svg_button);
+            svg_button.addEventListener('click', function svg_button() {
+                view.toImageURL('svg').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.svg';
+                    a.click();
+                });
+            });
+
+            // Open in Vega Editor
+            let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + l.id);
+            vega_editor_button.addEventListener('click', () => {
+                post_to_vega_editor(window, {
+                    mode: 'vega-lite',
+                    spec: JSON.stringify(spec, null, 2),
+                    renderer: undefined,
+                    config: undefined,
+                });
+            });
         });
-        buildPlotDownload(myChart, l.id, fname);
     } else if (element instanceof Hexbin) {
         let h = element;
-        var ctx = document.getElementById('chart-hexbin-' + h.id);
-        buildPlotDownload(myChart, h.id, fname);
-        const width = 928;
-        const height = width;
-        const radius = h.radius;
-        const marginTop = 20;
-        const marginRight = 20;
-        const marginBottom = 30 + radius;
-        const marginLeft = 60 + radius;
+        let thisId = 'chart-hexbin-' + h.id;
+        // buildPlotDownload(myChart, h.id, fname);
+        let mySpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+            "description": "Punchcard Visualization like on Github. The day on y-axis uses a custom order from Monday to Sunday.  The sort property supports both full day names (e.g., 'Monday') and their three letter initials (e.g., 'mon') -- both of which are case insensitive.",
+            "data": h.bins,
+            "width": 795,
+            "height": 805,
+            "params": [{"name": "highlight", "select": "point"}],
+            "mark": {
+                "type": "text",
+                "text": "⬢",
+                "size": 81,
+                "clip": true,
+                "tooltip": true,
+            },
+            "encoding": {
+                "y": {
+                    "field": "length",
+                    "title": "log10 length in bp",
+                    "type": "quantitative",
+                    "scale": {"nice": false, "zero": false },
+                },
+                "x": {
+                    "field": "coverage",
+                    "type": "quantitative",
+                    "scale": {"nice": false, "zero": false },
+                },
+                "color": {
+                    "field": "size",
+                    "type": "quantitative",
+                    "scale": {"type": "log", "scheme": "bluepurple"}
+                },
+                "stroke": {
+                    "condition": {
+                        "param": "highlight",
+                        "empty": false,
+                        "value": "black"
+                    },
+                    "value": null
+                },
+                "opacity": {
+                    "condition": {"param": "highlight", "value": 1},
+                    "value": 0.5
+                },
+                "order": {"condition": {"param": "highlight", "value": 1}, "value": 0}
+            }
+        };
 
-        // Create the positional scales.
-            const x = d3.scaleLinear()
-            .domain([h.min[0], h.max[0]])
-            .range([marginLeft, width - marginRight]);
+        let opt = {
+            "actions": false,
+        };
+        vegaEmbed(`#${CSS.escape(thisId)}`, mySpec, opt).then(({ view, spec, vgSpec }) => {
+            let list_button = document.getElementById('btn-download-node-list-' + h.id);
+            list_button.addEventListener('click', () => {
+                let ids = new Array();
+                if ("vlPoint" in view.signal('highlight')) {
+                    ids = view.signal('highlight').vlPoint.or.map((x) => x._vgsid_);
+                }
+                let table = "";
+                ids.forEach((id) => {
+                    h.bin_content[id - 1].forEach((dataPoint) => {
+                        table += dataPoint + "\t" + id + "\n";
+                    });
+                });
+                let blob = new Blob([table], {type: 'text/plain'});
+                let a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'hexbin_nodes_table.tsv';
+                a.click();
+            });
+            // Export PNG
+            let png_button = document.getElementById('btn-download-plot-png-' + h.id);
+            png_button.addEventListener('click', () => {
+                view.toImageURL('png').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.png';
+                    a.click();
+                });
+            });
 
-        const y = d3.scaleLinear()
-            .domain([h.min[1], h.max[1]])
-            .rangeRound([height - marginBottom, marginTop]);
+            // Export SVG
+            let svg_button = document.getElementById('btn-download-plot-svg-' + h.id);
+            svg_button.removeEventListener('click', svg_button);
+            svg_button.addEventListener('click', function svg_button() {
+                view.toImageURL('svg').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.svg';
+                    a.click();
+                });
+            });
 
-        // Bin the data.
-        const hexbin = d3.hexbin()
-            .x(d => x(d["x"]))
-            .y(d => y(d["y"]))
-            .radius(radius * width / 928)
-            .extent([[marginLeft, marginTop], [width - marginRight, height - marginBottom]]);
+            // Open in Vega Editor
+            let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + h.id);
+            vega_editor_button.addEventListener('click', () => {
+                post_to_vega_editor(window, {
+                    mode: 'vega-lite',
+                    spec: JSON.stringify(spec, null, 2),
+                    renderer: undefined,
+                    config: undefined,
+                });
+            });
+        });
 
-        // const bins = hexbin(h.bins);
-        const bins = h.bins;
-        const mbin = Math.max(...bins.map(v => v.length));
-
-        // Create the color scale.
-            const color = d3.scaleSequential(d3.interpolateBuPu)
-            .domain([0, d3.max(bins, d => d.length)]);
-
-        // Create the container SVG.
-            const svg = d3.create("svg")
-            .attr("viewBox", [0, 0, width, height]);
-
-        // Append the scaled hexagons.
-            svg.append("g")
-            .attr("fill", "#ddd")
-            .attr("stroke", "black")
-            .selectAll("path")
-            .data(bins)
-            .enter().append("path")
-            .attr("transform", d => `translate(${d.x},${d.y})`)
-            .attr("d", hexbin.hexagon())
-            .attr("fill", bin => color(bin.length));
-
-        // Append the axes.
-            svg.append("g")
-            .attr("transform", `translate(0,${height - marginBottom + radius})`)
-            .call(d3.axisBottom(x).ticks(width / 80, ""))
-            //.call(g => g.select(".domain").remove())
-            .call(g => g.append("text")
-                .attr("x", width)
-                .attr("y", 28)
-                .attr("fill", "currentColor")
-                .attr("font-weight", "bold")
-                .attr("text-anchor", "end")
-                .text("Coverage"));
-
-        svg.append("g")
-            .attr("transform", `translate(${marginLeft - radius - 9},0)`)
-            .call(d3.axisLeft(y).ticks(null, ".1s").tickFormat((d, i) => d3.format(".1e")(Math.pow(10, d))))
-            //.call(g => g.select(".domain").remove())
-            .call(g => g.append("text")
-                .attr("x", 0 - radius - 10)
-                .attr("y", 0)
-                .attr("dy", ".71em")
-                .attr("fill", "currentColor")
-                .attr("font-weight", "bold")
-                .attr("text-anchor", "start")
-                .text("Length"));
-
-
-        var inner_svg = svg.append("svg")
-            .attr("transform", `translate(${width - 350},0)`);
-        Legend(color, { given_svg: inner_svg, tickFormat: (d) => Math.pow(10, d) });
-
-        ctx.append(svg.node());
     } else if (element instanceof Heatmap) {
         let h = element;
-        var ctx = document.getElementById('chart-heatmap-' + h.id);
-        const data_points = h.values.map(function(e, i) {
-            return e.map(function(f, j) {
-                return {x: i, y: j, v: f, x_label: h.x_labels[i], y_label: h.y_labels[j]};
-            });
-        }).flat();
-        const data = {
-            datasets: [{
-                label: 'My Matrix',
-                data: data_points,
-                backgroundColor(context) {
-                    const value = context.dataset.data[context.dataIndex].v;
-                    return getColor(value, 0.0);
-                },
-                width: ({chart}) => (chart.chartArea || {}).width / h.x_labels.length,
-                height: ({chart}) =>(chart.chartArea || {}).height / h.y_labels.length
-            }]
-        };
-        var myChart = new Chart(ctx, {
-            type: 'matrix',
-            data: data,
-            options: {
-                aspectRatio: 1,
-                plugins: {
-                    legend: false,
-                    tooltip: {
-                        callbacks: {
-                            title() {
-                                return '';
-                            },
-                            label(context) {
-                                const v = context.dataset.data[context.dataIndex];
-                                return [v.x_label + ' - ', v.y_label + ':', v.v];
-                            }
-                        }
-                    },
-                    customCanvasBackgroundColor: {
-                        color: '#E5E4EE',
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            stepSize: 1,
-                            callback: ((context, index) => {
-                                return h.x_labels[context];
-                            })
-                        },
-                        grid: {
-                            display: false
-                        },
-                        position: 'top',
-                    },
-                    y: {
-                        offset: true,
-                        ticks: {
-                            stepSize: 1,
-                            callback: ((context, index) => {
-                                return h.y_labels[context];
-                            })
-                        },
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
+        let thisId = 'chart-heatmap-' + h.id;
+        // buildPlotDownload(myChart, h.id, fname);
+        let mySpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+            "description": "Punchcard Visualization like on Github. The day on y-axis uses a custom order from Monday to Sunday.  The sort property supports both full day names (e.g., 'Monday') and their three letter initials (e.g., 'mon') -- both of which are case insensitive.",
+            "data": h.data_set,
+            "width": 800,
+            "height": 800,
+            "mark": {
+                "type": "rect",
+                "tooltip": true,
             },
-            plugins: [pluginCanvasBackgroundColor],
+            "encoding": {
+                "y": {
+                    "field": "y",
+                    "type": "ordinal",
+                    "sort": null,
+                },
+                "x": {
+                    "field": "x",
+                    "type": "ordinal",
+                    "sort": null,
+                },
+                "color": {
+                    "field": "value",
+                    "type": "quantitative",
+                    "scale": {"range": ["darkred", "white"], "interpolate": "cubehelix", "domainMax": 1.0}
+                },
+            }
+        };
+
+        let opt = {
+            "actions": false,
+        };
+        vegaEmbed(`#${CSS.escape(thisId)}`, mySpec, opt).then(({ view, spec, vgSpec }) => {
+            // Export PNG
+            let png_button = document.getElementById('btn-download-plot-png-' + h.id);
+            png_button.addEventListener('click', () => {
+                view.toImageURL('png').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.png';
+                    a.click();
+                });
+            });
+
+            // Export SVG
+            let svg_button = document.getElementById('btn-download-plot-svg-' + h.id);
+            svg_button.removeEventListener('click', svg_button);
+            svg_button.addEventListener('click', function svg_button() {
+                view.toImageURL('svg').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.svg';
+                    a.click();
+                });
+            });
+
+            // Open in Vega Editor
+            let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + h.id);
+            vega_editor_button.addEventListener('click', () => {
+                post_to_vega_editor(window, {
+                    mode: 'vega-lite',
+                    spec: JSON.stringify(spec, null, 2),
+                    renderer: undefined,
+                    config: undefined,
+                });
+            });
         });
-        buildPlotDownload(myChart, h.id, fname);
-        buildColorSlider(myChart, h.id);
     }
 }
 

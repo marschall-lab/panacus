@@ -267,10 +267,3 @@ pub fn execute_pipeline<W: Write>(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use analysis_parameter::Grouping;
-
-    use super::*;
-}

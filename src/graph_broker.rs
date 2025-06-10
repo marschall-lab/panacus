@@ -223,11 +223,7 @@ impl GraphBroker {
                     if has_already_used_abacus {
                         panic!("Panacus is currently not able to have multiple Abaci By Group for different countables. Please run panacus either multiple times or wait for the planned pipelining feature");
                     }
-                    if self.csc_abacus {
-                        self.set_abacus_by_group_csc(count)?;
-                    } else {
-                        self.set_abacus_by_group(count)?;
-                    }
+                    self.set_abacus_by_group(count)?;
                     has_already_used_abacus = true;
                 }
                 _ => continue,
@@ -352,12 +348,6 @@ impl GraphBroker {
             );
             log::error!("{}", &msg);
         }
-    }
-
-    fn set_abacus_by_group_csc(&mut self, count: CountType) -> Result<(), Error> {
-        self.set_abacus_by_group(count)?;
-        self.group_abacus.as_mut().unwrap().to_csc();
-        Ok(())
     }
 
     fn set_abacus_by_group(&mut self, count: CountType) -> Result<(), Error> {

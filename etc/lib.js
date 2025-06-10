@@ -5,59 +5,52 @@
 const PCOLORS = ['#f77189', '#bb9832', '#50b131', '#36ada4', '#3ba3ec', '#e866f4'];
 
 class Bar {
-    constructor(id, name, x_label, y_label, labels, values, log_toggle) {
+    constructor(id, name, x_label, y_label, data, log_toggle, ordinal) {
         this.id = id;
         this.name = name;
         this.x_label = x_label;
         this.y_label = y_label;
-        this.labels = labels;
-        this.values = values;
+        this.data = data;
         this.log_toggle = log_toggle;
+        this.ordinal = ordinal;
     }
 }
 
 class MultiBar {
-    constructor(id, names, x_label, y_label, labels, values, log_toggle) {
+    constructor(id, x_label, y_label, log_toggle, data) {
         this.id = id;
-        this.names = names;
         this.x_label = x_label;
         this.y_label = y_label;
-        this.labels = labels;
-        this.values = values;
         this.log_toggle = log_toggle;
+        this.data = data;
     }
 }
 
 class Hexbin {
-    constructor(id, min, max, radius, bins) {
+    constructor(id, bins, bin_content) {
         this.id = id;
-        this.min = min;
-        this.max = max;
-        this.radius = radius;
         this.bins = bins;
+        this.bin_content = bin_content;
     }
 }
 
 class Heatmap {
-    constructor(id, name, x_labels, y_labels, values) {
+    constructor(id, name, data_set) {
         this.id = id;
         this.name = name;
-        this.x_labels = x_labels;
-        this.y_labels = y_labels;
-        this.values = values;
+        this.data_set = data_set;
     }
 }
 
 class Line {
-    constructor(id, name, x_label, y_label, log_x, log_y, x_values, y_values) {
+    constructor(id, name, x_label, y_label, log_x, log_y, data) {
         this.id = id;
         this.name = name;
         this.x_label = x_label;
         this.y_label = y_label;
         this.log_x = log_x;
         this.log_y = log_y;
-        this.x_values = x_values;
-        this.y_values = y_values;
+        this.data = data;
     }
 }
 
