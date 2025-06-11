@@ -42,6 +42,13 @@ class Heatmap {
     }
 }
 
+class VegaPlot {
+    constructor(id, jsonContent) {
+        this.id = id;
+        this.jsonContent = jsonContent;
+    }
+}
+
 class Line {
     constructor(id, name, x_label, y_label, log_x, log_y, data) {
         this.id = id;

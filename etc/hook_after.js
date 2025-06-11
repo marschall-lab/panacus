@@ -525,6 +525,47 @@ for (let key in objects.datasets) {
                 });
             });
         });
+    } else if (element instanceof VegaPlot) {
+        let v = element;
+        let thisId = 'chart-line-' + v.id;
+        let opt = {
+            "actions": false,
+        };
+        vegaEmbed(`#${CSS.escape(thisId)}`, v.jsonContent, opt).then(({ view, spec, vgSpec }) => {
+            // Export PNG
+            let png_button = document.getElementById('btn-download-plot-png-' + v.id);
+            png_button.addEventListener('click', () => {
+                view.toImageURL('png').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.png';
+                    a.click();
+                });
+            });
+
+            // Export SVG
+            let svg_button = document.getElementById('btn-download-plot-svg-' + v.id);
+            svg_button.removeEventListener('click', svg_button);
+            svg_button.addEventListener('click', function svg_button() {
+                view.toImageURL('svg').then(url => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'visualization.svg';
+                    a.click();
+                });
+            });
+
+            // Open in Vega Editor
+            let vega_editor_button = document.getElementById('btn-download-plot-vega-editor-' + v.id);
+            vega_editor_button.addEventListener('click', () => {
+                post_to_vega_editor(window, {
+                    mode: 'vega-lite',
+                    spec: JSON.stringify(spec, null, 2),
+                    renderer: undefined,
+                    config: undefined,
+                });
+            });
+        });
     }
 }
 

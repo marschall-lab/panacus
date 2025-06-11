@@ -658,7 +658,27 @@ impl ReportItem {
                     HashMap::from([("datasets".to_string(), HashMap::new())]),
                 ))
             }
-            Self::Json { id, file } => Ok((String::new(), HashMap::new())),
+            Self::Json { id, file } => {
+                if !registry.has_template("line") {
+                    registry.register_template_string("line", from_utf8(LINE_HBS).unwrap())?;
+                }
+
+                let f = File::open(file)?;
+                let mut reader = BufReader::new(f);
+                let mut buffer = String::new();
+                reader.read_to_string(&mut buffer)?;
+                let json_content = buffer;
+                let js_object = format!("new VegaPlot('{}', {})", id, json_content);
+
+                let data = HashMap::from([("id".to_string(), to_json(&id))]);
+                Ok((
+                    registry.render("line", &data)?,
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
+                ))
+            }
         }
     }
 }
