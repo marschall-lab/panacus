@@ -419,6 +419,14 @@ for (let key in objects.datasets) {
                 a.download = 'hexbin_nodes_table.tsv';
                 a.click();
             });
+
+            view.addSignalListener('highlight', (name, value) => {
+                if ("vlPoint" in value) {
+                    list_button.removeAttribute('disabled');
+                } else {
+                    list_button.setAttribute('disabled', '');
+                }
+            });
             // Export PNG
             let png_button = document.getElementById('btn-download-plot-png-' + h.id);
             png_button.addEventListener('click', () => {
