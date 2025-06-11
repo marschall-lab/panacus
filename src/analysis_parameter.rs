@@ -39,6 +39,10 @@ pub enum Task {
     },
     OrderChange(Option<String>),
     AbacusByGroupCSCChange,
+    CustomSection {
+        name: String,
+        file: String,
+    },
 }
 
 impl Debug for Task {
@@ -63,6 +67,11 @@ impl Debug for Task {
                 .finish(),
             Self::OrderChange(order) => f.debug_tuple("OrderChange").field(&order).finish(),
             Self::AbacusByGroupCSCChange => f.debug_tuple("AbacusByGroupCSCChange").finish(),
+            Self::CustomSection { name, file } => f
+                .debug_tuple("CustomSection")
+                .field(name)
+                .field(file)
+                .finish(),
         }
     }
 }
@@ -199,6 +208,10 @@ pub enum AnalysisParameter {
         #[serde(default)]
         cluster_method: ClusterMethod,
     },
+    Custom {
+        name: String,
+        file: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
@@ -251,6 +264,9 @@ impl AnalysisParameter {
             }
             t @ Self::Table { .. } => {
                 get_analysis_task!(Table, t)
+            }
+            Self::Custom { name, file } => {
+                (vec![Task::CustomSection { name, file }], HashSet::new())
             }
         }
     }

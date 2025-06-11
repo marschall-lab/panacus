@@ -1,3 +1,9 @@
+use base64::prelude::*;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use std::ffi::OsStr;
+use std::fs::File;
+use std::io::{BufReader, Read};
+use std::path::Path;
 use std::{collections::HashMap, str::from_utf8};
 use std::{f64, fmt};
 
@@ -8,7 +14,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use time::{macros::format_description, OffsetDateTime};
 
-use crate::graph_broker::ItemId;
+use crate::graph_broker::{GraphBroker, ItemId};
 use crate::util::to_id;
 
 type JsVars = HashMap<String, HashMap<String, String>>;
@@ -35,6 +41,7 @@ pub const ANALYSIS_TAB_HBS: &[u8] = include_bytes!("../hbs/analysis_tab.hbs");
 pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs");
 pub const HEXBIN_HBS: &[u8] = include_bytes!("../hbs/hexbin.hbs");
 pub const LINE_HBS: &[u8] = include_bytes!("../hbs/line.hbs");
+pub const PNG_HBS: &[u8] = include_bytes!("../hbs/png.hbs");
 
 fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
     for (k, v) in b {
@@ -102,6 +109,41 @@ impl AnalysisSection {
         ]);
         Ok((registry.render("analysis_tab", &vars)?, js_objects))
     }
+
+    pub fn generate_custom_section(
+        gb: &GraphBroker,
+        name: String,
+        file: String,
+    ) -> anyhow::Result<Vec<Self>> {
+        let id = name.to_lowercase().replace(&[' ', '|', '\\'], "-");
+        let report_item = match get_extension_from_filename(&file) {
+            Some("svg") => ReportItem::Svg {
+                id: format!("svg-{id}"),
+                file,
+            },
+            Some("png") => ReportItem::Png {
+                id: format!("png-{id}"),
+                file,
+            },
+            Some("json") => ReportItem::Json {
+                id: format!("json-{id}"),
+                file,
+            },
+            _ => unimplemented!("Other formats have not been implemented yet"),
+        };
+        Ok(vec![AnalysisSection {
+            id: format!("custom-{id}"),
+            analysis: "Custom".to_string(),
+            run_name: name,
+            countable: "default".to_string(),
+            table: None,
+            items: vec![report_item],
+        }])
+    }
+}
+
+fn get_extension_from_filename(filename: &str) -> Option<&str> {
+    Path::new(filename).extension().and_then(OsStr::to_str)
 }
 
 fn get_js_objects_string(objects: JsVars) -> String {
@@ -276,6 +318,7 @@ impl AnalysisSection {
         let sections = sections
             .into_iter()
             .map(|s| {
+                eprintln!("{}", s.id);
                 let (content, js_object) = s.into_html(registry).unwrap();
                 js_objects.push(js_object);
                 content
@@ -336,6 +379,18 @@ pub enum ReportItem {
         log_x: bool,
         log_y: bool,
     },
+    Png {
+        id: String,
+        file: String,
+    },
+    Svg {
+        id: String,
+        file: String,
+    },
+    Json {
+        id: String,
+        file: String,
+    },
 }
 
 impl ReportItem {
@@ -347,6 +402,9 @@ impl ReportItem {
             Self::Heatmap { id, .. } => id.to_string(),
             Self::Hexbin { id, .. } => id.to_string(),
             Self::Line { id, .. } => id.to_string(),
+            Self::Png { id, .. } => id.to_string(),
+            Self::Svg { id, .. } => id.to_string(),
+            Self::Json { id, .. } => id.to_string(),
         }
     }
 
@@ -358,6 +416,9 @@ impl ReportItem {
             Self::Heatmap { name, .. } => name.to_string(),
             Self::Hexbin { .. } => "Hexbin".to_string(),
             Self::Line { name, .. } => name.to_string(),
+            Self::Png { .. } => "Png".to_string(),
+            Self::Svg { .. } => "Svg".to_string(),
+            Self::Json { .. } => "Json".to_string(),
         }
     }
 
@@ -566,6 +627,23 @@ impl ReportItem {
                     )]),
                 ))
             }
+            Self::Png { id, file } => {
+                if !registry.has_template("png") {
+                    registry.register_template_string("png", from_utf8(PNG_HBS).unwrap())?;
+                }
+                let f = File::open(file)?;
+                let mut reader = BufReader::new(f);
+                let mut buffer = Vec::new();
+                reader.read_to_end(&mut buffer)?;
+                let base64_text = STANDARD.encode(buffer);
+                let data = HashMap::from([("base64", &base64_text)]);
+                Ok((
+                    registry.render("png", &data)?,
+                    HashMap::from([("datasets".to_string(), HashMap::new())]),
+                ))
+            }
+            Self::Svg { id, file } => Ok((String::new(), HashMap::new())),
+            Self::Json { id, file } => Ok((String::new(), HashMap::new())),
         }
     }
 }
