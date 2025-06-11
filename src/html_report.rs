@@ -42,6 +42,7 @@ pub const REPORT_CONTENT_HBS: &[u8] = include_bytes!("../hbs/report_content.hbs"
 pub const HEXBIN_HBS: &[u8] = include_bytes!("../hbs/hexbin.hbs");
 pub const LINE_HBS: &[u8] = include_bytes!("../hbs/line.hbs");
 pub const PNG_HBS: &[u8] = include_bytes!("../hbs/png.hbs");
+pub const SVG_HBS: &[u8] = include_bytes!("../hbs/svg.hbs");
 
 fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
     for (k, v) in b {
@@ -642,7 +643,21 @@ impl ReportItem {
                     HashMap::from([("datasets".to_string(), HashMap::new())]),
                 ))
             }
-            Self::Svg { id, file } => Ok((String::new(), HashMap::new())),
+            Self::Svg { id, file } => {
+                if !registry.has_template("svg") {
+                    registry.register_template_string("svg", from_utf8(SVG_HBS).unwrap())?;
+                }
+                let f = File::open(file)?;
+                let mut reader = BufReader::new(f);
+                let mut buffer = String::new();
+                reader.read_to_string(&mut buffer)?;
+                let svg_content = buffer;
+                let data = HashMap::from([("svg_content", &svg_content)]);
+                Ok((
+                    registry.render("svg", &data)?,
+                    HashMap::from([("datasets".to_string(), HashMap::new())]),
+                ))
+            }
             Self::Json { id, file } => Ok((String::new(), HashMap::new())),
         }
     }
