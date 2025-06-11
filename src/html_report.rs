@@ -43,6 +43,7 @@ pub const HEXBIN_HBS: &[u8] = include_bytes!("../hbs/hexbin.hbs");
 pub const LINE_HBS: &[u8] = include_bytes!("../hbs/line.hbs");
 pub const PNG_HBS: &[u8] = include_bytes!("../hbs/png.hbs");
 pub const SVG_HBS: &[u8] = include_bytes!("../hbs/svg.hbs");
+pub const PDF_HBS: &[u8] = include_bytes!("../hbs/pdf.hbs");
 
 fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
     for (k, v) in b {
@@ -130,13 +131,46 @@ impl AnalysisSection {
                 id: format!("json-{id}"),
                 file,
             },
+            Some(t @ "csv") | Some(t @ "tsv") => {
+                let f = File::open(&file)?;
+                let mut reader = BufReader::new(f);
+                let mut buffer = String::new();
+                reader.read_to_string(&mut buffer)?;
+                let split_char = if t == "csv" { "," } else { "\t" };
+                let mut lines = buffer.lines();
+                let header = lines
+                    .next()
+                    .expect(&format!(
+                        "{} file {} should contain at least one line",
+                        t, file
+                    ))
+                    .split(split_char)
+                    .map(|x| x.trim().to_owned())
+                    .collect();
+                let values = lines
+                    .map(|l| {
+                        l.split(split_char)
+                            .map(|x| x.trim().to_owned())
+                            .collect::<Vec<String>>()
+                    })
+                    .collect();
+                ReportItem::Table {
+                    id: format!("{t}-{id}"),
+                    header,
+                    values,
+                }
+            }
+            Some("pdf") => ReportItem::Pdf {
+                id: format!("pdf-{id}"),
+                file,
+            },
             _ => unimplemented!("Other formats have not been implemented yet"),
         };
         Ok(vec![AnalysisSection {
             id: format!("custom-{id}"),
             analysis: "Custom".to_string(),
-            run_name: name,
-            countable: "default".to_string(),
+            run_name: gb.get_run_name(),
+            countable: name,
             table: None,
             items: vec![report_item],
         }])
@@ -392,6 +426,10 @@ pub enum ReportItem {
         id: String,
         file: String,
     },
+    Pdf {
+        id: String,
+        file: String,
+    },
 }
 
 impl ReportItem {
@@ -406,6 +444,7 @@ impl ReportItem {
             Self::Png { id, .. } => id.to_string(),
             Self::Svg { id, .. } => id.to_string(),
             Self::Json { id, .. } => id.to_string(),
+            Self::Pdf { id, .. } => id.to_string(),
         }
     }
 
@@ -420,6 +459,7 @@ impl ReportItem {
             Self::Png { .. } => "Png".to_string(),
             Self::Svg { .. } => "Svg".to_string(),
             Self::Json { .. } => "Json".to_string(),
+            Self::Pdf { .. } => "Pdf".to_string(),
         }
     }
 
@@ -677,6 +717,21 @@ impl ReportItem {
                         "datasets".to_string(),
                         HashMap::from([(id.clone(), js_object)]),
                     )]),
+                ))
+            }
+            Self::Pdf { id, file } => {
+                if !registry.has_template("pdf") {
+                    registry.register_template_string("pdf", from_utf8(PDF_HBS).unwrap())?;
+                }
+                let f = File::open(file)?;
+                let mut reader = BufReader::new(f);
+                let mut buffer = Vec::new();
+                reader.read_to_end(&mut buffer)?;
+                let base64_text = STANDARD.encode(buffer);
+                let data = HashMap::from([("base64", &base64_text)]);
+                Ok((
+                    registry.render("pdf", &data)?,
+                    HashMap::from([("datasets".to_string(), HashMap::new())]),
                 ))
             }
         }
