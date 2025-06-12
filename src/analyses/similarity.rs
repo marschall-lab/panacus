@@ -150,8 +150,6 @@ impl Similarity {
             }
         }
 
-        eprintln!("path_lens: {:?}", path_lens);
-
         let group_count = gb.get_group_count();
         let mut table: Vec<Vec<f32>> = vec![vec![0.0; group_count]; group_count];
         for i in 0..group_count {

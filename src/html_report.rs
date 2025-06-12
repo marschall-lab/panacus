@@ -380,7 +380,6 @@ impl AnalysisSection {
         let sections = sections
             .into_iter()
             .map(|s| {
-                eprintln!("{}", s.id);
                 let (content, js_object) = s.into_html(registry).unwrap();
                 js_objects.push(js_object);
                 content
@@ -528,7 +527,6 @@ impl ReportItem {
                 }
                 data_set.push_str("]}");
                 let js_object = format!("new Heatmap('{}', '{}', {})", id, name, data_set,);
-                eprintln!("{}", data_set);
                 let max_scale = format!(
                     "{:.2}",
                     values
@@ -576,7 +574,6 @@ impl ReportItem {
                     "new Bar('{}', '{}', '{}', '{}', {}, {}, {})",
                     id, name, x_label, y_label, data_text, log_toggle, ordinal
                 );
-                eprintln!("{}", js_object);
                 let data = HashMap::from([
                     ("id".to_string(), to_json(&id)),
                     ("log_toggle".to_string(), to_json(log_toggle)),
@@ -810,7 +807,6 @@ impl Bin {
         let dx = max_coverage as f64 / (nx - 1) as f64;
         let t = dx as f64 / 3f64.sqrt();
         let dy = max_length / (ny - 1) as f64;
-        // eprintln!("max c: {}, dx: {}, t: {}, dy: {}", max_coverage, dx, t, dy);
         let mut bins: HashMap<(bool, i64, i64), Self> = HashMap::new();
         for point in points {
             // Calculate positions in both grids
@@ -818,8 +814,6 @@ impl Bin {
             let mut black_y = (point.2 / dy).floor() * dy;
             let mut green_x = ((point.1 as f64 - dx / 2.0) / dx).floor() * dx + dx / 2.0;
             let mut green_y = ((point.2 - dy / 2.0) / dy).floor() * dy + dy / 2.0;
-
-            // eprintln!("point: {:?}, black: {:?}, green: {:?}", point, (black_x, black_y), (green_x, green_y));
 
             if black_x < green_x {
                 black_x += dx;
@@ -832,8 +826,6 @@ impl Bin {
             } else {
                 green_y += dy;
             }
-
-            // eprintln!("\tpoint: {:?}, black: {:?}, green: {:?}", point, (black_x, black_y), (green_x, green_y));
 
             if Self::distance(point.1 as f64, point.2, black_x, black_y)
                 < Self::distance(point.1 as f64, point.2, green_x, green_y)
@@ -848,7 +840,6 @@ impl Bin {
                     .content
                     .push(point.0);
             } else {
-                // eprintln!("\t\tGreen one");
                 bins.entry((
                     true,
                     ((green_x - dx / 2.0) / dx) as i64,
