@@ -25,7 +25,6 @@ mamba install -c conda-forge -c bioconda panacus
 2. Create a file `report.yaml` with the following content:
 ```yaml
 - graph: ../graphs/test_graph.gfa    # Change this to a GFA file on your system
-  grouping: Haplotype
   analyses:
     - !Hist
       count_type: Bp
