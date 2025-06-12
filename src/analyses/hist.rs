@@ -4,7 +4,11 @@ use std::collections::HashSet;
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::GraphBroker;
 use crate::html_report::ReportItem;
-use crate::{analyses::InputRequirement, io::write_table, util::CountType};
+use crate::{
+    analyses::InputRequirement,
+    io::write_table,
+    util::{get_default_plot_downloads, CountType},
+};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
 
@@ -83,6 +87,7 @@ impl Analysis for Hist {
                     values: v.coverage.iter().map(|c| *c as f64).collect(),
                     log_toggle: true,
                 }],
+                plot_downloads: get_default_plot_downloads(),
             })
             .collect::<Vec<_>>();
         Ok(histogram_tabs)

@@ -7,6 +7,7 @@ use crate::{
     analysis_parameter::AnalysisParameter,
     graph_broker::{GraphBroker, ItemId},
     html_report::{AnalysisSection, Bin, ReportItem},
+    util::get_default_plot_downloads,
     util::CountType,
 };
 
@@ -73,6 +74,7 @@ impl Analysis for NodeDistribution {
                 id: format!("{id_prefix}-{}", CountType::Node),
                 bins: self.bins.clone(),
             }],
+            plot_downloads: get_default_plot_downloads(),
         }];
         Ok(tab)
     }

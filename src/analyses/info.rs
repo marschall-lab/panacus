@@ -6,7 +6,7 @@ use crate::{
     analysis_parameter::AnalysisParameter,
     graph_broker::{Edge, GraphBroker, ItemId},
     html_report::ReportItem,
-    util::{averageu32, median_already_sorted, n50_already_sorted},
+    util::{averageu32, get_default_plot_downloads, median_already_sorted, n50_already_sorted},
 };
 
 use super::ConstructibleAnalysis;
@@ -67,6 +67,7 @@ impl Analysis for Info {
                     header: graph_header,
                     values: graph_values,
                 }],
+                plot_downloads: get_default_plot_downloads(),
             },
             AnalysisSection {
                 id: format!("{safe_run_name}-node"),
@@ -79,6 +80,7 @@ impl Analysis for Info {
                     header: node_header,
                     values: node_values,
                 }],
+                plot_downloads: get_default_plot_downloads(),
             },
             AnalysisSection {
                 id: format!("{safe_run_name}-path"),
@@ -91,6 +93,7 @@ impl Analysis for Info {
                     header: path_header,
                     values: path_values,
                 }],
+                plot_downloads: get_default_plot_downloads(),
             },
             AnalysisSection {
                 id: format!("{safe_run_name}-group"),
@@ -102,6 +105,7 @@ impl Analysis for Info {
                     self.get_group_bar(&run_name, "node"),
                     self.get_group_bar(&run_name, "bp"),
                 ],
+                plot_downloads: get_default_plot_downloads(),
             },
         ])
     }

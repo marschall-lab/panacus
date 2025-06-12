@@ -217,6 +217,13 @@ pub fn execute_pipeline<W: Write>(
                 log::info!("Executing Analysis: {}", analysis.get_type());
                 report.extend(analysis.generate_report_section(Some(&gb))?);
             }
+            Task::CustomSection { name, file } => {
+                report.extend(AnalysisSection::generate_custom_section(
+                    &gb,
+                    name.clone(),
+                    file.clone(),
+                )?);
+            }
             Task::GraphStateChange {
                 graph,
                 subset,
