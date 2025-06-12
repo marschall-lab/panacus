@@ -61,6 +61,13 @@ class Line {
     }
 }
 
+class DownloadHelper {
+    constructor(id, type) {
+        this.id = id;
+        this.type = type;
+    }
+}
+
 function buildPlotDownload(chart, obj, prefix) {
     document.getElementById('btn-download-plot-' + obj).onclick = function() {
         var a = document.createElement('a');

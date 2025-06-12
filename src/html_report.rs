@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use time::{macros::format_description, OffsetDateTime};
 
 use crate::graph_broker::{GraphBroker, ItemId};
-use crate::util::to_id;
+use crate::util::{get_default_plot_downloads, to_id};
 
 type JsVars = HashMap<String, HashMap<String, String>>;
 type RenderedHTML = Result<(String, JsVars), RenderError>;
@@ -62,6 +62,7 @@ pub struct AnalysisSection {
     pub items: Vec<ReportItem>,
     pub id: String,
     pub table: Option<String>,
+    pub plot_downloads: Vec<(String, String)>,
 }
 
 impl AnalysisSection {
@@ -99,13 +100,25 @@ impl AnalysisSection {
             .into_iter()
             .reduce(combine_vars)
             .expect("Tab has at least one item");
+        let plot_downloads: Vec<HashMap<&str, String>> = self
+            .plot_downloads
+            .iter()
+            .map(|(format, text)| {
+                HashMap::from([("type", format.to_owned()), ("text", text.to_owned())])
+            })
+            .collect();
         let vars = HashMap::from([
             ("id", to_json(&self.id)),
             ("analysis", to_json(&self.analysis)),
             ("run_name", to_json(&self.run_name)),
             ("countable", to_json(&self.countable)),
             ("has_table", to_json(self.table.is_some())),
-            ("has_graph", to_json(true)), // TODO: real check for graph
+            ("has_graph", to_json(!self.plot_downloads.is_empty())),
+            (
+                "has_multiple_plot_types",
+                to_json(self.plot_downloads.len() > 1),
+            ),
+            ("plot_type", to_json(plot_downloads)),
             ("plot", to_json(plots)),
             ("items", to_json(items)),
         ]);
@@ -118,24 +131,37 @@ impl AnalysisSection {
         file: String,
     ) -> anyhow::Result<Vec<Self>> {
         let id = name.to_lowercase().replace(&[' ', '|', '\\'], "-");
+        let id = format!("custom-{id}");
+        let mut table: Option<String> = None;
+        let mut plot_downloads = Vec::new();
         let report_item = match get_extension_from_filename(&file) {
-            Some("svg") => ReportItem::Svg {
-                id: format!("svg-{id}"),
-                file,
-            },
-            Some("png") => ReportItem::Png {
-                id: format!("png-{id}"),
-                file,
-            },
-            Some("json") => ReportItem::Json {
-                id: format!("json-{id}"),
-                file,
-            },
+            Some("svg") => {
+                plot_downloads = vec![("svg".to_string(), "Download as svg".to_string())];
+                ReportItem::Svg {
+                    id: format!("svg-{id}"),
+                    file,
+                }
+            }
+            Some("png") => {
+                plot_downloads = vec![("png".to_string(), "Download as png".to_string())];
+                ReportItem::Png {
+                    id: format!("png-{id}"),
+                    file,
+                }
+            }
+            Some("json") => {
+                plot_downloads = get_default_plot_downloads();
+                ReportItem::Json {
+                    id: format!("json-{id}"),
+                    file,
+                }
+            }
             Some(t @ "csv") | Some(t @ "tsv") => {
                 let f = File::open(&file)?;
                 let mut reader = BufReader::new(f);
                 let mut buffer = String::new();
                 reader.read_to_string(&mut buffer)?;
+                table = Some(format!("`{}`", buffer));
                 let split_char = if t == "csv" { "," } else { "\t" };
                 let mut lines = buffer.lines();
                 let header = lines
@@ -167,12 +193,13 @@ impl AnalysisSection {
             _ => unimplemented!("Other formats have not been implemented yet"),
         };
         Ok(vec![AnalysisSection {
-            id: format!("custom-{id}"),
+            id: id,
             analysis: "Custom".to_string(),
             run_name: gb.get_run_name(),
             countable: name,
-            table: None,
+            table,
             items: vec![report_item],
+            plot_downloads,
         }])
     }
 }
@@ -677,10 +704,14 @@ impl ReportItem {
                 let mut buffer = Vec::new();
                 reader.read_to_end(&mut buffer)?;
                 let base64_text = STANDARD.encode(buffer);
-                let data = HashMap::from([("base64", &base64_text)]);
+                let data = HashMap::from([("base64", &base64_text), ("id", &id)]);
+                let js_object = format!("new DownloadHelper('{}', 'png')", id,);
                 Ok((
                     registry.render("png", &data)?,
-                    HashMap::from([("datasets".to_string(), HashMap::new())]),
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
                 ))
             }
             Self::Svg { id, file } => {
@@ -692,10 +723,14 @@ impl ReportItem {
                 let mut buffer = String::new();
                 reader.read_to_string(&mut buffer)?;
                 let svg_content = buffer;
-                let data = HashMap::from([("svg_content", &svg_content)]);
+                let data = HashMap::from([("svg_content", &svg_content), ("id", &id)]);
+                let js_object = format!("new DownloadHelper('{}', 'svg')", id,);
                 Ok((
                     registry.render("svg", &data)?,
-                    HashMap::from([("datasets".to_string(), HashMap::new())]),
+                    HashMap::from([(
+                        "datasets".to_string(),
+                        HashMap::from([(id.clone(), js_object)]),
+                    )]),
                 ))
             }
             Self::Json { id, file } => {

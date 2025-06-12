@@ -566,6 +566,25 @@ for (let key in objects.datasets) {
                 });
             });
         });
+    } else if (element instanceof DownloadHelper) {
+        let d = element;
+        document.getElementById('btn-download-plot-' + d.id).addEventListener('click', () => {
+            if (d.type == "png") {
+                const a = document.createElement('a');
+                let png_img = document.getElementById(d.id).getAttribute('src');
+                a.href = png_img;
+                a.download = 'visualization.png';
+                a.click();
+            } else if (d.type == "svg") {
+                let svgData = document.getElementById(d.id).innerHTML;
+                let svgBlob = new Blob([svgData], {type:"image/svg+xml;charset=utf-8"});
+                let svgUrl = URL.createObjectURL(svgBlob);
+                const a = document.createElement("a");
+                a.href = svgUrl;
+                a.download = 'visualization.svg';
+                a.click();
+            }
+        });
     }
 }
 

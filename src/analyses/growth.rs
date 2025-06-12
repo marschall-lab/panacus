@@ -6,7 +6,10 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::{GraphBroker, Hist, ThresholdContainer};
 use crate::html_report::ReportItem;
-use crate::{io::write_table, util::CountType};
+use crate::{
+    io::write_table,
+    util::{get_default_plot_downloads, CountType},
+};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis, InputRequirement};
 
@@ -145,6 +148,7 @@ impl Analysis for Growth {
                         .collect(),
                     log_toggle: false,
                 }],
+                plot_downloads: get_default_plot_downloads(),
             })
             .collect();
         Ok(growth_tabs)

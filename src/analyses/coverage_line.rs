@@ -5,6 +5,7 @@ use crate::{
     graph_broker::GraphBroker,
     html_report::{AnalysisSection, ReportItem},
     io::write_table_with_start_index,
+    util::get_default_plot_downloads,
     util::CountType,
 };
 
@@ -99,6 +100,7 @@ impl Analysis for CoverageLine {
                         log_x: true,
                         log_y: true,
                     }],
+                    plot_downloads: get_default_plot_downloads(),
                 }
             })
             .collect::<Vec<_>>();

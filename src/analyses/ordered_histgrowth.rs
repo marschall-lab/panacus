@@ -5,7 +5,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::{GraphBroker, ThresholdContainer};
 use crate::html_report::ReportItem;
-use crate::util::CountType;
+use crate::util::{get_default_plot_downloads, CountType};
 use crate::{analyses::InputRequirement, io::write_ordered_histgrowth_table};
 
 use super::{Analysis, AnalysisSection, ConstructibleAnalysis};
@@ -94,6 +94,7 @@ impl Analysis for OrderedHistgrowth {
                 values: growths.clone(),
                 log_toggle: false,
             }],
+            plot_downloads: get_default_plot_downloads(),
         }];
         Ok(growth_tabs)
         //let mut growths: Vec<Vec<f64>> = self

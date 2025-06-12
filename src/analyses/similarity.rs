@@ -4,6 +4,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::prelude::*;
 
 use crate::graph_broker::GraphBroker;
+use crate::util::get_default_plot_downloads;
 use crate::{
     analyses::InputRequirement, analysis_parameter::AnalysisParameter, html_report::ReportItem,
     io::write_metadata_comments, util::CountType,
@@ -82,6 +83,7 @@ impl Analysis for Similarity {
                 y_labels: self.labels.as_ref().unwrap().clone(),
                 values: self.table.as_ref().unwrap().clone(),
             }],
+            plot_downloads: get_default_plot_downloads(),
         }];
         Ok(tabs)
     }

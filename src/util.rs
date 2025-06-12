@@ -69,6 +69,14 @@ impl fmt::Display for CountType {
     }
 }
 
+pub fn get_default_plot_downloads() -> Vec<(String, String)> {
+    vec![
+        ("png".to_string(), "Download as png".to_string()),
+        ("svg".to_string(), "Download as svg".to_string()),
+        ("vega-editor".to_string(), "Open in vega editor".to_string()),
+    ]
+}
+
 #[derive(Debug, Clone)]
 pub struct ItemTable {
     pub items: Vec<ItemIdSize>,
