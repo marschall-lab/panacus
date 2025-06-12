@@ -53,6 +53,7 @@ pub fn get_instructions(args: &ArgMatches) -> Option<anyhow::Result<Vec<Analysis
         };
         let parameters = vec![AnalysisRun::new(
             graph,
+            None,
             subset,
             exclude,
             grouping,

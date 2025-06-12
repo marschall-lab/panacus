@@ -17,7 +17,7 @@
           {{#each this.runs}}
           <li>
             <button class="btn icon-space btn-toggle" style="width: 95%" data-bs-toggle="collapse" data-bs-target="#{{this.id}}-run-collapse" aria-expanded="false" aria-controls="{{this.id}}-run-collapse">
-              <div style="float: left; padding-left: 7px">
+              <div style="float: left; padding-left: 7px; text-align: left">
                 {{this.title}}
               </div>
             </button>
@@ -39,8 +39,8 @@
   </ul>
   <ul class="list-unstyled ps-0">
     <li class="border-top my-3"></li>
-    <li><a href="https://github.com/marschall-lab/panacus" class="btn">GitHub</a></li>
-    <li><a href="#" class="btn">Documentation</a></li>
+    <li><a href="https://github.com/codialab/panacus" class="btn">GitHub</a></li>
+    <li><a href="https://github.com/codialab/panacus/wiki" class="btn">Documentation</a></li>
     <li class="version-text">Created on {{timestamp}} using<br> panacus {{version}}</li>
   </ul>
 </div>

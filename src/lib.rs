@@ -226,6 +226,7 @@ pub fn execute_pipeline<W: Write>(
             }
             Task::GraphStateChange {
                 graph,
+                name,
                 subset,
                 exclude,
                 grouping,
@@ -236,6 +237,7 @@ pub fn execute_pipeline<W: Write>(
                 gb.change_graph_state(
                     GraphState {
                         graph: graph.to_string(),
+                        name: name.clone(),
                         subset: subset.to_string(),
                         exclude: exclude.to_string(),
                         grouping: grouping.clone(),

@@ -602,7 +602,7 @@ impl ReportItem {
                     .cartesian_product(0..names.len())
                     .map(|(l, n)| {
                         format!(
-                            "{{'label': {}, 'name': '{}', 'value': {}}}",
+                            "{{'label': '{}', 'name': '{}', 'value': {}}}",
                             labels[l], names[n], values[n][l]
                         )
                     })

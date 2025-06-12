@@ -70,7 +70,7 @@ for (let key in objects.datasets) {
         }
         let yourVlSpec = {
             $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
-            description: 'A simple bar chart with embedded data.',
+            description: 'Bar',
             width: 1000,
             "autosize": {
                 "type": "fit",
@@ -181,7 +181,7 @@ for (let key in objects.datasets) {
         let id = 'chart-bar-' + m.id;
         let yourVlSpec = {
             $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
-            description: 'A simple bar chart with embedded data.',
+            description: 'MultiBar',
             width: 1000,
             "autosize": {
                 "type": "fit",
@@ -193,7 +193,7 @@ for (let key in objects.datasets) {
                 {
                     mark: {"type": 'bar', "tooltip": {"content": "data"}},
                     encoding: {
-                        x: {field: 'label', type: 'ordinal', title: m.x_label},
+                        x: {field: 'label', type: 'ordinal', title: m.x_label, sort: null},
                         "y": {
                             "aggregate": "sum", "field": "value",
                             "title": m.y_label,
@@ -270,7 +270,7 @@ for (let key in objects.datasets) {
         let thisId = 'chart-line-' + l.id;
         let mySpec = {
             "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-            "description": "Stock prices of 5 Tech Companies over Time.",
+            "description": "Line",
             "data": l.data,
             "width": 1000,
             "height": 400,
@@ -352,7 +352,7 @@ for (let key in objects.datasets) {
         // buildPlotDownload(myChart, h.id, fname);
         let mySpec = {
             "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-            "description": "Punchcard Visualization like on Github. The day on y-axis uses a custom order from Monday to Sunday.  The sort property supports both full day names (e.g., 'Monday') and their three letter initials (e.g., 'mon') -- both of which are case insensitive.",
+            "description": "Hexbin",
             "data": h.bins,
             "width": 795,
             "height": 805,
@@ -468,7 +468,7 @@ for (let key in objects.datasets) {
         // buildPlotDownload(myChart, h.id, fname);
         let mySpec = {
             "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-            "description": "Punchcard Visualization like on Github. The day on y-axis uses a custom order from Monday to Sunday.  The sort property supports both full day names (e.g., 'Monday') and their three letter initials (e.g., 'mon') -- both of which are case insensitive.",
+            "description": "Heatmap",
             "data": h.data_set,
             "width": 800,
             "height": 800,

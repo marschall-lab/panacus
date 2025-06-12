@@ -31,6 +31,7 @@ pub enum Task {
     Analysis(Box<dyn Analysis>),
     GraphStateChange {
         graph: String,
+        name: Option<String>,
         reqs: HashSet<InputRequirement>,
         nice: bool,
         subset: String,
@@ -51,6 +52,7 @@ impl Debug for Task {
             Self::Analysis(analysis) => write!(f, "Analysis {}", analysis.get_type()),
             Self::GraphStateChange {
                 graph,
+                name,
                 reqs,
                 nice,
                 subset,
@@ -59,6 +61,7 @@ impl Debug for Task {
             } => f
                 .debug_tuple("GraphStateChange")
                 .field(graph)
+                .field(name)
                 .field(subset)
                 .field(exclude)
                 .field(grouping)
@@ -79,6 +82,7 @@ impl Debug for Task {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
 pub struct AnalysisRun {
     graph: String,
+    name: Option<String>,
     #[serde(default)]
     subset: String,
     #[serde(default)]
@@ -92,6 +96,7 @@ pub struct AnalysisRun {
 impl AnalysisRun {
     pub fn new(
         graph: String,
+        name: Option<String>,
         subset: String,
         exclude: String,
         grouping: Option<Grouping>,
@@ -100,6 +105,7 @@ impl AnalysisRun {
     ) -> Self {
         Self {
             graph,
+            name,
             subset,
             exclude,
             grouping,
@@ -110,6 +116,7 @@ impl AnalysisRun {
     pub fn get_example() -> Self {
         Self {
             graph: "../simple_files/pggb/chr18.gfa".to_string(),
+            name: None,
             subset: String::new(),
             exclude: String::new(),
             grouping: Some(Grouping::Haplotype),
@@ -137,6 +144,7 @@ impl AnalysisRun {
             input_req.insert(InputRequirement::Graph(runs[i].graph.clone()));
             tasks.push(Task::GraphStateChange {
                 graph: std::mem::take(&mut runs[i].graph),
+                name: std::mem::take(&mut runs[i].name),
                 reqs: input_req,
                 nice: runs[i].nice,
                 subset: std::mem::take(&mut runs[i].subset),

@@ -48,6 +48,7 @@ pub fn get_instructions(args: &ArgMatches) -> Option<Result<Vec<AnalysisRun>, an
         };
         Some(Ok(vec![AnalysisRun::new(
             graph,
+            None,
             subset,
             exclude,
             grouping,

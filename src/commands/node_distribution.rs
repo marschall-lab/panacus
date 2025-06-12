@@ -28,6 +28,7 @@ pub fn get_instructions(args: &ArgMatches) -> Option<Result<Vec<AnalysisRun>, an
             .to_owned();
         let parameters = vec![AnalysisRun::new(
             graph,
+            None,
             "".to_string(),
             "".to_string(),
             None,

@@ -31,6 +31,7 @@ pub use hist::ThresholdContainer;
 #[derive(Debug, Clone, Default)]
 pub struct GraphState {
     pub graph: String,
+    pub name: Option<String>,
     pub subset: String,
     pub exclude: String,
     pub grouping: Option<Grouping>,
@@ -41,6 +42,7 @@ pub struct GraphBroker {
     state: Option<GraphState>,
     // GraphStorage
     graph_aux: Option<GraphStorage>,
+    name: String,
 
     // AbabcusAuxilliary
     abacus_aux_params: GraphMaskParameters,
@@ -62,6 +64,7 @@ impl GraphBroker {
     pub fn new() -> Self {
         GraphBroker {
             state: None,
+            name: "".to_string(),
             graph_aux: None,
             abacus_aux_params: GraphMaskParameters::default(),
             abacus_aux: None,
@@ -110,6 +113,11 @@ impl GraphBroker {
             if prev_state.grouping != state.grouping {
                 self.with_group(&state.grouping);
             }
+            if let Some(name) = &state.name {
+                self.name = name.to_owned();
+            } else {
+                self.name = self.get_default_run_name();
+            }
             self.finish()?;
         } else {
             *self = Self::from_gfa(input_requirements, nice);
@@ -121,6 +129,11 @@ impl GraphBroker {
             }
             if state.grouping.is_some() {
                 self.with_group(&state.grouping);
+            }
+            if let Some(name) = &state.name {
+                self.name = name.to_owned();
+            } else {
+                self.name = self.get_default_run_name();
             }
             self.finish()?;
         }
@@ -156,6 +169,7 @@ impl GraphBroker {
         let graph_aux = Some(GraphStorage::from_gfa(gfa_file, nice, count_type));
         GraphBroker {
             state: None,
+            name: "".to_string(),
             graph_aux,
             abacus_aux_params: GraphMaskParameters::default(),
             abacus_aux: None,
@@ -233,6 +247,10 @@ impl GraphBroker {
     }
 
     pub fn get_run_name(&self) -> String {
+        self.name.to_owned()
+    }
+
+    fn get_default_run_name(&self) -> String {
         if let Some(state) = self.state.as_ref() {
             if state.grouping.is_some() {
                 format!(
