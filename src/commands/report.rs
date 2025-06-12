@@ -47,16 +47,21 @@ fn parse_report_args(args: &ArgMatches) -> Result<Vec<AnalysisRun>, anyhow::Erro
     } else {
         println!(
             "
-# Example yaml:
+# Missing YAML file!
+#
+# Example YAML:
 # To get started copy this into a .yaml file and edit it
 
-- !Hist
-  graph: ../simple_files/simple_graphs/t_groups.gfa
-- !Hist
-  name: testing this
-  count_type: Bp
-  graph: ../simple_files/simple_graphs/t_group2.gfa
-  display: false
+- graph: ../graphs/test_graph.gfa
+  grouping: Haplotype
+  analyses:
+    - !Hist
+      count_type: Bp
+    - !Growth
+      coverage: 1,1,2
+      quorum: 0,0.9,0
+
+# For more information see: https://github.com/codialab/panacus/wiki
                 "
         );
         Ok(Vec::new())
