@@ -51,7 +51,8 @@ impl Analysis for Info {
         let table = self.generate_table(gb)?;
         let table = format!("`{}`", &table);
         let run_name = self.get_run_name(gb.expect("Info should be called with a graph"));
-        let safe_run_name = run_name
+        let run_id = self.get_run_id(gb.expect("Info should be called with a graph"));
+        let safe_run_name = run_id
             .clone()
             .to_lowercase()
             .replace(&[' ', '|', '\\'], "-");
@@ -60,6 +61,7 @@ impl Analysis for Info {
                 id: format!("{safe_run_name}-graph"),
                 analysis: "Pangenome Info".to_string(),
                 run_name: run_name.clone(),
+                run_id: run_id.clone(),
                 countable: "Graph Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::Table {
@@ -73,6 +75,7 @@ impl Analysis for Info {
                 id: format!("{safe_run_name}-node"),
                 analysis: "Pangenome Info".to_string(),
                 run_name: run_name.clone(),
+                run_id: run_id.clone(),
                 countable: "Node Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::Table {
@@ -86,6 +89,7 @@ impl Analysis for Info {
                 id: format!("{safe_run_name}-path"),
                 analysis: "Pangenome Info".to_string(),
                 run_name: run_name.clone(),
+                run_id: run_id.clone(),
                 countable: "Path Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![ReportItem::Table {
@@ -99,11 +103,12 @@ impl Analysis for Info {
                 id: format!("{safe_run_name}-group"),
                 analysis: "Pangenome Info".to_string(),
                 run_name: run_name.clone(),
+                run_id: run_id.clone(),
                 countable: "Group Info".to_string(),
                 table: Some(table.clone()),
                 items: vec![
-                    self.get_group_bar(&run_name, "node"),
-                    self.get_group_bar(&run_name, "bp"),
+                    self.get_group_bar(&run_id, "node"),
+                    self.get_group_bar(&run_id, "bp"),
                 ],
                 plot_downloads: get_default_plot_downloads(),
             },
@@ -139,7 +144,11 @@ impl Info {
     }
 
     fn get_run_name(&self, gb: &GraphBroker) -> String {
-        format!("{}-info", gb.get_run_name())
+        format!("{}", gb.get_run_name())
+    }
+
+    fn get_run_id(&self, gb: &GraphBroker) -> String {
+        format!("{}-info", gb.get_run_id())
     }
 
     fn get_graph_table(&self) -> (Vec<String>, Vec<Vec<String>>) {

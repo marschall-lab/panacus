@@ -58,6 +58,7 @@ fn combine_vars(mut a: JsVars, b: JsVars) -> JsVars {
 pub struct AnalysisSection {
     pub analysis: String,
     pub run_name: String,
+    pub run_id: String,
     pub countable: String,
     pub items: Vec<ReportItem>,
     pub id: String,
@@ -111,6 +112,7 @@ impl AnalysisSection {
             ("id", to_json(&self.id)),
             ("analysis", to_json(&self.analysis)),
             ("run_name", to_json(&self.run_name)),
+            ("run_id", to_json(&self.run_id)),
             ("countable", to_json(&self.countable)),
             ("has_table", to_json(self.table.is_some())),
             ("has_graph", to_json(!self.plot_downloads.is_empty())),
@@ -196,6 +198,7 @@ impl AnalysisSection {
             id: id,
             analysis: "Custom".to_string(),
             run_name: gb.get_run_name(),
+            run_id: gb.get_run_id(),
             countable: name,
             table,
             items: vec![report_item],
@@ -252,20 +255,20 @@ impl AnalysisSection {
         let analysis_names = sections.iter().map(|x| x.analysis.clone()).unique();
         let mut analyses = Vec::new();
         for analysis_name in analysis_names {
-            let run_names = sections
+            let run_ids = sections
                 .iter()
                 .filter(|x| x.analysis == analysis_name)
-                .map(|x| x.run_name.clone())
+                .map(|x| (x.run_id.clone(), x.run_name.clone()))
                 .unique();
             let analysis_sections = sections
                 .iter()
                 .filter(|x| x.analysis == analysis_name)
                 .collect::<Vec<_>>();
             let mut runs = Vec::new();
-            for run_name in run_names {
+            for (run_id, run_name) in run_ids {
                 let run_sections = analysis_sections
                     .iter()
-                    .filter(|x| x.run_name == run_name)
+                    .filter(|x| x.run_id == run_id)
                     .collect::<Vec<_>>();
                 if run_sections.is_empty() {
                     continue;
@@ -279,14 +282,14 @@ impl AnalysisSection {
                     ]);
                     countables.push(to_json(content));
                 }
-                let run_name = run_sections
+                let run_id = run_sections
                     .first()
                     .expect("Run section has at least one run")
-                    .run_name
+                    .run_id
                     .clone();
                 let content = HashMap::from([
                     ("title", to_json(&run_name)),
-                    ("id", to_json(to_id(&run_name))),
+                    ("id", to_json(to_id(&run_id))),
                     ("countables", to_json(countables)),
                 ]);
                 runs.push(to_json(content));

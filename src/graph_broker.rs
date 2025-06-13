@@ -250,6 +250,13 @@ impl GraphBroker {
         self.name.to_owned()
     }
 
+    pub fn get_run_id(&self) -> String {
+        self.name
+            .to_lowercase()
+            .replace([' ', '_', '#', '/', '"'], "-")
+            .to_owned()
+    }
+
     fn get_default_run_name(&self) -> String {
         if let Some(state) = self.state.as_ref() {
             if state.grouping.is_some() {

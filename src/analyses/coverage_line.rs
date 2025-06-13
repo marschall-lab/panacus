@@ -68,7 +68,7 @@ impl Analysis for CoverageLine {
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "coverage-line-{}",
-            self.get_run_name(gb)
+            self.get_run_id(gb)
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -89,6 +89,7 @@ impl Analysis for CoverageLine {
                     analysis: "Coverage Line".to_string(),
                     table: Some(table.clone()),
                     run_name: self.get_run_name(gb),
+                    run_id: self.get_run_id(gb),
                     countable: k.to_string(),
                     items: vec![ReportItem::Line {
                         id: format!("{id_prefix}-{k}"),
@@ -139,6 +140,10 @@ impl CoverageLine {
     }
 
     fn get_run_name(&self, gb: &GraphBroker) -> String {
-        format!("{}-coverageline", gb.get_run_name())
+        format!("{}", gb.get_run_name())
+    }
+
+    fn get_run_id(&self, gb: &GraphBroker) -> String {
+        format!("{}-coverageline", gb.get_run_id())
     }
 }

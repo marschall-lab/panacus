@@ -73,7 +73,7 @@ impl Analysis for OrderedHistgrowth {
         let growths = &self.inner.as_ref().unwrap().growths;
         let id_prefix = format!(
             "pan-ordered-growth-{}",
-            self.get_run_name(dm.expect("Ordered Growth should be called with a graph"))
+            self.get_run_id(dm.expect("Ordered Growth should be called with a graph"))
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -82,6 +82,7 @@ impl Analysis for OrderedHistgrowth {
             id: format!("{id_prefix}"),
             analysis: "Ordered Growth".to_string(),
             run_name: self.get_run_name(dm.expect("Ordered Growth should be called with a graph")),
+            run_id: self.get_run_id(dm.expect("Ordered Growth should be called with a graph")),
             countable: count.to_string(),
             table: Some(table.clone()),
             items: vec![ReportItem::MultiBar {
@@ -158,7 +159,11 @@ impl OrderedHistgrowth {
     }
 
     fn get_run_name(&self, gb: &GraphBroker) -> String {
-        format!("{}-orderedgrowth", gb.get_run_name())
+        format!("{}", gb.get_run_name())
+    }
+
+    fn get_run_id(&self, gb: &GraphBroker) -> String {
+        format!("{}-orderedgrowth", gb.get_run_id())
     }
 
     fn set_inner(&mut self, gb: Option<&GraphBroker>) -> anyhow::Result<()> {

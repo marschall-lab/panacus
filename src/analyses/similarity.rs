@@ -66,7 +66,7 @@ impl Analysis for Similarity {
         let table = format!("`{}`", &table);
         let id_prefix = format!(
             "sim-heat-{}",
-            self.get_run_name(gb)
+            self.get_run_id(gb)
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
@@ -75,6 +75,7 @@ impl Analysis for Similarity {
             analysis: "Similarity Heatmap".to_string(),
             table: Some(table.clone()),
             run_name: self.get_run_name(gb),
+            run_id: self.get_run_id(gb),
             countable: k.to_string(),
             items: vec![ReportItem::Heatmap {
                 id: format!("{id_prefix}-{k}"),
@@ -186,7 +187,11 @@ impl Similarity {
     }
 
     fn get_run_name(&self, gb: &GraphBroker) -> String {
-        format!("{}-similarity", gb.get_run_name())
+        format!("{}", gb.get_run_name())
+    }
+
+    fn get_run_id(&self, gb: &GraphBroker) -> String {
+        format!("{}-similarity", gb.get_run_id())
     }
 }
 
