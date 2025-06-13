@@ -304,14 +304,10 @@ impl AnalysisSection {
         }
 
         let mut vars = HashMap::from([("analyses", to_json(analyses))]);
-        vars.insert(
-            "version",
-            to_json(
-                option_env!("GIT_HASH")
-                    .unwrap_or(env!("CARGO_PKG_VERSION"))
-                    .to_string(),
-            ),
-        );
+        let hash = option_env!("GIT_HASH").unwrap_or("nogit");
+        let version = env!("CARGO_PKG_VERSION");
+        let version_text = format!("v{version}-{hash}");
+        vars.insert("version", to_json(version_text));
         let now = OffsetDateTime::now_utc();
         vars.insert(
             "timestamp",
