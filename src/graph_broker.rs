@@ -116,7 +116,7 @@ impl GraphBroker {
             if let Some(name) = &state.name {
                 self.name = name.to_owned();
             } else {
-                self.name = self.get_default_run_name();
+                self.name = self.get_default_run_name(&state);
             }
             self.finish()?;
         } else {
@@ -133,7 +133,7 @@ impl GraphBroker {
             if let Some(name) = &state.name {
                 self.name = name.to_owned();
             } else {
-                self.name = self.get_default_run_name();
+                self.name = self.get_default_run_name(&state);
             }
             self.finish()?;
         }
@@ -257,20 +257,16 @@ impl GraphBroker {
             .to_owned()
     }
 
-    fn get_default_run_name(&self) -> String {
-        if let Some(state) = self.state.as_ref() {
-            if state.grouping.is_some() {
-                format!(
-                    "{}-{}-{}",
-                    state.graph,
-                    state.subset,
-                    state.grouping.as_ref().unwrap()
-                )
-            } else {
-                format!("{}-{}", state.graph, state.subset)
-            }
+    fn get_default_run_name(&self, state: &GraphState) -> String {
+        if state.grouping.is_some() {
+            format!(
+                "{}-{}-{}",
+                state.graph,
+                state.subset,
+                state.grouping.as_ref().unwrap()
+            )
         } else {
-            panic!("Cannot generate a run name without a graph");
+            format!("{}-{}", state.graph, state.subset)
         }
     }
 

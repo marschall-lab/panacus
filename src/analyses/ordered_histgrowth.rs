@@ -17,8 +17,6 @@ pub struct OrderedHistgrowth {
     inner: Option<InnerOrderedGrowth>,
 }
 
-const MAX_WIDTH: usize = 25;
-
 impl ConstructibleAnalysis for OrderedHistgrowth {
     fn from_parameter(parameter: AnalysisParameter) -> Self {
         Self {
@@ -135,16 +133,6 @@ impl Analysis for OrderedHistgrowth {
 }
 
 impl OrderedHistgrowth {
-    fn truncate(input: &str) -> String {
-        let res: String = input.chars().rev().take(MAX_WIDTH).collect();
-        let res: String = res.chars().rev().collect();
-        if res.len() < input.len() {
-            format!("...{}", res)
-        } else {
-            res
-        }
-    }
-
     fn count_to_input_req(count: CountType) -> HashSet<InputRequirement> {
         match count {
             CountType::Bp => HashSet::from([InputRequirement::Bp]),
@@ -198,11 +186,7 @@ impl OrderedHistgrowth {
                         .calc_growth(c, q, gb.unwrap().get_node_lens())
                 })
                 .collect();
-            self.inner = Some(InnerOrderedGrowth {
-                growths,
-                hist_aux,
-                graph: gb.unwrap().get_fname(),
-            });
+            self.inner = Some(InnerOrderedGrowth { growths, hist_aux });
             Ok(())
         } else {
             panic!("OrderedGrowth should always contain ordered-growth parameter")
@@ -213,5 +197,4 @@ impl OrderedHistgrowth {
 struct InnerOrderedGrowth {
     growths: Growths,
     hist_aux: ThresholdContainer,
-    graph: String,
 }

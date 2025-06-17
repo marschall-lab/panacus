@@ -4,7 +4,6 @@ use itertools::multizip;
 use itertools::Itertools;
 
 use crate::{
-    analysis_parameter::AnalysisParameter,
     graph_broker::{GraphBroker, ItemId},
     html_report::{AnalysisSection, Bin, ReportItem},
     util::get_default_plot_downloads,
@@ -14,7 +13,6 @@ use crate::{
 use super::{Analysis, ConstructibleAnalysis, InputRequirement};
 
 pub struct NodeDistribution {
-    parameter: AnalysisParameter,
     bins: Vec<Bin>,
     min: (u32, f64),
     max: (u32, f64),
@@ -56,13 +54,6 @@ impl Analysis for NodeDistribution {
                 .to_lowercase()
                 .replace(&[' ', '|', '\\'], "-")
         );
-        let radius = match self.parameter {
-            AnalysisParameter::NodeDistribution { radius, .. } => {
-                //(radius as f64 / 100.0 * 928.0).round() as u32
-                radius
-            }
-            _ => panic!("NodeDistribution needs a node distribution parameter"),
-        };
         let tab = vec![AnalysisSection {
             id: format!("{}-{}", id_prefix, CountType::Node.to_string()),
             analysis: "Node distribution".to_string(),
@@ -82,9 +73,8 @@ impl Analysis for NodeDistribution {
 }
 
 impl ConstructibleAnalysis for NodeDistribution {
-    fn from_parameter(parameter: crate::analysis_parameter::AnalysisParameter) -> Self {
+    fn from_parameter(_parameter: crate::analysis_parameter::AnalysisParameter) -> Self {
         Self {
-            parameter,
             bins: Vec::new(),
             min: (0, 0.0),
             max: (0, 0.0),
@@ -109,11 +99,6 @@ impl NodeDistribution {
                 itertools::MinMaxResult::MinMax(min, max) => (min, max),
                 _ => panic!("Node distribution needs to have at least two countables"),
             };
-            let points: Vec<(u32, f64)> = countables
-                .iter()
-                .copied()
-                .zip(node_lens.iter().copied())
-                .collect();
             let points: Vec<(ItemId, u32, f64)> = multizip((
                 node_ids,
                 countables.into_iter().copied(),

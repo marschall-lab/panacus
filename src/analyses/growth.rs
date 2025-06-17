@@ -1,12 +1,15 @@
 use core::{panic, str};
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::BufReader;
 
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 
 use crate::analysis_parameter::AnalysisParameter;
 use crate::graph_broker::{GraphBroker, Hist, ThresholdContainer};
 use crate::html_report::ReportItem;
 use crate::{
+    io::parse_hists,
     io::write_table,
     util::{get_default_plot_downloads, CountType},
 };
@@ -26,6 +29,7 @@ impl Analysis for Growth {
     fn get_type(&self) -> String {
         "Growth".to_string()
     }
+
     fn generate_table(
         &mut self,
         dm: Option<&crate::graph_broker::GraphBroker>,
@@ -183,6 +187,80 @@ impl ConstructibleAnalysis for Growth {
 }
 
 impl Growth {
+    pub fn generate_table_from_hist(&mut self, file: &str) -> anyhow::Result<String> {
+        if let AnalysisParameter::Growth {
+            quorum,
+            coverage,
+            add_hist,
+        } = &self.parameter
+        {
+            log::info!("reporting hist table");
+
+            let quorum = quorum.to_owned().unwrap_or("0".to_string());
+            let coverage = coverage.to_owned().unwrap_or("1".to_string());
+            let hist_aux = ThresholdContainer::parse_params(&quorum, &coverage)?;
+            let file = File::open(file)?;
+            let mut data = BufReader::new(file);
+            let (coverages, comments) = parse_hists(&mut data)?;
+            let hists: Hists = coverages
+                .into_iter()
+                .map(|(count, coverage)| Hist { count, coverage })
+                .collect();
+            let growths: Growths = hists
+                .par_iter()
+                .map(|h| (h.count, h.calc_all_growths(&hist_aux)))
+                .collect();
+            let mut res = String::new();
+            for c in comments {
+                res.push_str(str::from_utf8(&c[..])?);
+                res.push_str("\n");
+            }
+            res.push_str(&format!(
+                "# {}\n",
+                std::env::args().collect::<Vec<String>>().join(" ")
+            ));
+
+            let mut header_cols = vec![vec![
+                "panacus".to_string(),
+                "count".to_string(),
+                "coverage".to_string(),
+                "quorum".to_string(),
+            ]];
+            let mut output_columns: Vec<Vec<f64>> = Vec::new();
+
+            if *add_hist {
+                for h in hists {
+                    output_columns.push(h.coverage.iter().map(|x| *x as f64).collect());
+                    header_cols.push(vec![
+                        "hist".to_string(),
+                        h.count.to_string(),
+                        String::new(),
+                        String::new(),
+                    ])
+                }
+            }
+
+            for (count, g) in growths {
+                output_columns.extend(g.clone());
+                let m = hist_aux.coverage.len();
+                header_cols.extend(
+                    std::iter::repeat("growth")
+                        .take(m)
+                        .zip(std::iter::repeat(count).take(m))
+                        .zip(hist_aux.coverage.iter())
+                        .zip(&hist_aux.quorum)
+                        .map(|(((p, t), c), q)| {
+                            vec![p.to_string(), t.to_string(), c.get_string(), q.get_string()]
+                        }),
+                );
+            }
+            res.push_str(&write_table(&header_cols, &output_columns)?);
+            Ok(res)
+        } else {
+            panic!("Growth needs growth parameter");
+        }
+    }
+
     fn get_run_name(&self, gb: &GraphBroker) -> String {
         format!("{}", gb.get_run_name())
     }

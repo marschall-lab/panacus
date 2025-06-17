@@ -1,7 +1,5 @@
 use itertools::Itertools;
 use kodama::{linkage, Dendrogram};
-use rayon::iter::IntoParallelIterator;
-use rayon::prelude::*;
 
 use crate::graph_broker::GraphBroker;
 use crate::util::get_default_plot_downloads;

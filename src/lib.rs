@@ -13,7 +13,8 @@ use std::{fmt::Debug, io::Write};
 use thiserror::Error;
 
 use analyses::Analysis;
-use analysis_parameter::{AnalysisRun, Task};
+use analyses::ConstructibleAnalysis;
+use analysis_parameter::{AnalysisParameter, AnalysisRun, Task};
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use graph_broker::{GraphBroker, GraphState};
 use html_report::AnalysisSection;
@@ -138,6 +139,38 @@ pub fn run_cli() -> Result<(), anyhow::Error> {
             AnalysisSection::generate_report(full_report, &mut registry, &json_files[0])?;
         writeln!(&mut out, "{report_text}")?;
         return Ok(());
+    }
+
+    if let Some(args) = args.subcommand_matches("growth") {
+        if args
+            .get_one::<String>("file")
+            .expect("growth subcommand has gfa file")
+            .ends_with("tsv")
+        {
+            if args.get_one::<String>("subset").is_some()
+                || args.get_one::<String>("exclude").is_some()
+                || args.get_one::<String>("grouping").is_some()
+                || args.get_flag("groupby-sample")
+                || args.get_flag("groupby-haplotype")
+            {
+                panic!("subset, exclude and groupby can only be used in graph mode (with a .gfa or .gfa.gz file)");
+            }
+            let coverage = args.get_one::<String>("coverage").cloned();
+            let quorum = args.get_one::<String>("quorum").cloned();
+            let add_hist = args.get_flag("hist");
+            let parameter = AnalysisParameter::Growth {
+                coverage,
+                quorum,
+                add_hist,
+            };
+            let mut growth = analyses::growth::Growth::from_parameter(parameter);
+            let table = growth.generate_table_from_hist(
+                args.get_one::<String>("file")
+                    .expect("growth subcommand has gfa file"),
+            )?;
+            writeln!(&mut out, "{table}")?;
+            return Ok(());
+        }
     }
 
     if let Some(report) = commands::report::get_instructions(&args) {

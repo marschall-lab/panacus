@@ -1,5 +1,4 @@
-use base64::prelude::*;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::engine::general_purpose::STANDARD;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -750,7 +749,7 @@ impl ReportItem {
                     )]),
                 ))
             }
-            Self::Pdf { id, file } => {
+            Self::Pdf { id: _id, file } => {
                 if !registry.has_template("pdf") {
                     registry.register_template_string("pdf", from_utf8(PDF_HBS).unwrap())?;
                 }
@@ -787,14 +786,6 @@ impl fmt::Display for Bin {
     }
 }
 
-struct CounterBin {
-    pub length: u64,
-    pub x: f64,
-    pub y: f64,
-    pub real_x: f64,
-    pub real_y: f64,
-}
-
 impl Bin {
     pub fn hexbin(points: &Vec<(ItemId, u32, f64)>, nx: u32, ny: u32) -> Vec<Self> {
         let max_coverage = points
@@ -804,7 +795,7 @@ impl Bin {
             .expect("At least one point");
         let max_length = points.iter().map(|(_i, _c, l)| *l).fold(0. / 0., f64::max);
         let dx = max_coverage as f64 / (nx - 1) as f64;
-        let t = dx as f64 / 3f64.sqrt();
+        let _t = dx as f64 / 3f64.sqrt();
         let dy = max_length / (ny - 1) as f64;
         let mut bins: HashMap<(bool, i64, i64), Self> = HashMap::new();
         for point in points {

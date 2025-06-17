@@ -113,28 +113,6 @@ impl AnalysisRun {
             analyses,
         }
     }
-    pub fn get_example() -> Self {
-        Self {
-            graph: "../simple_files/pggb/chr18.gfa".to_string(),
-            name: None,
-            subset: String::new(),
-            exclude: String::new(),
-            grouping: Some(Grouping::Haplotype),
-            nice: true,
-            analyses: vec![
-                AnalysisParameter::Hist {
-                    count_type: CountType::Bp,
-                },
-                AnalysisParameter::Growth {
-                    coverage: Some("1,1,2".to_string()),
-                    quorum: Some("0,0.9,0".to_string()),
-                    add_hist: false,
-                },
-                AnalysisParameter::Info,
-                AnalysisParameter::NodeDistribution { radius: 20 },
-            ],
-        }
-    }
 
     pub fn convert_to_tasks(mut runs: Vec<Self>) -> Vec<Task> {
         runs.sort();
